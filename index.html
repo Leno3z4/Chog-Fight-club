@@ -3,10 +3,81 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Chog Fight Club — NFT identity becomes Battle DNA in a fast, tactical fighter." />
     <title>Chog Fight Club</title>
   </head>
   <body>
-    <div id="game"></div>
+    <main id="site-shell">
+      <header class="site-nav">
+        <a class="brand" href="#top" aria-label="Chog Fight Club home">CHOG<span>FIGHT</span>CLUB</a>
+        <nav aria-label="Primary navigation">
+          <a href="#how-it-works">How it works</a>
+          <a href="#combat">Combat</a>
+          <a href="#dna">Battle DNA</a>
+        </nav>
+        <button class="nav-cta" data-enter-arena>Enter arena</button>
+      </header>
+
+      <section class="hero" id="top">
+        <div class="hero-copy reveal">
+          <p class="eyebrow">NFT × FIGHTING GAME</p>
+          <h1>Your Chog<br /><em>fights like itself.</em></h1>
+          <p class="hero-lede">Every Chog becomes a fighter. Its traits resolve into Battle DNA, abilities, stats and matchups — then you take it into the arena.</p>
+          <div class="hero-actions">
+            <button class="primary-cta" data-enter-arena>Play the prototype <span>→</span></button>
+            <a class="secondary-cta" href="#how-it-works">See how it works</a>
+          </div>
+          <div class="hero-meta"><span>100 HP</span><span>3 offensive abilities</span><span>real-time combat</span></div>
+        </div>
+        <div class="hero-stage reveal" aria-hidden="true">
+          <div class="stage-grid"></div>
+          <div class="chog-core">
+            <div class="core-eye left"></div><div class="core-eye right"></div><div class="core-mouth"></div>
+            <div class="core-arm left"></div><div class="core-arm right"></div>
+          </div>
+          <div class="trait-orbit orbit-a"><span>AURA</span></div>
+          <div class="trait-orbit orbit-b"><span>FORM</span></div>
+          <div class="trait-orbit orbit-c"><span>HEAD</span></div>
+          <div class="stage-label">BATTLE DNA / 001</div>
+        </div>
+      </section>
+
+      <section class="marquee" aria-label="Game pillars">
+        <div>TRAITS BECOME POWER</div><div>COUNTERPLAY MATTERS</div><div>EVERY FIGHTER IS DIFFERENT</div>
+      </section>
+
+      <section class="section split" id="how-it-works">
+        <div class="section-intro reveal"><p class="eyebrow">01 / IDENTITY</p><h2>The NFT is the fighter.</h2></div>
+        <div class="section-body reveal"><p>We do not use the NFT as a badge sitting beside the game. Its metadata is resolved into a deterministic Battle DNA profile that drives how the Chog plays.</p><div class="feature-list"><article><b>01</b><span><strong>Traits</strong> Metadata is normalized into gameplay groups.</span></article><article><b>02</b><span><strong>Battle DNA</strong> Aura, background, form and tier shape the combat identity.</span></article><article><b>03</b><span><strong>Abilities</strong> The identity selects a distinct base, special and defense kit.</span></article></div></div>
+      </section>
+
+      <section class="section combat-section" id="combat">
+        <div class="section-intro reveal"><p class="eyebrow">02 / COMBAT</p><h2>Simple controls.<br />Deep decisions.</h2></div>
+        <div class="combat-grid reveal">
+          <article><span class="key">F</span><h3>Basic</h3><p>4 HP · 0.5s reload · 5% energy</p></article>
+          <article><span class="key">1</span><h3>Base ability</h3><p>6 HP · 5s reload · 10% energy</p></article>
+          <article><span class="key">2</span><h3>Special</h3><p>10 HP · 30s reload · 35% energy</p></article>
+          <article><span class="key">3</span><h3>Defense</h3><p>Timed guard · tier-based block · no energy</p></article>
+        </div>
+        <div class="movement-row reveal"><span>A / D or ← / → Move</span><span>SPACE / W / ↑ Jump</span><span>Jump can evade attacks</span></div>
+      </section>
+
+      <section class="section dna-section" id="dna">
+        <div class="dna-card reveal"><div><p class="eyebrow">03 / BATTLE DNA</p><h2>Same collection.<br /><em>Different fighters.</em></h2></div><p>Tier controls the ceiling. Aura defines the power family. Background changes the expression. Head becomes the signature technique. The rest of the metadata fills out the fighter’s combat bias.</p><div class="dna-flow"><span>NFT</span><i>→</i><span>TRAITS</span><i>→</i><span>BATTLE DNA</span><i>→</i><span>ABILITIES</span><i>→</i><span>FIGHT</span></div></div>
+      </section>
+
+      <section class="final-cta reveal">
+        <p class="eyebrow">THE ARENA IS LIVE AS A PROTOTYPE</p><h2>Pick a Chog.<br />See what it can do.</h2><button class="primary-cta" data-enter-arena>Enter the arena <span>→</span></button>
+      </section>
+
+      <footer><span>CHOG FIGHT CLUB</span><span>Built for the Chogathon</span><a href="#top">Back to top ↑</a></footer>
+    </main>
+
+    <div id="game-shell" aria-hidden="true">
+      <button id="exit-game" type="button">← Back to site</button>
+      <div id="game"></div>
+    </div>
     <script type="module" src="/src/main.js"></script>
+    <script type="module" src="/src/site.js"></script>
   </body>
 </html>
