@@ -1,4 +1,4 @@
-import { isActionReady, jump as engineJump } from "./combatEngine.js";
+import { jump as engineJump } from "./combatEngine.js";
 import combatData from "./data/combat.json";
 import { CharacterState } from "./stateMachine.js";
 
@@ -10,18 +10,19 @@ export const CHARACTER_STATES = {
   ATTACK_ACTIVE: "attack-active",
   ATTACK_RECOVERY: "attack-recovery",
   HITSTUN: "hitstun",
+  DEFEATED: "defeated",
 };
 
 class IdleState extends CharacterState {
   update(character) {
-    if (character.hitstunRemaining > 0) return;
+    if (character.combatant.defeated || character.hitstunRemaining > 0) return;
     if (character.input.right || character.input.left) character.stateMachine.change(CHARACTER_STATES.WALK);
   }
 }
 
 class WalkState extends CharacterState {
   update(character) {
-    if (character.hitstunRemaining > 0) return;
+    if (character.combatant.defeated || character.hitstunRemaining > 0) return;
     if (!character.input.right && !character.input.left) character.stateMachine.change(CHARACTER_STATES.IDLE);
   }
 }
@@ -45,14 +46,6 @@ class JumpState extends CharacterState {
 
 class AttackStartupState extends CharacterState {
   enter(character, payload) {
-    if (!isActionReady(character.combatant, payload.attack.slot)) {
-      character.attack = null;
-      const seconds = (character.combatant.cooldowns[payload.attack.slot] / 1000).toFixed(1);
-      character.scene.showStatus(`${payload.attack.slot.toUpperCase()} RELOADING — ${seconds}s`);
-      character.stateMachine.change(character.input.left || character.input.right ? CHARACTER_STATES.WALK : CHARACTER_STATES.IDLE);
-      return;
-    }
-
     character.attack = payload.attack;
     character.attack.elapsed = 0;
     character.scene.showStatus(payload.attack.slot === "basic" ? "BASIC — WIND UP" : `${payload.attack.slot.toUpperCase()} — WIND UP`);
@@ -120,7 +113,20 @@ class HitstunState extends CharacterState {
 
   update(character, delta) {
     character.hitstunRemaining = Math.max(0, character.hitstunRemaining - delta);
+    if (character.combatant.defeated) {
+      character.stateMachine.change(CHARACTER_STATES.DEFEATED);
+      return;
+    }
     if (character.hitstunRemaining === 0) character.stateMachine.change(character.input.left || character.input.right ? CHARACTER_STATES.WALK : CHARACTER_STATES.IDLE);
+  }
+}
+
+class DefeatedState extends CharacterState {
+  enter(character) {
+    character.input.left = false;
+    character.input.right = false;
+    character.scene.player.setVelocity(0, 0);
+    character.scene.showStatus("KO");
   }
 }
 
@@ -132,5 +138,6 @@ export function createCharacterStates(character) {
     .add(CHARACTER_STATES.ATTACK_STARTUP, new AttackStartupState())
     .add(CHARACTER_STATES.ATTACK_ACTIVE, new AttackActiveState())
     .add(CHARACTER_STATES.ATTACK_RECOVERY, new AttackRecoveryState())
-    .add(CHARACTER_STATES.HITSTUN, new HitstunState());
+    .add(CHARACTER_STATES.HITSTUN, new HitstunState())
+    .add(CHARACTER_STATES.DEFEATED, new DefeatedState());
 }
