@@ -90,11 +90,12 @@ class AttackActiveState extends CharacterState {
 class AttackRecoveryState extends CharacterState {
   enter(character) {
     character.attack.elapsed = 0;
+    character.attack.recoveryFrameReached = Boolean(character.attack.animationFrameDriven);
   }
 
   update(character, delta) {
     character.attack.elapsed += delta;
-    if (!character.attack.animationFrameDriven && character.attack.elapsed >= character.attack.timing.recovery) {
+    if (character.attack.recoveryFrameReached || (!character.attack.animationFrameDriven && character.attack.elapsed >= character.attack.timing.recovery)) {
       character.attack = null;
       character.attackCooldown = 0;
       character.scene.playerVisual.scaleY = 1;
