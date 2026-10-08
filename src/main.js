@@ -7,7 +7,9 @@ import { CHARACTER_STATES, createCharacterStates } from "./game/characterStates.
 import { StateMachine } from "./game/stateMachine.js";
 import { InputBuffer } from "./game/inputBuffer.js";
 import {
+  canUseOffensiveAction,
   createCombatant,
+  getCooldownRemaining,
   jump as engineJump,
   move as engineMove,
   resolveBaseAbility,
@@ -15,6 +17,7 @@ import {
   resolveDefenseAbility,
   resolveIncomingAttack,
   resolveSpecialAbility,
+  updateCombatant,
   updateMovement,
 } from "./game/combatEngine.js";
 
@@ -53,6 +56,8 @@ class ArenaScene extends Phaser.Scene {
     this.inputBuffer = new InputBuffer();
     this.playerHpText = null;
     this.playerEnergyText = null;
+    this.playerCooldownText = null;
+    this.playerEnergyBar = null;
     this.statusText = null;
     this.playerBar = null;
     this.playerGhostBar = null;
@@ -63,7 +68,6 @@ class ArenaScene extends Phaser.Scene {
     this.wasGrounded = true;
     this.ghostHp = { player: 100, opponent: 100 };
     this.ghostPending = { player: false, opponent: false };
-    this.attackAnimationFrameDriven = false;
   }
 
   create() {
@@ -123,6 +127,8 @@ class ArenaScene extends Phaser.Scene {
   update(time, delta) {
     if (!this.player) return;
     const dt = delta / 1000;
+    updateCombatant(this.playerCombatant, delta);
+    updateCombatant(this.opponentCombatant, delta);
     updateMovement(this.playerCombatant, dt);
     this.captureInput();
     this.applyMovement();
@@ -176,9 +182,7 @@ class ArenaScene extends Phaser.Scene {
 
     const bufferedAttack = this.inputBuffer.consume(["special", "base", "basic"]);
     if (bufferedAttack) {
-      if (bufferedAttack.action === "basic") this.startAttack("basic");
-      else if (bufferedAttack.action === "base") this.startAttack("base");
-      else this.startAttack("special");
+      this.startAttack(bufferedAttack.action);
       return;
     }
 
@@ -197,18 +201,19 @@ class ArenaScene extends Phaser.Scene {
     const state = this.playerCharacter.stateMachine.currentName;
     if (![CHARACTER_STATES.IDLE, CHARACTER_STATES.WALK].includes(state)) return;
 
-    const ability = slot === "basic" ? null : this.playerCombatant.dna.abilitySet[slot];
-    if (ability && this.playerCombatant.energy < ability.cost) {
-      this.showStatus("NOT ENOUGH ENERGY");
+    if (!canUseOffensiveAction(this.playerCombatant, slot)) {
+      const cooldown = getCooldownRemaining(this.playerCombatant, slot);
+      if (cooldown > 0) this.showStatus(`${slot.toUpperCase()} RELOADING — ${(cooldown / 1000).toFixed(1)}s`);
+      else this.showStatus("ENERGY RECHARGING");
       return;
     }
+
     if (Math.abs(this.player.x - this.opponent.x) > 310) {
       this.showStatus("OUT OF RANGE");
       return;
     }
 
     const facing = this.player.x <= this.opponent.x ? 1 : -1;
-    this.attackAnimationFrameDriven = false;
     this.playerCharacter.stateMachine.change(CHARACTER_STATES.ATTACK_STARTUP, {
       attack: {
         slot,
@@ -250,7 +255,7 @@ class ArenaScene extends Phaser.Scene {
     if (this.playerCharacter.stateMachine.currentName !== CHARACTER_STATES.IDLE && this.playerCharacter.stateMachine.currentName !== CHARACTER_STATES.WALK) return;
     try {
       const result = resolveDefenseAbility(this.playerCombatant);
-      this.showStatus(`DEFENSE — SHIELD ${result.shield}`);
+      this.showStatus(`DEFENSE — ${result.blockPercent}% BLOCK`);
       this.flashDefense(this.playerVisual);
     } catch (error) {
       this.showStatus(error.message);
@@ -344,9 +349,6 @@ class ArenaScene extends Phaser.Scene {
     }
   }
 
-  // Sprite-sheet integration point: once real Chog animations exist, emit
-  // this from Phaser's animationupdate event. Timer fallback remains active
-  // until an animation frame is supplied, preventing prototype desync later.
   syncAttackAnimationFrame(frameIndex) {
     const attack = this.playerCharacter?.attack;
     if (!attack) return;
@@ -404,7 +406,7 @@ class ArenaScene extends Phaser.Scene {
   createDust(x, y) {
     for (let i = 0; i < 5; i += 1) {
       const dust = this.add.circle(x + Phaser.Math.Between(-25, 25), y, Phaser.Math.Between(5, 9), 0xffffff, 0.35).setDepth(4);
-      this.tweens.add({ targets: dust, x: dust.x + Phaser.Math.Between(-30, 30), y: y - Phaser.Math.Between(8, 22), alpha: 0, scale: 1.4, duration: 280, onComplete: () => dust.destroy() });
+      this.tweens.add({ x: dust.x + Phaser.Math.Between(-30, 30), y: y - Phaser.Math.Between(8, 22), alpha: 0, scale: 1.4, duration: 280, onComplete: () => dust.destroy(), targets: dust });
     }
   }
 
@@ -462,10 +464,15 @@ class ArenaScene extends Phaser.Scene {
     this.add.text(32, 28, "CHOG FIGHT CLUB", { ...textStyle, fontSize: "22px", fontStyle: "700" }).setScrollFactor(0);
     this.add.text(32, 58, "A / D or ← / → move  •  SPACE / W / ↑ jump  •  F basic  •  1 base  •  2 special  •  3 defense", { ...textStyle, fontSize: "14px", color: "#c8ccd4" }).setScrollFactor(0);
     this.playerHpText = this.add.text(32, 178, "", { ...textStyle, fontSize: "14px" }).setScrollFactor(0);
-    this.playerEnergyText = this.add.text(32, 202, "", { ...textStyle, fontSize: "14px", color: "#c8ccd4" }).setScrollFactor(0);
+    this.playerEnergyText = this.add.text(32, 218, "", { ...textStyle, fontSize: "13px", color: "#b8ffca" }).setScrollFactor(0);
+    this.playerCooldownText = this.add.text(32, 238, "", { ...textStyle, fontSize: "12px", color: "#c8ccd4" }).setScrollFactor(0);
     this.statusText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 38, "", { ...textStyle, fontSize: "16px", align: "center" }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
+
     this.playerGhostBar = this.add.rectangle(32, 162, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
     this.playerBar = this.add.rectangle(32, 162, 300, 18, 0x53d769, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
+    this.playerEnergyBar = this.add.rectangle(32, 202, 300, 10, 0x39d96a, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
+    this.add.rectangle(32, 202, 300, 10, 0xffffff, 0.12).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
+
     this.opponentGhostBar = this.add.rectangle(GAME_WIDTH - 332, 162, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
     this.opponentBar = this.add.rectangle(GAME_WIDTH - 332, 162, 300, 18, 0xf04b61, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
     this.add.text(GAME_WIDTH - 332, 178, "OPPONENT", { ...textStyle, fontSize: "14px" }).setScrollFactor(0);
@@ -473,9 +480,18 @@ class ArenaScene extends Phaser.Scene {
 
   updateHud() {
     const hp = Math.max(0, Math.round(this.playerCombatant.hp));
-    const shield = Math.round(this.playerCombatant.shield);
+    const energy = Math.round(this.playerCombatant.energy);
+    const shield = 0;
+    const energyRatio = Phaser.Math.Clamp(this.playerCombatant.energy / this.playerCombatant.maxEnergy, 0, 1);
     this.playerHpText.setText(`HP ${hp}/${this.playerCombatant.maxHp}${shield ? `  •  SHIELD ${shield}` : ""}`);
-    this.playerEnergyText.setText(`Energy ${this.playerCombatant.energy}  •  1 Base  •  2 Special  •  3 Defense`);
+    this.playerEnergyBar.width = 300 * energyRatio;
+    this.playerEnergyText.setText(`ENERGY ${energy}%  •  Basic 5%  •  Base 10%  •  Special 35%`);
+
+    const basic = getCooldownRemaining(this.playerCombatant, "basic");
+    const base = getCooldownRemaining(this.playerCombatant, "base");
+    const special = getCooldownRemaining(this.playerCombatant, "special");
+    const cooldownLabel = (name, value) => value > 0 ? `${name} ${(value / 1000).toFixed(1)}s` : `${name} READY`;
+    this.playerCooldownText.setText(`${cooldownLabel("F", basic)}  •  ${cooldownLabel("1", base)}  •  ${cooldownLabel("2", special)}`);
   }
 
   showStatus(message) {
