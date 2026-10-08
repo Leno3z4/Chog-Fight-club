@@ -1,5 +1,3 @@
-import { updateCooldowns } from "./combatEngine.js";
-
 export class StateMachine {
   constructor(owner, initialState) {
     this.owner = owner;
@@ -31,7 +29,6 @@ export class StateMachine {
   }
 
   update(delta) {
-    updateCooldowns(this.owner.combatant, delta);
     this.current?.update?.(this.owner, delta);
   }
 
