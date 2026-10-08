@@ -1,13 +1,29 @@
 {
   "health": {
     "maxHp": 100,
-    "minDamage": 2,
-    "basic": { "base": 8, "attackScale": 0.14, "defenseScale": 0.10, "max": 12 },
-    "base": { "base": 11, "attackScale": 0.16, "defenseScale": 0.10, "max": 16 },
-    "special": { "base": 16, "attackScale": 0.18, "defenseScale": 0.08, "max": 22 },
-    "guardMultiplier": 0.5,
+    "damage": {
+      "basic": 4,
+      "base": 6,
+      "special": 10
+    },
+    "minDamage": 1,
     "counterCap": { "min": 0.85, "max": 1.15 },
+    "defense": {
+      "blockPercentByTier": {
+        "Common": 80,
+        "Uncommon": 85,
+        "Rare": 90,
+        "Epic": 90,
+        "Legendary": 100
+      },
+      "windowMs": 900
+    },
     "statusDamage": { "burn": 3, "burnTurns": 2 }
+  },
+  "cooldowns": {
+    "basic": 2000,
+    "base": 5000,
+    "special": 30000
   },
   "timing": {
     "basic": { "startup": 120, "active": 100, "recovery": 220, "activeFrame": 4, "recoveryFrame": 7 },
@@ -17,10 +33,6 @@
     "hitstop": { "normal": 45, "heavy": 70 },
     "inputBufferMs": 150,
     "hitstunMs": 180
-  },
-  "shield": {
-    "defenseMultiplier": 1.5,
-    "max": 24
   },
   "movement": {
     "walkSpeed": 260,
