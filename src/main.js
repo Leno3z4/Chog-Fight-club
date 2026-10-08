@@ -2,7 +2,6 @@ import Phaser from "phaser";
 import "./style.css";
 import { buildBattleDNA } from "./game/battleDNA.js";
 import {
-  canEvadeIncomingAttack,
   createCombatant,
   jump as engineJump,
   move as engineMove,
