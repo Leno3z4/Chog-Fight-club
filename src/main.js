@@ -1,6 +1,11 @@
 import Phaser from "phaser";
 import "./style.css";
+import { BootScene } from "./bootScene.js";
 import { buildBattleDNA } from "./game/battleDNA.js";
+import combatData from "./game/data/combat.json";
+import { CHARACTER_STATES, createCharacterStates } from "./game/characterStates.js";
+import { StateMachine } from "./game/stateMachine.js";
+import { InputBuffer } from "./game/inputBuffer.js";
 import {
   createCombatant,
   jump as engineJump,
@@ -17,8 +22,6 @@ const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
 const WORLD_WIDTH = 1600;
 const FLOOR_Y = 610;
-const ATTACK_COOLDOWN = 550;
-const ATTACK_PHASES = { startup: 120, active: 100, recovery: 220 };
 
 const PLAYER_METADATA = {
   tokenId: 561, name: "Blaze", Tier: "Legendary", Base: "1:1", Form: "Chog", Skin: "Red",
@@ -35,6 +38,7 @@ const OPPONENT_METADATA = {
 class ArenaScene extends Phaser.Scene {
   constructor() {
     super("ArenaScene");
+    this.FLOOR_Y = FLOOR_Y;
     this.player = null;
     this.opponent = null;
     this.playerVisual = null;
@@ -45,6 +49,8 @@ class ArenaScene extends Phaser.Scene {
     this.keys = null;
     this.playerCombatant = null;
     this.opponentCombatant = null;
+    this.playerCharacter = null;
+    this.inputBuffer = new InputBuffer();
     this.playerHpText = null;
     this.playerEnergyText = null;
     this.statusText = null;
@@ -52,23 +58,21 @@ class ArenaScene extends Phaser.Scene {
     this.playerGhostBar = null;
     this.opponentBar = null;
     this.opponentGhostBar = null;
-    this.attackSequence = null;
     this.incomingAttack = null;
     this.nextOpponentAttack = 1800;
-    this.attackCooldown = 0;
     this.wasGrounded = true;
-    this.ghostHp = { player: 0, opponent: 0 };
+    this.ghostHp = { player: 100, opponent: 100 };
     this.ghostPending = { player: false, opponent: false };
+    this.attackAnimationFrameDriven = false;
   }
 
   create() {
     this.createArena();
-    this.createPlaceholderChogTextures();
     this.playerCombatant = createCombatant(buildBattleDNA(PLAYER_METADATA));
     this.opponentCombatant = createCombatant(buildBattleDNA(OPPONENT_METADATA));
 
     this.player = this.physics.add.sprite(360, FLOOR_Y - 72, "chog-hitbox");
-    this.player.setSize(96, 120).setOffset(16, 0).setGravityY(1250).setCollideWorldBounds(true);
+    this.player.setSize(96, 120).setOffset(16, 0).setGravityY(combatData.movement.gravity).setCollideWorldBounds(true);
     this.player.setDragX(900).setMaxVelocity(360, 900);
 
     this.opponent = this.physics.add.staticSprite(1080, FLOOR_Y - 72, "chog-hitbox");
@@ -95,6 +99,19 @@ class ArenaScene extends Phaser.Scene {
       defense: Phaser.Input.Keyboard.KeyCodes.THREE,
     });
 
+    this.playerCharacter = {
+      scene: this,
+      combatant: this.playerCombatant,
+      input: { left: false, right: false },
+      attack: null,
+      attackCooldown: 0,
+      hitstunRemaining: 0,
+      stateMachine: null,
+    };
+    this.playerCharacter.stateMachine = new StateMachine(this.playerCharacter);
+    createCharacterStates(this.playerCharacter);
+    this.playerCharacter.stateMachine.change(CHARACTER_STATES.IDLE);
+
     this.createHud();
     this.ghostHp.player = this.playerCombatant.hp;
     this.ghostHp.opponent = this.opponentCombatant.hp;
@@ -106,100 +123,103 @@ class ArenaScene extends Phaser.Scene {
   update(time, delta) {
     if (!this.player) return;
     const dt = delta / 1000;
-    this.attackCooldown = Math.max(0, this.attackCooldown - delta);
     updateMovement(this.playerCombatant, dt);
-    this.updatePlayerMovement();
-    this.updateAttackSequence(delta);
+    this.captureInput();
+    this.applyMovement();
+    this.playerCharacter.stateMachine.update(delta);
+    this.processBufferedInput();
     this.updateIncomingAttack(delta);
     this.updateVisuals(time);
     this.updateHealthBars();
     this.updateHud();
   }
 
-  updatePlayerMovement() {
+  captureInput() {
     const left = this.cursors.left.isDown || this.keys.left.isDown;
     const right = this.cursors.right.isDown || this.keys.right.isDown;
-    if (left) {
-      this.player.setVelocityX(-260);
+    this.playerCharacter.input.left = left;
+    this.playerCharacter.input.right = right;
+
+    if (Phaser.Input.Keyboard.JustDown(this.keys.basic)) this.inputBuffer.push("basic");
+    if (Phaser.Input.Keyboard.JustDown(this.keys.base)) this.inputBuffer.push("base");
+    if (Phaser.Input.Keyboard.JustDown(this.keys.special)) this.inputBuffer.push("special");
+    if (Phaser.Input.Keyboard.JustDown(this.keys.defense)) this.inputBuffer.push("defense");
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.up) || Phaser.Input.Keyboard.JustDown(this.keys.jump) || Phaser.Input.Keyboard.JustDown(this.keys.jumpW)) {
+      this.inputBuffer.push("jump");
+    }
+  }
+
+  applyMovement() {
+    const state = this.playerCharacter.stateMachine.currentName;
+    const canMove = [CHARACTER_STATES.IDLE, CHARACTER_STATES.WALK, CHARACTER_STATES.JUMP].includes(state);
+    if (!canMove) {
+      if (state !== CHARACTER_STATES.HITSTUN) this.player.setVelocityX(0);
+      return;
+    }
+
+    if (this.playerCharacter.input.left) {
+      this.player.setVelocityX(-combatData.movement.walkSpeed);
       engineMove(this.playerCombatant, "left");
-    } else if (right) {
-      this.player.setVelocityX(260);
+    } else if (this.playerCharacter.input.right) {
+      this.player.setVelocityX(combatData.movement.walkSpeed);
       engineMove(this.playerCombatant, "right");
-    } else {
+    } else if (state !== CHARACTER_STATES.JUMP) {
       this.player.setVelocityX(0);
       engineMove(this.playerCombatant, "idle");
     }
+  }
 
-    const grounded = this.player.body.blocked.down || this.player.body.touching.down;
-    const jumpPressed = Phaser.Input.Keyboard.JustDown(this.cursors.up) ||
-      Phaser.Input.Keyboard.JustDown(this.keys.jump) || Phaser.Input.Keyboard.JustDown(this.keys.jumpW);
+  processBufferedInput() {
+    const state = this.playerCharacter.stateMachine.currentName;
+    const canAct = state === CHARACTER_STATES.IDLE || state === CHARACTER_STATES.WALK;
+    if (!canAct || this.playerCharacter.hitstunRemaining > 0) return;
 
-    if (jumpPressed && grounded && !this.attackSequence) {
-      this.player.setVelocityY(-620);
-      engineJump(this.playerCombatant);
-      this.showStatus("JUMP — EVADE WINDOW");
-      this.createDust(this.player.x, FLOOR_Y - 3);
+    const bufferedAttack = this.inputBuffer.consume(["special", "base", "basic"]);
+    if (bufferedAttack) {
+      if (bufferedAttack.action === "basic") this.startAttack("basic");
+      else if (bufferedAttack.action === "base") this.startAttack("base");
+      else this.startAttack("special");
+      return;
     }
 
-    if (Phaser.Input.Keyboard.JustDown(this.keys.basic)) this.startAttack("basic");
-    if (Phaser.Input.Keyboard.JustDown(this.keys.base)) this.startAttack("base");
-    if (Phaser.Input.Keyboard.JustDown(this.keys.special)) this.startAttack("special");
-    if (Phaser.Input.Keyboard.JustDown(this.keys.defense)) this.useDefense();
+    const defense = this.inputBuffer.consume("defense");
+    if (defense) {
+      this.useDefense();
+      return;
+    }
 
-    if (!this.wasGrounded && grounded) this.createDust(this.player.x, FLOOR_Y - 3);
-    this.wasGrounded = grounded;
+    const jump = this.inputBuffer.consume("jump");
+    const grounded = this.player.body.blocked.down || this.player.body.touching.down;
+    if (jump && grounded) this.playerCharacter.stateMachine.change(CHARACTER_STATES.JUMP);
   }
 
   startAttack(slot) {
-    if (this.attackCooldown > 0 || this.attackSequence) return;
+    const state = this.playerCharacter.stateMachine.currentName;
+    if (![CHARACTER_STATES.IDLE, CHARACTER_STATES.WALK].includes(state)) return;
+
+    const ability = slot === "basic" ? null : this.playerCombatant.dna.abilitySet[slot];
+    if (ability && this.playerCombatant.energy < ability.cost) {
+      this.showStatus("NOT ENOUGH ENERGY");
+      return;
+    }
     if (Math.abs(this.player.x - this.opponent.x) > 310) {
       this.showStatus("OUT OF RANGE");
       return;
     }
-    this.attackSequence = {
-      slot,
-      phase: "startup",
-      elapsed: 0,
-      hit: false,
-      hitbox: null,
-      facing: this.player.x <= this.opponent.x ? 1 : -1,
-    };
-    this.showStatus(slot === "basic" ? "BASIC — WIND UP" : `${slot.toUpperCase()} — WIND UP`);
-    this.tweens.add({
-      targets: this.playerVisual,
-      scaleX: 1.08 * this.attackSequence.facing,
-      scaleY: 0.94,
-      duration: ATTACK_PHASES.startup,
-      ease: "Quad.easeOut",
+
+    const facing = this.player.x <= this.opponent.x ? 1 : -1;
+    this.attackAnimationFrameDriven = false;
+    this.playerCharacter.stateMachine.change(CHARACTER_STATES.ATTACK_STARTUP, {
+      attack: {
+        slot,
+        facing,
+        elapsed: 0,
+        hit: false,
+        hitbox: null,
+        timing: combatData.timing[slot],
+        animationFrameDriven: false,
+      },
     });
-  }
-
-  updateAttackSequence(delta) {
-    const sequence = this.attackSequence;
-    if (!sequence) return;
-    sequence.elapsed += delta;
-
-    if (sequence.phase === "startup" && sequence.elapsed >= ATTACK_PHASES.startup) {
-      sequence.phase = "active";
-      sequence.elapsed = 0;
-      sequence.hitbox = this.createAttackHitbox(sequence.facing);
-      this.flashAttackTelegraph(sequence.facing);
-      this.showStatus("ACTIVE — HITBOX LIVE");
-    }
-
-    if (sequence.phase === "active") {
-      this.checkPlayerHit(sequence);
-      if (sequence.elapsed >= ATTACK_PHASES.active) {
-        if (sequence.hitbox) sequence.hitbox.destroy();
-        sequence.hitbox = null;
-        sequence.phase = "recovery";
-        sequence.elapsed = 0;
-      }
-    } else if (sequence.phase === "recovery" && sequence.elapsed >= ATTACK_PHASES.recovery) {
-      this.attackSequence = null;
-      this.attackCooldown = ATTACK_COOLDOWN;
-      this.playerVisual.scaleY = 1;
-    }
   }
 
   checkPlayerHit(sequence) {
@@ -227,7 +247,7 @@ class ArenaScene extends Phaser.Scene {
   }
 
   useDefense() {
-    if (this.attackSequence) return;
+    if (this.playerCharacter.stateMachine.currentName !== CHARACTER_STATES.IDLE && this.playerCharacter.stateMachine.currentName !== CHARACTER_STATES.WALK) return;
     try {
       const result = resolveDefenseAbility(this.playerCombatant);
       this.showStatus(`DEFENSE — SHIELD ${result.shield}`);
@@ -261,18 +281,17 @@ class ArenaScene extends Phaser.Scene {
       return;
     }
 
-    if (this.attackSequence) return;
+    if ([CHARACTER_STATES.ATTACK_STARTUP, CHARACTER_STATES.ATTACK_ACTIVE, CHARACTER_STATES.ATTACK_RECOVERY].includes(this.playerCharacter.stateMachine.currentName)) return;
     this.nextOpponentAttack -= delta;
     if (this.nextOpponentAttack <= 0) {
       this.nextOpponentAttack = 2200;
       const facing = this.opponent.x < this.player.x ? 1 : -1;
-      const visual = this.add.rectangle(this.opponent.x + facing * 90, FLOOR_Y - 55, 180, 10, 0x7b61ff, 0.9);
-      visual.setDepth(5);
+      const visual = this.add.rectangle(this.opponent.x + facing * 90, FLOOR_Y - 55, 180, 10, 0x7b61ff, 0.9).setDepth(5);
       this.incomingAttack = {
         timeLeft: 550,
         visual,
         action: "opponent-basic",
-        power: this.opponentCombatant.dna.stats.attack,
+        damageClass: "basic",
         type: "burst",
         canBeEvaded: true,
       };
@@ -287,14 +306,19 @@ class ArenaScene extends Phaser.Scene {
     this.createHitSparks(defender.x, FLOOR_Y - 75);
     this.flashHit(defenderVisual);
     const direction = defender.x >= attacker.x ? 1 : -1;
-    if (defender === this.player) this.player.setVelocityX(direction * 180);
+    if (defender === this.player) {
+      this.player.setVelocityX(direction * 180);
+      this.playerCharacter.stateMachine.change(CHARACTER_STATES.HITSTUN);
+    }
     this.cameras.main.shake(heavy ? 120 : 70, heavy ? 0.007 : 0.004);
-    this.applyHitstop(heavy ? 70 : 45);
+    this.applyHitstop(heavy ? combatData.timing.hitstop.heavy : combatData.timing.hitstop.normal);
     this.showStatus(`HIT — ${damage} DAMAGE`);
   }
 
-  createAttackHitbox(facing) {
-    const zone = this.add.zone(this.player.x + facing * 82, this.player.y - 50, 110, 95);
+  createAttackHitbox(facing, slot = "basic") {
+    const width = slot === "special" ? 135 : slot === "base" ? 120 : 110;
+    const height = slot === "special" ? 105 : 95;
+    const zone = this.add.zone(this.player.x + facing * (slot === "special" ? 92 : 82), this.player.y - 50, width, height);
     this.physics.add.existing(zone);
     zone.body.setAllowGravity(false);
     zone.body.setImmovable(true);
@@ -313,10 +337,22 @@ class ArenaScene extends Phaser.Scene {
     this.opponentHurtbox.setPosition(this.opponent.x, this.opponent.y - 50);
     this.playerHurtbox.body.updateFromGameObject();
     this.opponentHurtbox.body.updateFromGameObject();
-    if (this.attackSequence?.hitbox) {
-      const facing = this.attackSequence.facing;
-      this.attackSequence.hitbox.setPosition(this.player.x + facing * 82, this.player.y - 50);
+    if (this.playerCharacter?.attack?.hitbox) {
+      const facing = this.playerCharacter.attack.facing;
+      const offset = this.playerCharacter.attack.slot === "special" ? 92 : 82;
+      this.playerCharacter.attack.hitbox.setPosition(this.player.x + facing * offset, this.player.y - 50);
     }
+  }
+
+  // Sprite-sheet integration point: once real Chog animations exist, emit
+  // this from Phaser's animationupdate event. Timer fallback remains active
+  // until an animation frame is supplied, preventing prototype desync later.
+  syncAttackAnimationFrame(frameIndex) {
+    const attack = this.playerCharacter?.attack;
+    if (!attack) return;
+    attack.animationFrameDriven = true;
+    if (frameIndex === attack.timing.activeFrame) this.playerCharacter.stateMachine.change(CHARACTER_STATES.ATTACK_ACTIVE);
+    if (frameIndex === attack.timing.recoveryFrame) this.playerCharacter.stateMachine.change(CHARACTER_STATES.ATTACK_RECOVERY);
   }
 
   applyHitstop(durationMs) {
@@ -336,27 +372,15 @@ class ArenaScene extends Phaser.Scene {
     const flash = visual.list.find((item) => item.getData?.("flash"));
     if (!flash) return;
     flash.setAlpha(0.35);
-    this.tweens.add({ targets: flash, alpha: 0, duration: 220 });
+    this.tweens.add({ targets: flash, alpha: 0, duration: combatData.timing.defense.recovery });
   }
 
   showDamageNumber(x, y, damage) {
     const text = this.add.text(x, y, `-${damage}`, {
-      fontFamily: "system-ui, sans-serif",
-      fontSize: "28px",
-      fontStyle: "900",
-      color: "#ff3366",
-      stroke: "#111318",
-      strokeThickness: 5,
+      fontFamily: "system-ui, sans-serif", fontSize: "28px", fontStyle: "900",
+      color: "#ff3366", stroke: "#111318", strokeThickness: 5,
     }).setOrigin(0.5).setDepth(20);
-    this.tweens.add({
-      targets: text,
-      y: y - 75,
-      alpha: 0,
-      scale: 1.35,
-      duration: 600,
-      ease: "Power2",
-      onComplete: () => text.destroy(),
-    });
+    this.tweens.add({ targets: text, y: y - 75, alpha: 0, scale: 1.35, duration: 600, ease: "Power2", onComplete: () => text.destroy() });
   }
 
   createHitSparks(x, y) {
@@ -380,15 +404,7 @@ class ArenaScene extends Phaser.Scene {
   createDust(x, y) {
     for (let i = 0; i < 5; i += 1) {
       const dust = this.add.circle(x + Phaser.Math.Between(-25, 25), y, Phaser.Math.Between(5, 9), 0xffffff, 0.35).setDepth(4);
-      this.tweens.add({
-        targets: dust,
-        x: dust.x + Phaser.Math.Between(-30, 30),
-        y: y - Phaser.Math.Between(8, 22),
-        alpha: 0,
-        scale: 1.4,
-        duration: 280,
-        onComplete: () => dust.destroy(),
-      });
+      this.tweens.add({ targets: dust, x: dust.x + Phaser.Math.Between(-30, 30), y: y - Phaser.Math.Between(8, 22), alpha: 0, scale: 1.4, duration: 280, onComplete: () => dust.destroy() });
     }
   }
 
@@ -407,12 +423,14 @@ class ArenaScene extends Phaser.Scene {
     const grounded = this.player.body.blocked.down || this.player.body.touching.down;
     const moving = Math.abs(this.player.body.velocity.x) > 5;
     const facing = this.player.body.velocity.x < -5 ? -1 : 1;
-    if (!this.attackSequence) {
+    if (![CHARACTER_STATES.ATTACK_STARTUP, CHARACTER_STATES.ATTACK_ACTIVE, CHARACTER_STATES.ATTACK_RECOVERY].includes(this.playerCharacter.stateMachine.currentName)) {
       const targetX = (grounded ? (moving ? 1.02 : 1) : 1.04) * facing;
       const targetY = grounded ? (moving ? 0.98 : 1) : 1.08;
       this.playerVisual.scaleX = Phaser.Math.Linear(this.playerVisual.scaleX, targetX, 0.16);
       this.playerVisual.scaleY = Phaser.Math.Linear(this.playerVisual.scaleY, targetY, 0.16);
     }
+    if (!this.wasGrounded && grounded) this.createDust(this.player.x, FLOOR_Y - 3);
+    this.wasGrounded = grounded;
   }
 
   updateHealthBars(force = false) {
@@ -446,7 +464,6 @@ class ArenaScene extends Phaser.Scene {
     this.playerHpText = this.add.text(32, 178, "", { ...textStyle, fontSize: "14px" }).setScrollFactor(0);
     this.playerEnergyText = this.add.text(32, 202, "", { ...textStyle, fontSize: "14px", color: "#c8ccd4" }).setScrollFactor(0);
     this.statusText = this.add.text(GAME_WIDTH / 2, GAME_HEIGHT - 38, "", { ...textStyle, fontSize: "16px", align: "center" }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
-
     this.playerGhostBar = this.add.rectangle(32, 162, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
     this.playerBar = this.add.rectangle(32, 162, 300, 18, 0x53d769, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
     this.opponentGhostBar = this.add.rectangle(GAME_WIDTH - 332, 162, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
@@ -479,11 +496,6 @@ class ArenaScene extends Phaser.Scene {
     this.add.text(WORLD_WIDTH / 2, 120, "TRAINING ARENA", { fontFamily: "system-ui, sans-serif", fontSize: "14px", color: "#ffffff" }).setOrigin(0.5).setAlpha(0.65);
   }
 
-  createPlaceholderChogTextures() {
-    const hitbox = this.make.graphics({ x: 0, y: 0, add: false }); hitbox.fillStyle(0xffffff, 0); hitbox.fillRect(0, 0, 128, 128); hitbox.generateTexture("chog-hitbox", 128, 128); hitbox.destroy();
-    const floor = this.make.graphics({ x: 0, y: 0, add: false }); floor.fillStyle(0xffffff, 1); floor.fillRect(0, 0, WORLD_WIDTH, 60); floor.generateTexture("floor", WORLD_WIDTH, 60); floor.destroy();
-  }
-
   createChogVisual(x, y, mirrored) {
     const container = this.add.container(x, y);
     const shadow = this.add.ellipse(0, 113, 150, 24, 0x30452e, 0.22);
@@ -513,7 +525,7 @@ const config = {
   backgroundColor: "#111318",
   physics: { default: "arcade", arcade: { gravity: { y: 0 }, debug: false } },
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH, width: GAME_WIDTH, height: GAME_HEIGHT },
-  scene: [ArenaScene],
+  scene: [BootScene, ArenaScene],
 };
 
 new Phaser.Game(config);
