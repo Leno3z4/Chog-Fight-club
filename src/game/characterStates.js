@@ -59,7 +59,9 @@ class AttackStartupState extends CharacterState {
 
   update(character, delta) {
     character.attack.elapsed += delta;
-    if (character.attack.elapsed >= character.attack.timing.startup) character.stateMachine.change(CHARACTER_STATES.ATTACK_ACTIVE);
+    if (!character.attack.animationFrameDriven && character.attack.elapsed >= character.attack.timing.startup) {
+      character.stateMachine.change(CHARACTER_STATES.ATTACK_ACTIVE);
+    }
   }
 }
 
@@ -74,7 +76,9 @@ class AttackActiveState extends CharacterState {
   update(character, delta) {
     character.attack.elapsed += delta;
     character.scene.checkPlayerHit(character.attack);
-    if (character.attack.elapsed >= character.attack.timing.active) character.stateMachine.change(CHARACTER_STATES.ATTACK_RECOVERY);
+    if (!character.attack.animationFrameDriven && character.attack.elapsed >= character.attack.timing.active) {
+      character.stateMachine.change(CHARACTER_STATES.ATTACK_RECOVERY);
+    }
   }
 
   exit(character) {
@@ -90,7 +94,7 @@ class AttackRecoveryState extends CharacterState {
 
   update(character, delta) {
     character.attack.elapsed += delta;
-    if (character.attack.elapsed >= character.attack.timing.recovery) {
+    if (!character.attack.animationFrameDriven && character.attack.elapsed >= character.attack.timing.recovery) {
       character.attack = null;
       character.attackCooldown = 0;
       character.scene.playerVisual.scaleY = 1;
