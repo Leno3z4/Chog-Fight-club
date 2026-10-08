@@ -16,37 +16,15 @@ import {
 } from "./combatEngine.js";
 
 const flameChog = {
-  tokenId: 561,
-  name: "Blaze",
-  Tier: "Legendary",
-  Base: "1:1",
-  Form: "Chog",
-  Skin: "Red",
-  Body: "Tuxedo",
-  Eyes: "Angry",
-  Head: "Crown",
-  Aura: "Burning Aura",
-  Background: "Blood Red",
-  Mouth: "Smile",
-  Side: "Left",
-  Naked: "No",
+  tokenId: 561, name: "Blaze", Tier: "Legendary", Base: "1:1", Form: "Chog", Skin: "Red",
+  Body: "Tuxedo", Eyes: "Angry", Head: "Crown", Aura: "Burning Aura", Background: "Blood Red",
+  Mouth: "Smile", Side: "Left", Naked: "No",
 };
 
 const waterChog = {
-  tokenId: 973,
-  name: "Test Water",
-  Tier: "Common",
-  Base: "Origin",
-  Form: "Chog",
-  Skin: "Blue",
-  Body: "Stripes",
-  Eyes: "Happy",
-  Head: "Wizard Hat",
-  Aura: "Aqua Aura",
-  Background: "Aqua",
-  Mouth: "Smile",
-  Side: "Right",
-  Naked: "No",
+  tokenId: 973, name: "Test Water", Tier: "Common", Base: "Origin", Form: "Chog", Skin: "Blue",
+  Body: "Stripes", Eyes: "Happy", Head: "Wizard Hat", Aura: "Aqua Aura", Background: "Aqua",
+  Mouth: "Smile", Side: "Right", Naked: "No",
 };
 
 const first = buildBattleDNA(flameChog);
@@ -102,22 +80,31 @@ assert.ok(getCounterMultiplier("control", "mobility") < 1);
 
 const attacker = createCombatant(first);
 const defender = createCombatant(water);
+assert.equal(attacker.hp, 100, "every Chog starts with exactly 100 HP");
+assert.equal(attacker.maxHp, 100, "every Chog has exactly 100 max HP");
+assert.equal(defender.hp, 100, "every defender starts with exactly 100 HP");
+
 const hpBefore = defender.hp;
-resolveBasicAttack(attacker, defender);
-assert.ok(defender.hp < hpBefore, "basic attack must deal damage");
+const basicResult = resolveBasicAttack(attacker, defender);
+assert.ok(basicResult.damage > 0, "basic attack must deal damage");
+assert.ok(basicResult.damage <= 12, "basic attack must stay within its damage budget");
+assert.equal(defender.hp, hpBefore - basicResult.damage, "damage must drain HP by the reported amount");
 
 const baseEnergy = attacker.energy;
-resolveBaseAbility(attacker, defender);
+const baseResult = resolveBaseAbility(attacker, defender);
 assert.ok(attacker.energy < baseEnergy, "base ability must consume energy");
+assert.ok(baseResult.damage <= 16, "base ability must stay within its damage budget");
 
 startTurn(attacker);
 const specialEnergy = attacker.energy;
-resolveSpecialAbility(attacker, defender);
+const specialResult = resolveSpecialAbility(attacker, defender);
 assert.ok(attacker.energy < specialEnergy, "special ability must consume energy");
+assert.ok(specialResult.damage <= 22, "special ability must stay within its damage budget");
 
 const defense = createCombatant(first);
 const defenseResult = resolveDefenseAbility(defense);
 assert.ok(defenseResult.shield > 0, "defense ability must create shield");
+assert.ok(defenseResult.shield <= 24, "shield must stay within its balance cap");
 
 const jumper = createCombatant(first);
 const jumpResult = jump(jumper);
@@ -125,7 +112,7 @@ assert.equal(jumpResult.started, true);
 assert.equal(canEvadeIncomingAttack(jumper, { canBeEvaded: true }), true);
 const evasionResult = resolveIncomingAttack(defender, jumper, {
   action: "opponent-basic",
-  power: 100,
+  damageClass: "basic",
   type: "burst",
   canBeEvaded: true,
 });
