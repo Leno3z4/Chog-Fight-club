@@ -2,11 +2,16 @@ import assert from "node:assert/strict";
 import { buildBattleDNA } from "./battleDNA.js";
 import { AURA_GROUPS, BACKGROUND_GROUPS, resolveTraitGroups } from "./traitGroups.js";
 import {
+  canEvadeIncomingAttack,
   createCombatant,
   getCounterMultiplier,
-  resolveAbility,
-  resolveAttack,
-  resolveGuard,
+  jump,
+  move,
+  resolveBaseAbility,
+  resolveBasicAttack,
+  resolveDefenseAbility,
+  resolveIncomingAttack,
+  resolveSpecialAbility,
   startTurn,
 } from "./combatEngine.js";
 
@@ -51,15 +56,16 @@ assert.equal(first.groups.auraFamily, "flame");
 assert.equal(first.groups.backgroundStyle, "burst");
 assert.equal(first.groups.expression, "ignition");
 assert.equal(first.identity.tier, "Legendary");
-assert.ok(first.abilitySet.abilities.length >= 2);
+assert.ok(first.abilitySet.base);
+assert.ok(first.abilitySet.special);
+assert.ok(first.abilitySet.defense);
+assert.equal(first.abilitySet.abilities.length, 3);
 
 const water = buildBattleDNA(waterChog);
 assert.equal(water.groups.auraFamily, "water");
 assert.equal(water.groups.backgroundStyle, "control");
 assert.equal(water.groups.expression, "tidal-bind");
 
-// Coverage derived from the supplied collection: every observed Aura and
-// Background value must resolve to a non-neutral combat family/style.
 const sourceAuras = [
   "Burning Aura", "Fiery Aura", "Aqua Aura", "Rose Aura", "Purple", "Mint",
   "Light Purple", "Wind", "Clean", "Royal Blue Aura", "Smoke", "Cool Aura",
@@ -97,16 +103,38 @@ assert.ok(getCounterMultiplier("control", "mobility") < 1);
 const attacker = createCombatant(first);
 const defender = createCombatant(water);
 const hpBefore = defender.hp;
-resolveAttack(attacker, defender);
+resolveBasicAttack(attacker, defender);
 assert.ok(defender.hp < hpBefore, "basic attack must deal damage");
 
-resolveGuard(defender);
-assert.ok(defender.shield > 0, "guard must create shield");
+const baseEnergy = attacker.energy;
+resolveBaseAbility(attacker, defender);
+assert.ok(attacker.energy < baseEnergy, "base ability must consume energy");
 
 startTurn(attacker);
-const ability = attacker.dna.abilitySet.abilities[0];
-const energyBefore = attacker.energy;
-resolveAbility(attacker, defender, ability.id);
-assert.ok(attacker.energy < energyBefore, "ability must consume energy");
+const specialEnergy = attacker.energy;
+resolveSpecialAbility(attacker, defender);
+assert.ok(attacker.energy < specialEnergy, "special ability must consume energy");
+
+const defense = createCombatant(first);
+const defenseResult = resolveDefenseAbility(defense);
+assert.ok(defenseResult.shield > 0, "defense ability must create shield");
+
+const jumper = createCombatant(first);
+const jumpResult = jump(jumper);
+assert.equal(jumpResult.started, true);
+assert.equal(canEvadeIncomingAttack(jumper, { canBeEvaded: true }), true);
+const evasionResult = resolveIncomingAttack(defender, jumper, {
+  action: "opponent-basic",
+  power: 100,
+  type: "burst",
+  canBeEvaded: true,
+});
+assert.equal(evasionResult.evaded, true, "airborne defender must evade an evadable attack");
+
+const mover = createCombatant(first);
+move(mover, "left");
+assert.ok(mover.movement.velocityX < 0);
+move(mover, "right");
+assert.ok(mover.movement.velocityX > 0);
 
 console.log("Chog mechanics sanity checks passed.");
