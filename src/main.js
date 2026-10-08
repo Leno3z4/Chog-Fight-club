@@ -7,10 +7,10 @@ import { CHARACTER_STATES, createCharacterStates } from "./game/characterStates.
 import { StateMachine } from "./game/stateMachine.js";
 import { InputBuffer } from "./game/inputBuffer.js";
 import {
+  beginOffensiveAction,
   canUseOffensiveAction,
   createCombatant,
   getCooldownRemaining,
-  jump as engineJump,
   move as engineMove,
   resolveBaseAbility,
   resolveBasicAttack,
@@ -213,6 +213,13 @@ class ArenaScene extends Phaser.Scene {
       return;
     }
 
+    try {
+      beginOffensiveAction(this.playerCombatant, slot);
+    } catch (error) {
+      this.showStatus(error.message);
+      return;
+    }
+
     const facing = this.player.x <= this.opponent.x ? 1 : -1;
     this.playerCharacter.stateMachine.change(CHARACTER_STATES.ATTACK_STARTUP, {
       attack: {
@@ -223,6 +230,7 @@ class ArenaScene extends Phaser.Scene {
         hitbox: null,
         timing: combatData.timing[slot],
         animationFrameDriven: false,
+        resourceCommitted: true,
       },
     });
   }
@@ -234,9 +242,9 @@ class ArenaScene extends Phaser.Scene {
 
     let result;
     try {
-      if (sequence.slot === "basic") result = resolveBasicAttack(this.playerCombatant, this.opponentCombatant);
-      else if (sequence.slot === "base") result = resolveBaseAbility(this.playerCombatant, this.opponentCombatant);
-      else result = resolveSpecialAbility(this.playerCombatant, this.opponentCombatant);
+      if (sequence.slot === "basic") result = resolveBasicAttack(this.playerCombatant, this.opponentCombatant, sequence.resourceCommitted);
+      else if (sequence.slot === "base") result = resolveBaseAbility(this.playerCombatant, this.opponentCombatant, sequence.resourceCommitted);
+      else result = resolveSpecialAbility(this.playerCombatant, this.opponentCombatant, sequence.resourceCommitted);
     } catch (error) {
       this.showStatus(error.message);
       return;
@@ -406,7 +414,7 @@ class ArenaScene extends Phaser.Scene {
   createDust(x, y) {
     for (let i = 0; i < 5; i += 1) {
       const dust = this.add.circle(x + Phaser.Math.Between(-25, 25), y, Phaser.Math.Between(5, 9), 0xffffff, 0.35).setDepth(4);
-      this.tweens.add({ x: dust.x + Phaser.Math.Between(-30, 30), y: y - Phaser.Math.Between(8, 22), alpha: 0, scale: 1.4, duration: 280, onComplete: () => dust.destroy(), targets: dust });
+      this.tweens.add({ targets: dust, x: dust.x + Phaser.Math.Between(-30, 30), y: y - Phaser.Math.Between(8, 22), alpha: 0, scale: 1.4, duration: 280, onComplete: () => dust.destroy() });
     }
   }
 
@@ -481,9 +489,8 @@ class ArenaScene extends Phaser.Scene {
   updateHud() {
     const hp = Math.max(0, Math.round(this.playerCombatant.hp));
     const energy = Math.round(this.playerCombatant.energy);
-    const shield = 0;
     const energyRatio = Phaser.Math.Clamp(this.playerCombatant.energy / this.playerCombatant.maxEnergy, 0, 1);
-    this.playerHpText.setText(`HP ${hp}/${this.playerCombatant.maxHp}${shield ? `  •  SHIELD ${shield}` : ""}`);
+    this.playerHpText.setText(`HP ${hp}/${this.playerCombatant.maxHp}`);
     this.playerEnergyBar.width = 300 * energyRatio;
     this.playerEnergyText.setText(`ENERGY ${energy}%  •  Basic 5%  •  Base 10%  •  Special 35%`);
 
