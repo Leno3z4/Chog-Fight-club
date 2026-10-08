@@ -1,3 +1,5 @@
+import "./style.css";
+
 const enterButtons = document.querySelectorAll("[data-enter-arena]");
 
 function enterArena() {
