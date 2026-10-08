@@ -1,6 +1,6 @@
-// Combat-facing interpretation of Chog metadata.
-// These are game-design mappings built from the supplied Chog Genesis metadata,
-// not properties claimed by the NFT collection itself.
+// Combat-facing interpretation of the supplied Chog Genesis metadata.
+// These are game-design mappings, not properties claimed by the NFT collection.
+// The source contains 22 Aura values and 32 Background values across 1,969 NFTs.
 
 export const AURA_GROUPS = {
   flame: ["Burning Aura", "Fiery Aura", "Fire"],
@@ -8,17 +8,17 @@ export const AURA_GROUPS = {
   wind: ["Wind"],
   electric: ["Electric Shock"],
   nature: ["Green Aura", "Mint", "Rose Scent"],
-  royal: ["Royal Aura", "Royal Blue Aura", "Royal Blue", "White Aura"],
+  royal: ["Royal Aura", "Royal Blue Aura", "Royal Blue"],
+  radiant: ["Clean", "White Aura", "Yellow Aura"],
   arcane: ["Purple", "Light Purple", "Violet", "Pink Mist", "Rose Aura"],
-  shadow: ["Smoke", "Clean", "Yellow Aura"],
+  shadow: ["Smoke"],
 };
 
-// The source metadata contains 32 named backgrounds. We turn their visual/theme
-// identity into a combat expression so Background affects how an Aura behaves,
-// rather than becoming another raw damage element.
+// Background is deliberately a behavior modifier rather than a second element.
+// These groups cover every Background value present in the supplied collection.
 export const BACKGROUND_GROUPS = {
   burst: [
-    "Blood Red", "Afternoon Orange", "Lemon Yellow", "Bright Yellow", "Gold",
+    "Blood Red", "Red Sky", "Afternoon Orange", "Lemon Yellow", "Bright Yellow", "Gold",
   ],
   control: [
     "Aqua", "Deep Aqua", "Sky Blue", "Aqua Blue", "Deep Blue", "Noble Blue",
@@ -40,12 +40,14 @@ export const BACKGROUND_GROUPS = {
 export const ARCHETYPE_GROUPS = {
   origin: ["Origin", "Chog"],
   skull: ["Skull"],
+  radioactive: ["Radioactive"],
+  special: ["1:1"],
 };
 
 // Aura answers WHAT kind of power the Chog expresses.
-// Background answers HOW that power is expressed.
-// This matrix is deliberately behavior-first: the same Aura can produce a
-// different matchup pattern depending on its Background.
+// Background answers HOW that power behaves.
+// The matrix produces a stable combat-expression key; abilities can then be
+// authored around that key without hard-coding a unique ability for every NFT.
 export const AURA_BACKGROUND_MATRIX = {
   flame: {
     burst: "ignition",
@@ -95,6 +97,14 @@ export const AURA_BACKGROUND_MATRIX = {
     defense: "royal-aegis",
     disruption: "decree-break",
   },
+  radiant: {
+    burst: "radiant-flare",
+    control: "purifying-bind",
+    sustain: "cleanse-pulse",
+    mobility: "light-step",
+    defense: "radiant-ward",
+    disruption: "reveal-mark",
+  },
   arcane: {
     burst: "prism-lance",
     control: "arcane-fold",
@@ -132,11 +142,12 @@ export function findGroup(value, groups) {
 export function resolveTraitGroups(metadata) {
   const auraFamily = findGroup(metadata.Aura, AURA_GROUPS);
   const backgroundStyle = findGroup(metadata.Background, BACKGROUND_GROUPS);
+  const archetype = findGroup(metadata.Form ?? metadata.Base, ARCHETYPE_GROUPS);
 
   return {
     auraFamily,
     backgroundStyle,
-    archetype: findGroup(metadata.Form ?? metadata.Base, ARCHETYPE_GROUPS),
+    archetype,
     expression:
       AURA_BACKGROUND_MATRIX[auraFamily]?.[backgroundStyle]
       ?? AURA_BACKGROUND_MATRIX.neutral[backgroundStyle]
