@@ -58,6 +58,7 @@ class ArenaScene extends Phaser.Scene {
     this.attackCooldown = 0;
     this.wasGrounded = true;
     this.ghostHp = { player: 0, opponent: 0 };
+    this.ghostPending = { player: false, opponent: false };
   }
 
   create() {
@@ -119,11 +120,14 @@ class ArenaScene extends Phaser.Scene {
     const left = this.cursors.left.isDown || this.keys.left.isDown;
     const right = this.cursors.right.isDown || this.keys.right.isDown;
     if (left) {
-      this.player.setVelocityX(-260); engineMove(this.playerCombatant, "left");
+      this.player.setVelocityX(-260);
+      engineMove(this.playerCombatant, "left");
     } else if (right) {
-      this.player.setVelocityX(260); engineMove(this.playerCombatant, "right");
+      this.player.setVelocityX(260);
+      engineMove(this.playerCombatant, "right");
     } else {
-      this.player.setVelocityX(0); engineMove(this.playerCombatant, "idle");
+      this.player.setVelocityX(0);
+      engineMove(this.playerCombatant, "idle");
     }
 
     const grounded = this.player.body.blocked.down || this.player.body.touching.down;
@@ -148,8 +152,9 @@ class ArenaScene extends Phaser.Scene {
 
   startAttack(slot) {
     if (this.attackCooldown > 0 || this.attackSequence) return;
-    if (slot !== "defense" && Math.abs(this.player.x - this.opponent.x) > 310) {
-      this.showStatus("OUT OF RANGE"); return;
+    if (Math.abs(this.player.x - this.opponent.x) > 310) {
+      this.showStatus("OUT OF RANGE");
+      return;
     }
     this.attackSequence = {
       slot,
@@ -160,7 +165,13 @@ class ArenaScene extends Phaser.Scene {
       facing: this.player.x <= this.opponent.x ? 1 : -1,
     };
     this.showStatus(slot === "basic" ? "BASIC — WIND UP" : `${slot.toUpperCase()} — WIND UP`);
-    this.tweens.add({ targets: this.playerVisual, scaleX: 1.08 * this.attackSequence.facing, scaleY: 0.94, duration: ATTACK_PHASES.startup, ease: "Quad.easeOut" });
+    this.tweens.add({
+      targets: this.playerVisual,
+      scaleX: 1.08 * this.attackSequence.facing,
+      scaleY: 0.94,
+      duration: ATTACK_PHASES.startup,
+      ease: "Quad.easeOut",
+    });
   }
 
   updateAttackSequence(delta) {
@@ -185,7 +196,6 @@ class ArenaScene extends Phaser.Scene {
         sequence.elapsed = 0;
       }
     } else if (sequence.phase === "recovery" && sequence.elapsed >= ATTACK_PHASES.recovery) {
-      sequence = null;
       this.attackSequence = null;
       this.attackCooldown = ATTACK_COOLDOWN;
       this.playerVisual.scaleY = 1;
@@ -194,19 +204,26 @@ class ArenaScene extends Phaser.Scene {
 
   checkPlayerHit(sequence) {
     if (sequence.hit || !sequence.hitbox || !this.opponentHurtbox.active) return;
-    if (this.physics.overlap(sequence.hitbox, this.opponentHurtbox)) {
-      sequence.hit = true;
-      let result;
-      try {
-        if (sequence.slot === "basic") result = resolveBasicAttack(this.playerCombatant, this.opponentCombatant);
-        else if (sequence.slot === "base") result = resolveBaseAbility(this.playerCombatant, this.opponentCombatant);
-        else result = resolveSpecialAbility(this.playerCombatant, this.opponentCombatant);
-      } catch (error) {
-        this.showStatus(error.message);
-        return;
-      }
-      this.onHit({ attacker: this.player, defender: this.opponent, defenderVisual: this.opponentVisual, result, heavy: sequence.slot === "special" });
+    if (!this.physics.overlap(sequence.hitbox, this.opponentHurtbox)) return;
+    sequence.hit = true;
+
+    let result;
+    try {
+      if (sequence.slot === "basic") result = resolveBasicAttack(this.playerCombatant, this.opponentCombatant);
+      else if (sequence.slot === "base") result = resolveBaseAbility(this.playerCombatant, this.opponentCombatant);
+      else result = resolveSpecialAbility(this.playerCombatant, this.opponentCombatant);
+    } catch (error) {
+      this.showStatus(error.message);
+      return;
     }
+
+    this.onHit({
+      attacker: this.player,
+      defender: this.opponent,
+      defenderVisual: this.opponentVisual,
+      result,
+      heavy: sequence.slot === "special",
+    });
   }
 
   useDefense() {
@@ -215,7 +232,9 @@ class ArenaScene extends Phaser.Scene {
       const result = resolveDefenseAbility(this.playerCombatant);
       this.showStatus(`DEFENSE — SHIELD ${result.shield}`);
       this.flashDefense(this.playerVisual);
-    } catch (error) { this.showStatus(error.message); }
+    } catch (error) {
+      this.showStatus(error.message);
+    }
   }
 
   updateIncomingAttack(delta) {
@@ -230,7 +249,13 @@ class ArenaScene extends Phaser.Scene {
           this.showStatus("EVADED — PERFECT JUMP");
           this.createDust(this.player.x, this.player.y + 55);
         } else {
-          this.onHit({ attacker: this.opponent, defender: this.player, defenderVisual: this.playerVisual, result, heavy: false });
+          this.onHit({
+            attacker: this.opponent,
+            defender: this.player,
+            defenderVisual: this.playerVisual,
+            result,
+            heavy: false,
+          });
         }
       }
       return;
@@ -244,8 +269,12 @@ class ArenaScene extends Phaser.Scene {
       const visual = this.add.rectangle(this.opponent.x + facing * 90, FLOOR_Y - 55, 180, 10, 0x7b61ff, 0.9);
       visual.setDepth(5);
       this.incomingAttack = {
-        timeLeft: 550, visual, action: "opponent-basic",
-        power: this.opponentCombatant.dna.stats.attack, type: "burst", canBeEvaded: true,
+        timeLeft: 550,
+        visual,
+        action: "opponent-basic",
+        power: this.opponentCombatant.dna.stats.attack,
+        type: "burst",
+        canBeEvaded: true,
       };
       this.showStatus("INCOMING — JUMP TO EVADE");
     }
@@ -269,7 +298,6 @@ class ArenaScene extends Phaser.Scene {
     this.physics.add.existing(zone);
     zone.body.setAllowGravity(false);
     zone.body.setImmovable(true);
-    zone.setData("facing", facing);
     return zone;
   }
 
@@ -283,6 +311,8 @@ class ArenaScene extends Phaser.Scene {
   updateHurtboxes() {
     this.playerHurtbox.setPosition(this.player.x, this.player.y - 50);
     this.opponentHurtbox.setPosition(this.opponent.x, this.opponent.y - 50);
+    this.playerHurtbox.body.updateFromGameObject();
+    this.opponentHurtbox.body.updateFromGameObject();
     if (this.attackSequence?.hitbox) {
       const facing = this.attackSequence.facing;
       this.attackSequence.hitbox.setPosition(this.player.x + facing * 82, this.player.y - 50);
@@ -311,10 +341,22 @@ class ArenaScene extends Phaser.Scene {
 
   showDamageNumber(x, y, damage) {
     const text = this.add.text(x, y, `-${damage}`, {
-      fontFamily: "system-ui, sans-serif", fontSize: "28px", fontStyle: "900", color: "#ff3366",
-      stroke: "#111318", strokeThickness: 5,
+      fontFamily: "system-ui, sans-serif",
+      fontSize: "28px",
+      fontStyle: "900",
+      color: "#ff3366",
+      stroke: "#111318",
+      strokeThickness: 5,
     }).setOrigin(0.5).setDepth(20);
-    this.tweens.add({ targets: text, y: y - 75, alpha: 0, scale: 1.35, duration: 600, ease: "Power2", onComplete: () => text.destroy() });
+    this.tweens.add({
+      targets: text,
+      y: y - 75,
+      alpha: 0,
+      scale: 1.35,
+      duration: 600,
+      ease: "Power2",
+      onComplete: () => text.destroy(),
+    });
   }
 
   createHitSparks(x, y) {
@@ -322,14 +364,31 @@ class ArenaScene extends Phaser.Scene {
       const spark = this.add.circle(x, y, Phaser.Math.Between(3, 6), 0xffffff, 1).setDepth(18);
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
       const distance = Phaser.Math.Between(35, 75);
-      this.tweens.add({ targets: spark, x: x + Math.cos(angle) * distance, y: y + Math.sin(angle) * distance, alpha: 0, scale: 0.2, duration: 240, ease: "Quad.easeOut", onComplete: () => spark.destroy() });
+      this.tweens.add({
+        targets: spark,
+        x: x + Math.cos(angle) * distance,
+        y: y + Math.sin(angle) * distance,
+        alpha: 0,
+        scale: 0.2,
+        duration: 240,
+        ease: "Quad.easeOut",
+        onComplete: () => spark.destroy(),
+      });
     }
   }
 
   createDust(x, y) {
     for (let i = 0; i < 5; i += 1) {
       const dust = this.add.circle(x + Phaser.Math.Between(-25, 25), y, Phaser.Math.Between(5, 9), 0xffffff, 0.35).setDepth(4);
-      this.tweens.add({ targets: dust, x: dust.x + Phaser.Math.Between(-30, 30), y: y - Phaser.Math.Between(8, 22), alpha: 0, scale: 1.4, duration: 280, onComplete: () => dust.destroy() });
+      this.tweens.add({
+        targets: dust,
+        x: dust.x + Phaser.Math.Between(-30, 30),
+        y: y - Phaser.Math.Between(8, 22),
+        alpha: 0,
+        scale: 1.4,
+        duration: 280,
+        onComplete: () => dust.destroy(),
+      });
     }
   }
 
@@ -358,15 +417,22 @@ class ArenaScene extends Phaser.Scene {
 
   updateHealthBars(force = false) {
     const values = [
-      { key: "player", hp: this.playerCombatant.hp, max: this.playerCombatant.maxHp, x: 32, y: 150, fg: this.playerBar, ghost: this.playerGhostBar },
-      { key: "opponent", hp: this.opponentCombatant.hp, max: this.opponentCombatant.maxHp, x: GAME_WIDTH - 332, y: 150, fg: this.opponentBar, ghost: this.opponentGhostBar },
+      { key: "player", hp: this.playerCombatant.hp, max: this.playerCombatant.maxHp, fg: this.playerBar, ghost: this.playerGhostBar },
+      { key: "opponent", hp: this.opponentCombatant.hp, max: this.opponentCombatant.maxHp, fg: this.opponentBar, ghost: this.opponentGhostBar },
     ];
     for (const item of values) {
       const ratio = Phaser.Math.Clamp(item.hp / item.max, 0, 1);
       item.fg.width = 300 * ratio;
-      if (force) this.ghostHp[item.key] = item.hp;
-      if (this.ghostHp[item.key] > item.hp) {
-        this.time.delayedCall(160, () => { this.ghostHp[item.key] = item.hp; });
+      if (force) {
+        this.ghostHp[item.key] = item.hp;
+        this.ghostPending[item.key] = false;
+      }
+      if (this.ghostHp[item.key] > item.hp && !this.ghostPending[item.key]) {
+        this.ghostPending[item.key] = true;
+        this.time.delayedCall(160, () => {
+          this.ghostHp[item.key] = item.hp;
+          this.ghostPending[item.key] = false;
+        });
       }
       const ghostRatio = Phaser.Math.Clamp(this.ghostHp[item.key] / item.max, 0, 1);
       item.ghost.width = Phaser.Math.Linear(item.ghost.width, 300 * ghostRatio, 0.12);
