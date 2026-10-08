@@ -1,12 +1,11 @@
 import { defineConfig } from "vite";
-import { resolve } from "node:path";
 
 export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, "index.html"),
-        battle: resolve(__dirname, "battle.html"),
+        main: new URL("./index.html", import.meta.url).pathname,
+        battle: new URL("./battle.html", import.meta.url).pathname,
       },
     },
   },
