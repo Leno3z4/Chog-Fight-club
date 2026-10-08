@@ -200,10 +200,12 @@ export function resolveDefenseAbility(combatant) {
   combatant.energy -= ability.cost;
   combatant.guarding = true;
   combatant.guardTimeRemaining = combatData.health.defense.windowMs;
+  const blockPercent = getDefenseBlockPercent(combatant);
   return {
     action: ACTIONS.DEFENSE,
     abilityId: ability.id,
-    blockPercent: getDefenseBlockPercent(combatant),
+    blockPercent,
+    shield: `${blockPercent}% block`,
     windowMs: combatant.guardTimeRemaining,
   };
 }
@@ -249,10 +251,12 @@ function resolveAbilityAction(attacker, defender, ability, slot) {
 function resolveDefenseAbilityWithCostAlreadyPaid(combatant, ability) {
   combatant.guarding = true;
   combatant.guardTimeRemaining = combatData.health.defense.windowMs;
+  const blockPercent = getDefenseBlockPercent(combatant);
   return {
     action: ACTIONS.DEFENSE,
     abilityId: ability.id,
-    blockPercent: getDefenseBlockPercent(combatant),
+    blockPercent,
+    shield: `${blockPercent}% block`,
     windowMs: combatant.guardTimeRemaining,
   };
 }
