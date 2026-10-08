@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test:mechanics": "node src/game/mechanics.test.js"
+    "test:mechanics": "node src/game/mechanics.test.js && node src/game/matchFlow.test.js"
   },
   "dependencies": {
     "phaser": "^3.90.0"
