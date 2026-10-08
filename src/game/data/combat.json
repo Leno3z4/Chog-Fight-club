@@ -21,9 +21,19 @@
     "statusDamage": { "burn": 3, "burnTurns": 2 }
   },
   "cooldowns": {
-    "basic": 2000,
+    "basic": 500,
     "base": 5000,
     "special": 30000
+  },
+  "energy": {
+    "max": 100,
+    "start": 100,
+    "regenPerSecond": 5,
+    "costPercent": {
+      "basic": 5,
+      "base": 10,
+      "special": 35
+    }
   },
   "timing": {
     "basic": { "startup": 120, "active": 100, "recovery": 220, "activeFrame": 4, "recoveryFrame": 7 },
