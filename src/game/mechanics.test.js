@@ -5,6 +5,9 @@ import {
   canEvadeIncomingAttack,
   createCombatant,
   getCounterMultiplier,
+  getDefenseBlockPercent,
+  getCooldownRemaining,
+  isActionReady,
   jump,
   move,
   resolveBaseAbility,
@@ -13,6 +16,7 @@ import {
   resolveIncomingAttack,
   resolveSpecialAbility,
   startTurn,
+  updateCooldowns,
 } from "./combatEngine.js";
 
 const flameChog = {
@@ -84,27 +88,52 @@ assert.equal(attacker.hp, 100, "every Chog starts with exactly 100 HP");
 assert.equal(attacker.maxHp, 100, "every Chog has exactly 100 max HP");
 assert.equal(defender.hp, 100, "every defender starts with exactly 100 HP");
 
-const hpBefore = defender.hp;
 const basicResult = resolveBasicAttack(attacker, defender);
-assert.ok(basicResult.damage > 0, "basic attack must deal damage");
-assert.ok(basicResult.damage <= 12, "basic attack must stay within its damage budget");
-assert.equal(defender.hp, hpBefore - basicResult.damage, "damage must drain HP by the reported amount");
+assert.equal(basicResult.damage, 4, "basic attack must deal exactly 4 HP");
+assert.equal(defender.hp, 96);
+assert.equal(isActionReady(attacker, "basic"), false, "basic must enter cooldown");
+assert.equal(getCooldownRemaining(attacker, "basic"), 2000);
+updateCooldowns(attacker, 1999);
+assert.equal(isActionReady(attacker, "basic"), false);
+updateCooldowns(attacker, 1);
+assert.equal(isActionReady(attacker, "basic"), true, "basic cooldown must be 2 seconds");
 
-const baseEnergy = attacker.energy;
-const baseResult = resolveBaseAbility(attacker, defender);
-assert.ok(attacker.energy < baseEnergy, "base ability must consume energy");
-assert.ok(baseResult.damage <= 16, "base ability must stay within its damage budget");
+const baseAttacker = createCombatant(first);
+const baseDefender = createCombatant(water);
+const baseEnergy = baseAttacker.energy;
+const baseResult = resolveBaseAbility(baseAttacker, baseDefender);
+assert.equal(baseResult.damage, 6, "base ability must deal exactly 6 HP");
+assert.ok(baseAttacker.energy < baseEnergy, "base ability must consume energy");
+assert.equal(getCooldownRemaining(baseAttacker, "base"), 5000);
 
-startTurn(attacker);
-const specialEnergy = attacker.energy;
-const specialResult = resolveSpecialAbility(attacker, defender);
-assert.ok(attacker.energy < specialEnergy, "special ability must consume energy");
-assert.ok(specialResult.damage <= 22, "special ability must stay within its damage budget");
+const specialAttacker = createCombatant(first);
+const specialDefender = createCombatant(water);
+const specialEnergy = specialAttacker.energy;
+const specialResult = resolveSpecialAbility(specialAttacker, specialDefender);
+assert.equal(specialResult.damage, 10, "special must deal exactly 10 HP");
+assert.ok(specialAttacker.energy < specialEnergy, "special must consume energy");
+assert.equal(getCooldownRemaining(specialAttacker, "special"), 30000);
 
-const defense = createCombatant(first);
-const defenseResult = resolveDefenseAbility(defense);
-assert.ok(defenseResult.shield > 0, "defense ability must create shield");
-assert.ok(defenseResult.shield <= 24, "shield must stay within its balance cap");
+const commonDefense = createCombatant(water);
+assert.equal(getDefenseBlockPercent(commonDefense), 80);
+resolveDefenseAbility(commonDefense);
+const commonAttacker = createCombatant(first);
+const commonHp = commonDefense.hp;
+const commonHit = resolveBasicAttack(commonAttacker, commonDefense);
+assert.equal(commonHit.damage, 1, "Common defense should leave only 20% of a 4 HP basic hit");
+assert.equal(commonDefense.hp, commonHp - 1);
+assert.equal(commonHit.blockPercent, 80);
+assert.equal(commonDefense.guarding, false, "a defense window is consumed by the hit");
+
+const legendaryDefense = createCombatant(first);
+assert.equal(getDefenseBlockPercent(legendaryDefense), 100);
+resolveDefenseAbility(legendaryDefense);
+const legendaryAttacker = createCombatant(water);
+const legendaryHp = legendaryDefense.hp;
+const legendaryHit = resolveBasicAttack(legendaryAttacker, legendaryDefense);
+assert.equal(legendaryHit.damage, 0, "Legendary defense should fully block damage");
+assert.equal(legendaryDefense.hp, legendaryHp);
+assert.equal(legendaryHit.blockPercent, 100);
 
 const jumper = createCombatant(first);
 const jumpResult = jump(jumper);
@@ -124,4 +153,5 @@ assert.ok(mover.movement.velocityX < 0);
 move(mover, "right");
 assert.ok(mover.movement.velocityX > 0);
 
+startTurn(attacker);
 console.log("Chog mechanics sanity checks passed.");
