@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:mechanics": "node src/game/mechanics.test.js"
   },
   "dependencies": {
     "phaser": "^3.90.0"
