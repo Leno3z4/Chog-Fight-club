@@ -1,7 +1,5 @@
-import { createHash } from "node:crypto";
-import { buildAbilitySet } from "./abilities.js";
+import { buildAbilitySet, TIERS } from "./abilities.js";
 import { resolveTraitGroups } from "./traitGroups.js";
-import { TIERS } from "./abilities.js";
 
 const BASE_STATS = {
   hp: 100,
@@ -22,7 +20,7 @@ const BODY_MODIFIERS = {
 const EYE_MODIFIERS = {
   Angry: { attack: 3 },
   Happy: { accuracy: 3 },
-  "Round": { accuracy: 2 },
+  Round: { accuracy: 2 },
   "Red Round Eye": { attack: 2 },
   "Green laser": { accuracy: 4 },
   "cyan laser": { accuracy: 4 },
@@ -53,10 +51,16 @@ function normalizedMetadata(metadata) {
   );
 }
 
+// Small deterministic integer hash. Browser-safe and sufficient for bounded
+// variation; the normalized metadata itself remains the source of identity.
 function deterministicNumber(metadata, salt) {
-  const normalized = JSON.stringify(normalizedMetadata(metadata));
-  const hash = createHash("sha256").update(`${normalized}:${salt}`).digest();
-  return hash.readUInt32BE(0);
+  const input = `${JSON.stringify(normalizedMetadata(metadata))}:${salt}`;
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }
 
 function applyModifier(stats, modifier = {}) {
@@ -80,8 +84,6 @@ export function buildBattleDNA(metadata) {
   applyModifier(stats, EYE_MODIFIERS[normalized.Eyes]);
   applyModifier(stats, SKIN_MODIFIERS[normalized.Skin]);
 
-  // Stable bounded variation: identity stays fixed, but two otherwise similar Chogs
-  // do not become perfectly identical combat sheets.
   const variation = deterministicNumber(normalized, "battle-variation");
   stats.speed += variation % 2;
   stats.accuracy += variation % 3 === 0 ? 2 : 0;
