@@ -28,7 +28,7 @@
   "energy": {
     "max": 100,
     "start": 100,
-    "regenPerSecond": 5,
+    "regenPerSecond": 2,
     "costPercent": {
       "basic": 5,
       "base": 10,
