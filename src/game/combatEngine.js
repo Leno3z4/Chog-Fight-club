@@ -1,3 +1,5 @@
+import combatData from "./data/combat.json";
+
 export const ACTIONS = {
   BASIC: "basic",
   BASE: "base",
@@ -18,21 +20,22 @@ const COUNTERS = {
 };
 
 const MOVEMENT = { left: -1, right: 1, idle: 0 };
-const JUMP = { velocity: 12, duration: 0.9 };
+const JUMP = { velocity: -620, duration: combatData.movement.jumpEvadeWindowMs / 1000 };
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
 export function getCounterMultiplier(attackerStyle, defenderStyle) {
-  return COUNTERS[attackerStyle]?.[defenderStyle] ?? 1;
+  return clamp(COUNTERS[attackerStyle]?.[defenderStyle] ?? 1, combatData.health.counterCap.min, combatData.health.counterCap.max);
 }
 
 export function createCombatant(dna) {
+  const maxHp = combatData.health.maxHp;
   return {
     dna,
-    hp: dna.stats.hp,
-    maxHp: dna.stats.hp,
+    hp: maxHp,
+    maxHp,
     energy: dna.stats.energy,
     shield: 0,
     statuses: {},
@@ -49,11 +52,7 @@ export function move(combatant, direction) {
   if (!(direction in MOVEMENT)) throw new Error("Unknown movement direction");
   combatant.movement.direction = direction;
   combatant.movement.velocityX = MOVEMENT[direction] * combatant.dna.stats.speed;
-  return {
-    action: ACTIONS.MOVE,
-    direction,
-    velocityX: combatant.movement.velocityX,
-  };
+  return { action: ACTIONS.MOVE, direction, velocityX: combatant.movement.velocityX };
 }
 
 export function jump(combatant) {
@@ -61,12 +60,7 @@ export function jump(combatant) {
   combatant.airborne = true;
   combatant.jumpTime = JUMP.duration;
   combatant.evadeWindow = JUMP.duration;
-  return {
-    action: ACTIONS.JUMP,
-    started: true,
-    velocityY: JUMP.velocity,
-    evadeWindow: JUMP.duration,
-  };
+  return { action: ACTIONS.JUMP, started: true, velocityY: JUMP.velocity, evadeWindow: JUMP.duration };
 }
 
 export function updateMovement(combatant, deltaSeconds) {
@@ -84,7 +78,7 @@ export function resolveIncomingAttack(attacker, defender, attack) {
   if (canEvadeIncomingAttack(defender, attack)) {
     return { action: attack.action ?? ACTIONS.BASIC, evaded: true, damage: 0 };
   }
-  return resolveDamageAttack(attacker, defender, attack?.power ?? attacker.dna.stats.attack, attack?.type ?? "burst");
+  return resolveDamageAttack(attacker, defender, attack?.damageClass ?? "basic", attack?.type ?? "burst");
 }
 
 export function startTurn(combatant) {
@@ -99,32 +93,42 @@ export function startTurn(combatant) {
 
   if (combatant.statuses.slowTurns) {
     combatant.statuses.slowTurns -= 1;
-    if (combatant.statuses.slowTurns <= 0) delete combatant.statuses.slow;
+    if (combatant.statuses.slowTurns <= 0) {
+      delete combatant.statuses.slow;
+      delete combatant.statuses.slowTurns;
+    }
   }
 
   combatant.defeated = combatant.hp <= 0;
 }
 
 function dealDamage(target, amount) {
-  const absorbed = Math.min(target.shield, amount);
+  const rounded = Math.max(0, Math.round(amount));
+  const absorbed = Math.min(target.shield, rounded);
   target.shield -= absorbed;
-  const damage = Math.max(0, amount - absorbed);
+  const damage = Math.max(0, rounded - absorbed);
   target.hp = Math.max(0, target.hp - damage);
   target.defeated = target.hp <= 0;
   return { damage, absorbed };
 }
 
-function resolveDamageAttack(attacker, defender, power, type) {
+function getDamageProfile(kind) {
+  return combatData.health[kind] ?? combatData.health.basic;
+}
+
+function resolveDamageAttack(attacker, defender, damageClass, type) {
+  const profile = getDamageProfile(damageClass);
   const defenderStyle = defender.dna.abilitySet.backgroundStyle;
   const counter = getCounterMultiplier(type, defenderStyle);
-  const guarded = defender.guarding ? 0.5 : 1;
-  const damage = Math.max(1, Math.round((power + attacker.dna.stats.attack * 0.45) * counter - defender.dna.stats.defense * 0.35));
-  const result = dealDamage(defender, damage * guarded);
-  return { action: ACTIONS.BASIC, ...result, multiplier: counter };
+  const guarded = defender.guarding ? combatData.health.guardMultiplier : 1;
+  const raw = profile.base + attacker.dna.stats.attack * profile.attackScale - defender.dna.stats.defense * profile.defenseScale;
+  const damage = clamp(Math.round(raw * counter * guarded), combatData.health.minDamage, profile.max);
+  const result = dealDamage(defender, damage);
+  return { action: damageClass === "special" ? ACTIONS.SPECIAL : damageClass === "base" ? ACTIONS.BASE : ACTIONS.BASIC, ...result, multiplier: counter };
 }
 
 export function resolveBasicAttack(attacker, defender) {
-  return resolveDamageAttack(attacker, defender, attacker.dna.stats.attack, "burst");
+  return resolveDamageAttack(attacker, defender, "basic", "burst");
 }
 
 export function resolveAttack(attacker, defender) {
@@ -138,7 +142,7 @@ export function resolveGuard(combatant) {
 export function resolveAbility(attacker, defender, slot = "base") {
   const ability = attacker.dna.abilitySet[slot];
   if (!ability) throw new Error(`Unknown ability slot: ${slot}`);
-  return resolveAbilityAction(attacker, defender, ability);
+  return resolveAbilityAction(attacker, defender, ability, slot);
 }
 
 export function resolveBaseAbility(attacker, defender) {
@@ -155,11 +159,11 @@ export function resolveDefenseAbility(combatant) {
   if (combatant.energy < ability.cost) throw new Error("Not enough energy");
   combatant.energy -= ability.cost;
   combatant.guarding = true;
-  combatant.shield = Math.max(combatant.shield, Math.round(combatant.dna.stats.defense * 1.5));
+  combatant.shield = Math.min(combatData.shield.max, Math.max(combatant.shield, Math.round(combatant.dna.stats.defense * combatData.shield.defenseMultiplier)));
   return { action: ACTIONS.DEFENSE, abilityId: ability.id, shield: combatant.shield };
 }
 
-function resolveAbilityAction(attacker, defender, ability) {
+function resolveAbilityAction(attacker, defender, ability, slot) {
   if (attacker.energy < ability.cost) throw new Error("Not enough energy");
   attacker.energy -= ability.cost;
 
@@ -167,27 +171,32 @@ function resolveAbilityAction(attacker, defender, ability) {
 
   const defenderStyle = defender.dna.abilitySet.backgroundStyle;
   const counter = getCounterMultiplier(ability.type, defenderStyle);
-  let result = { action: ability.type === "disruption" ? ACTIONS.SPECIAL : ACTIONS.BASE, abilityId: ability.id, multiplier: counter };
+  let result = { action: slot === "special" ? ACTIONS.SPECIAL : ACTIONS.BASE, abilityId: ability.id, multiplier: counter };
 
   if (ability.type === "mobility") {
     jump(attacker);
     result.evadeWindow = attacker.evadeWindow;
-  } else {
-    const rawDamage = Math.max(1, ability.power + attacker.dna.stats.attack * 0.45 - defender.dna.stats.defense * 0.25);
-    const damageResult = dealDamage(defender, rawDamage * counter * (defender.guarding ? 0.5 : 1));
-    result = { ...result, ...damageResult };
+    return result;
+  }
 
-    if (ability.status === "burn") {
-      defender.statuses.burn = Math.max(defender.statuses.burn ?? 0, 5);
-      defender.statuses.burnTurns = 2;
-    } else if (ability.status === "slow") {
-      defender.statuses.slow = true;
-      defender.statuses.slowTurns = 2;
-    } else if (ability.status === "stun") {
-      defender.statuses.stun = true;
-    } else if (ability.status === "weaken") {
-      defender.statuses.weaken = 0.8;
-    }
+  const damageClass = slot === "special" ? "special" : "base";
+  const profile = getDamageProfile(damageClass);
+  const guarded = defender.guarding ? combatData.health.guardMultiplier : 1;
+  const raw = profile.base + attacker.dna.stats.attack * profile.attackScale - defender.dna.stats.defense * profile.defenseScale;
+  const damage = clamp(Math.round(raw * counter * guarded), combatData.health.minDamage, profile.max);
+  const damageResult = dealDamage(defender, damage);
+  result = { ...result, ...damageResult };
+
+  if (ability.status === "burn") {
+    defender.statuses.burn = combatData.health.statusDamage.burn;
+    defender.statuses.burnTurns = combatData.health.statusDamage.burnTurns;
+  } else if (ability.status === "slow") {
+    defender.statuses.slow = true;
+    defender.statuses.slowTurns = 2;
+  } else if (ability.status === "stun") {
+    defender.statuses.stun = true;
+  } else if (ability.status === "weaken") {
+    defender.statuses.weaken = 0.8;
   }
 
   return result;
@@ -195,7 +204,7 @@ function resolveAbilityAction(attacker, defender, ability) {
 
 function resolveDefenseAbilityWithCostAlreadyPaid(combatant, ability) {
   combatant.guarding = true;
-  combatant.shield = Math.max(combatant.shield, Math.round(combatant.dna.stats.defense * 1.5));
+  combatant.shield = Math.min(combatData.shield.max, Math.max(combatant.shield, Math.round(combatant.dna.stats.defense * combatData.shield.defenseMultiplier)));
   return { action: ACTIONS.DEFENSE, abilityId: ability.id, shield: combatant.shield };
 }
 
