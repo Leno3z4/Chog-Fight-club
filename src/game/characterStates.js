@@ -1,4 +1,4 @@
-import { jump as engineJump } from "./combatEngine.js";
+import { isActionReady, jump as engineJump } from "./combatEngine.js";
 import combatData from "./data/combat.json";
 import { CharacterState } from "./stateMachine.js";
 
@@ -45,6 +45,14 @@ class JumpState extends CharacterState {
 
 class AttackStartupState extends CharacterState {
   enter(character, payload) {
+    if (!isActionReady(character.combatant, payload.attack.slot)) {
+      character.attack = null;
+      const seconds = (character.combatant.cooldowns[payload.attack.slot] / 1000).toFixed(1);
+      character.scene.showStatus(`${payload.attack.slot.toUpperCase()} RELOADING — ${seconds}s`);
+      character.stateMachine.change(character.input.left || character.input.right ? CHARACTER_STATES.WALK : CHARACTER_STATES.IDLE);
+      return;
+    }
+
     character.attack = payload.attack;
     character.attack.elapsed = 0;
     character.scene.showStatus(payload.attack.slot === "basic" ? "BASIC — WIND UP" : `${payload.attack.slot.toUpperCase()} — WIND UP`);
@@ -58,6 +66,7 @@ class AttackStartupState extends CharacterState {
   }
 
   update(character, delta) {
+    if (!character.attack) return;
     character.attack.elapsed += delta;
     if (!character.attack.animationFrameDriven && character.attack.elapsed >= character.attack.timing.startup) {
       character.stateMachine.change(CHARACTER_STATES.ATTACK_ACTIVE);
