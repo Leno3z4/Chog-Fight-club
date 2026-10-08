@@ -10,9 +10,9 @@
     "statusDamage": { "burn": 3, "burnTurns": 2 }
   },
   "timing": {
-    "basic": { "startup": 120, "active": 100, "recovery": 220 },
-    "base": { "startup": 150, "active": 110, "recovery": 280 },
-    "special": { "startup": 220, "active": 120, "recovery": 420 },
+    "basic": { "startup": 120, "active": 100, "recovery": 220, "activeFrame": 4, "recoveryFrame": 7 },
+    "base": { "startup": 150, "active": 110, "recovery": 280, "activeFrame": 5, "recoveryFrame": 8 },
+    "special": { "startup": 220, "active": 120, "recovery": 420, "activeFrame": 7, "recoveryFrame": 11 },
     "defense": { "recovery": 180 },
     "hitstop": { "normal": 45, "heavy": 70 },
     "inputBufferMs": 150,
