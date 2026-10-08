@@ -1,5 +1,6 @@
-import { CharacterState } from "./stateMachine.js";
+import { jump as engineJump } from "./combatEngine.js";
 import combatData from "./data/combat.json";
+import { CharacterState } from "./stateMachine.js";
 
 export const CHARACTER_STATES = {
   IDLE: "idle",
@@ -12,7 +13,7 @@ export const CHARACTER_STATES = {
 };
 
 class IdleState extends CharacterState {
-  update(character, delta) {
+  update(character) {
     if (character.hitstunRemaining > 0) return;
     if (character.input.right || character.input.left) character.stateMachine.change(CHARACTER_STATES.WALK);
   }
@@ -27,19 +28,18 @@ class WalkState extends CharacterState {
 
 class JumpState extends CharacterState {
   enter(character) {
+    engineJump(character.combatant);
     character.scene.player.setVelocityY(combatData.movement.jumpVelocity);
-    character.combatant.airborne = true;
     character.scene.showStatus("JUMP — EVADE WINDOW");
     character.scene.createDust(character.scene.player.x, character.scene.FLOOR_Y - 3);
   }
 
-  update(character, delta) {
+  update(character) {
     const grounded = character.scene.player.body.blocked.down || character.scene.player.body.touching.down;
     if (grounded && character.scene.player.body.velocity.y >= 0) {
       character.combatant.airborne = false;
       character.stateMachine.change(character.input.left || character.input.right ? CHARACTER_STATES.WALK : CHARACTER_STATES.IDLE);
     }
-    character.combatant.evadeWindow = Math.max(0, character.combatant.evadeWindow - delta / 1000);
   }
 }
 
@@ -59,16 +59,14 @@ class AttackStartupState extends CharacterState {
 
   update(character, delta) {
     character.attack.elapsed += delta;
-    if (character.attack.elapsed >= character.attack.timing.startup) {
-      character.stateMachine.change(CHARACTER_STATES.ATTACK_ACTIVE);
-    }
+    if (character.attack.elapsed >= character.attack.timing.startup) character.stateMachine.change(CHARACTER_STATES.ATTACK_ACTIVE);
   }
 }
 
 class AttackActiveState extends CharacterState {
   enter(character) {
     character.attack.elapsed = 0;
-    character.attack.hitbox = character.scene.createAttackHitbox(character.attack.facing);
+    character.attack.hitbox = character.scene.createAttackHitbox(character.attack.facing, character.attack.slot);
     character.scene.flashAttackTelegraph(character.attack.facing);
     character.scene.showStatus("ACTIVE — HITBOX LIVE");
   }
@@ -76,9 +74,7 @@ class AttackActiveState extends CharacterState {
   update(character, delta) {
     character.attack.elapsed += delta;
     character.scene.checkPlayerHit(character.attack);
-    if (character.attack.elapsed >= character.attack.timing.active) {
-      character.stateMachine.change(CHARACTER_STATES.ATTACK_RECOVERY);
-    }
+    if (character.attack.elapsed >= character.attack.timing.active) character.stateMachine.change(CHARACTER_STATES.ATTACK_RECOVERY);
   }
 
   exit(character) {
@@ -96,7 +92,7 @@ class AttackRecoveryState extends CharacterState {
     character.attack.elapsed += delta;
     if (character.attack.elapsed >= character.attack.timing.recovery) {
       character.attack = null;
-      character.attackCooldown = combatData.timing.inputBufferMs + 400;
+      character.attackCooldown = 0;
       character.scene.playerVisual.scaleY = 1;
       character.stateMachine.change(character.input.left || character.input.right ? CHARACTER_STATES.WALK : CHARACTER_STATES.IDLE);
     }
@@ -110,9 +106,7 @@ class HitstunState extends CharacterState {
 
   update(character, delta) {
     character.hitstunRemaining = Math.max(0, character.hitstunRemaining - delta);
-    if (character.hitstunRemaining === 0) {
-      character.stateMachine.change(character.input.left || character.input.right ? CHARACTER_STATES.WALK : CHARACTER_STATES.IDLE);
-    }
+    if (character.hitstunRemaining === 0) character.stateMachine.change(character.input.left || character.input.right ? CHARACTER_STATES.WALK : CHARACTER_STATES.IDLE);
   }
 }
 
