@@ -94,6 +94,15 @@ export function canUseOffensiveAction(combatant, action) {
   return isActionReady(combatant, action) && combatant.energy >= getEnergyCost(action);
 }
 
+export function beginOffensiveAction(combatant, action) {
+  if (!isActionReady(combatant, action)) throw new Error(`${action.toUpperCase()} RELOADING`);
+  const cost = getEnergyCost(action);
+  if (combatant.energy < cost) throw new Error("NOT ENOUGH ENERGY");
+  combatant.energy = clamp(combatant.energy - cost, 0, combatant.maxEnergy);
+  startCooldown(combatant, action);
+  return { energyCost: cost, cooldownMs: combatData.cooldowns[action] };
+}
+
 export function move(combatant, direction) {
   if (!(direction in MOVEMENT)) throw new Error("Unknown movement direction");
   combatant.movement.direction = direction;
@@ -124,7 +133,7 @@ export function resolveIncomingAttack(attacker, defender, attack) {
   if (canEvadeIncomingAttack(defender, attack)) {
     return { action: attack.action ?? ACTIONS.BASIC, evaded: true, damage: 0 };
   }
-  return resolveDamageAttack(attacker, defender, attack?.damageClass ?? "basic", attack?.type ?? "burst");
+  return resolveDamageAttack(attacker, defender, attack?.damageClass ?? "basic");
 }
 
 export function startTurn(combatant) {
@@ -157,7 +166,6 @@ function dealDamage(target, amount) {
   target.hp = Math.max(0, target.hp - damage);
   target.defeated = target.hp <= 0;
 
-  // Defense is a timed answer to one incoming hit, not a permanent shield.
   if (target.guarding) {
     target.guarding = false;
     target.guardTimeRemaining = 0;
@@ -180,18 +188,9 @@ function resolveDamageAttack(attacker, defender, damageClass) {
   };
 }
 
-function spendOffensiveResource(attacker, action) {
-  if (!isActionReady(attacker, action)) throw new Error(`${action.toUpperCase()} RELOADING`);
-  const cost = getEnergyCost(action);
-  if (attacker.energy < cost) throw new Error("NOT ENOUGH ENERGY");
-  attacker.energy = clamp(attacker.energy - cost, 0, attacker.maxEnergy);
-  startCooldown(attacker, action);
-  return cost;
-}
-
-export function resolveBasicAttack(attacker, defender) {
-  const energyCost = spendOffensiveResource(attacker, "basic");
-  return { ...resolveDamageAttack(attacker, defender, "basic"), energyCost, cooldownMs: combatData.cooldowns.basic };
+export function resolveBasicAttack(attacker, defender, resourceAlreadySpent = false) {
+  const resource = resourceAlreadySpent ? { energyCost: getEnergyCost("basic"), cooldownMs: combatData.cooldowns.basic } : beginOffensiveAction(attacker, "basic");
+  return { ...resolveDamageAttack(attacker, defender, "basic"), ...resource };
 }
 
 export function resolveAttack(attacker, defender) {
@@ -202,18 +201,18 @@ export function resolveGuard(combatant) {
   return resolveDefenseAbility(combatant);
 }
 
-export function resolveAbility(attacker, defender, slot = "base") {
+export function resolveAbility(attacker, defender, slot = "base", resourceAlreadySpent = false) {
   const ability = attacker.dna.abilitySet[slot];
   if (!ability) throw new Error(`Unknown ability slot: ${slot}`);
-  return resolveAbilityAction(attacker, defender, ability, slot);
+  return resolveAbilityAction(attacker, defender, ability, slot, resourceAlreadySpent);
 }
 
-export function resolveBaseAbility(attacker, defender) {
-  return resolveAbility(attacker, defender, "base");
+export function resolveBaseAbility(attacker, defender, resourceAlreadySpent = false) {
+  return resolveAbility(attacker, defender, "base", resourceAlreadySpent);
 }
 
-export function resolveSpecialAbility(attacker, defender) {
-  return resolveAbility(attacker, defender, "special");
+export function resolveSpecialAbility(attacker, defender, resourceAlreadySpent = false) {
+  return resolveAbility(attacker, defender, "special", resourceAlreadySpent);
 }
 
 export function resolveDefenseAbility(combatant) {
@@ -231,8 +230,8 @@ export function resolveDefenseAbility(combatant) {
   };
 }
 
-function resolveAbilityAction(attacker, defender, ability, slot) {
-  const energyCost = spendOffensiveResource(attacker, slot);
+function resolveAbilityAction(attacker, defender, ability, slot, resourceAlreadySpent) {
+  const resource = resourceAlreadySpent ? { energyCost: getEnergyCost(slot), cooldownMs: combatData.cooldowns[slot] } : beginOffensiveAction(attacker, slot);
   const damageClass = slot === "special" ? "special" : "base";
   const result = resolveDamageAttack(attacker, defender, damageClass);
 
@@ -254,8 +253,7 @@ function resolveAbilityAction(attacker, defender, ability, slot) {
     ...result,
     action: slot === "special" ? ACTIONS.SPECIAL : ACTIONS.BASE,
     abilityId: ability.id,
-    energyCost,
-    cooldownMs: combatData.cooldowns[slot],
+    ...resource,
   };
 }
 
