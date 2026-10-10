@@ -1,10 +1,12 @@
 import Phaser from "phaser";
 
 const WORLD_WIDTH = 1600;
+const CHOG_SIZE = 250;
 
 export class BootScene extends Phaser.Scene {
   constructor() {
     super("BootScene");
+    this.artIntegrated = false;
   }
 
   preload() {
@@ -32,6 +34,49 @@ export class BootScene extends Phaser.Scene {
   create() {
     this.createPlaceholderTextures();
     this.scene.start("ArenaScene");
+    this.game.events.on("step", this.integrateRealArt, this);
+  }
+
+  integrateRealArt() {
+    if (this.artIntegrated) return;
+    const arena = this.scene.get("ArenaScene");
+    if (!arena?.playerVisual || !arena?.opponentVisual) return;
+
+    arena.playerVisual.destroy(true);
+    arena.opponentVisual.destroy(true);
+    arena.playerVisual = this.createChogVisual(arena, arena.player.x, arena.player.y - 55, false);
+    arena.opponentVisual = this.createChogVisual(arena, arena.opponent.x, arena.opponent.y - 55, true);
+    this.artIntegrated = true;
+    this.game.events.off("step", this.integrateRealArt, this);
+  }
+
+  createChogVisual(scene, x, y, mirrored) {
+    const container = scene.add.container(x, y);
+    const shadow = scene.add.ellipse(0, 119, 150, 24, 0x111318, 0.28);
+    const layerOrder = [
+      "left-leg",
+      "right-leg",
+      "body",
+      "left-arm",
+      "right-arm",
+      "head",
+      "eyes",
+      "nose",
+    ];
+
+    for (const layer of layerOrder) {
+      const image = scene.add.image(0, 0, `chog-${layer}`);
+      image.setDisplaySize(CHOG_SIZE, CHOG_SIZE);
+      image.setOrigin(0.5, 0.5);
+      container.add(image);
+    }
+
+    const flash = scene.add.rectangle(0, 0, CHOG_SIZE, CHOG_SIZE, 0xffffff, 0)
+      .setData("flash", true);
+    container.add(flash);
+    container.addAt(shadow, 0);
+    container.setScale(mirrored ? -1 : 1, 1);
+    return container;
   }
 
   createPlaceholderTextures() {
