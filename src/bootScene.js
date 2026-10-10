@@ -21,8 +21,12 @@ export class BootScene extends Phaser.Scene {
     this.load.on("progress", (value) => { bar.width = 360 * value; });
     this.load.on("complete", () => { track.destroy(); bar.destroy(); label.destroy(); });
 
-    // Add real Chog sprite sheets/audio here as they arrive. The arena remains
-    // fully playable with generated placeholders until those assets exist.
+    const chogLayers = [
+      "body", "eyes", "head", "left-arm", "left-leg", "nose", "right-arm", "right-leg",
+    ];
+    for (const layer of chogLayers) {
+      this.load.image(`chog-${layer}`, `/images/${layer}.png`);
+    }
   }
 
   create() {
