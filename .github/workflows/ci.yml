@@ -20,5 +20,16 @@ jobs:
         run: npm install
       - name: Run mechanics, OpenSea and Discord auth tests
         run: npm test
+      - name: Validate Cloudflare D1 migration
+        run: |
+          python - <<'PY'
+          import sqlite3
+          db = sqlite3.connect(":memory:")
+          with open("migrations/0001_challenge_invites.sql", encoding="utf-8") as migration:
+              db.executescript(migration.read())
+          found = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_challenge_invites'").fetchone()
+          assert found is not None, "D1 migration did not create the invitations table"
+          print("D1 migration is valid SQLite and creates chog_challenge_invites")
+          PY
       - name: Build app
         run: npm run build
