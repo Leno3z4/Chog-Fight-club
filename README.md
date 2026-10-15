@@ -53,7 +53,7 @@ See [CHOG_NFT_INTEGRATION.md](./CHOG_NFT_INTEGRATION.md) for details.
 
 ## Persistent challenge invitations on Cloudflare
 
-The profile includes a challenge creator, incoming/outgoing lists, and a shared invitation lobby. Invitation records are stored in **Cloudflare D1** through the Pages Functions binding named `CHOG_DB`; no Supabase service is used.
+The profile includes a challenge creator, incoming/outgoing lists, and a shared invitation lobby. Invitation records are stored in **Cloudflare D1** through the Pages Functions binding named `CHOG_DB`; no Supabase service is used. For the real API routes, deploy the repo as Cloudflare Pages (build command `npm run build`, output directory `dist`) or run the Pages Functions locally with Wrangler.
 
 ### Set up D1 once
 
