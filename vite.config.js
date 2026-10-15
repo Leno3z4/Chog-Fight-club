@@ -172,6 +172,7 @@ export default defineConfig(({ mode }) => {
           main: fileURLToPath(new URL("./index.html", import.meta.url)),
           landing: fileURLToPath(new URL("./landing.html", import.meta.url)),
           profile: fileURLToPath(new URL("./profile.html", import.meta.url)),
+          invite: fileURLToPath(new URL("./invite.html", import.meta.url)),
           battle: fileURLToPath(new URL("./battle.html", import.meta.url)),
           roster: fileURLToPath(new URL("./roster.html", import.meta.url)),
         },
