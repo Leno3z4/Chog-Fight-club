@@ -65,7 +65,7 @@ The profile includes a challenge creator, incoming/outgoing lists, and a shared 
 3. Open the Cloudflare Pages project, then **Settings → Bindings → Add → D1 database**. Set the variable name to exactly `CHOG_DB`, select that database, save, and redeploy.
 4. Add the Discord OAuth and `OPENSEA_API_KEY` values as server-side secrets in Cloudflare Pages. Set `MONAD_RPC_URL=https://rpc.monad.xyz` as a server-side variable. Do not add secrets with a `VITE_*` prefix.
 
-The API checks the connected wallet's signed link to Discord and rechecks Chog `ownerOf(tokenId)` on Monad before accepting create/accept actions. Invitations can be accepted, declined, cancelled, and tracked while offline; pending invitations expire after seven days. Conditions are limited to 500 characters and obvious unsafe conditions or links are rejected.
+The API checks the connected wallet's signed link to Discord and rechecks Chog `ownerOf(tokenId)` on Monad before accepting create/accept actions. Invitations can be accepted, declined, cancelled, and tracked while offline; a pending invitation remains there until one of those actions changes its status. Conditions are limited to 500 characters and obvious unsafe conditions or links are rejected.
 
 ## Challenge pact design
 
