@@ -115,12 +115,19 @@ function oauthErrorPath(code) {
   return "/?error=" + encodeURIComponent(code);
 }
 
-export async function startDiscordOAuth({ origin, env, secure = true }) {
+export async function startDiscordOAuth({ origin, env, secure = true, returnTo = "/profile.html" }) {
   const settings = config(env, origin);
   const random = new Uint8Array(32);
   crypto.getRandomValues(random);
   const state = base64UrlEncode(random);
-  const stateCookie = await seal({ state, exp: Date.now() + 10 * 60 * 1000 }, settings.sessionSecret);
+  const safeReturnTo = typeof returnTo === "string"
+    && returnTo.startsWith("/")
+    && !returnTo.startsWith("//")
+    && !returnTo.includes("\\r")
+    && !returnTo.includes("\\n")
+    ? returnTo
+    : "/profile.html";
+  const stateCookie = await seal({ state, exp: Date.now() + 10 * 60 * 1000, returnTo: safeReturnTo }, settings.sessionSecret);
   const authorize = new URL("https://discord.com/oauth2/authorize");
   authorize.searchParams.set("client_id", settings.clientId);
   authorize.searchParams.set("redirect_uri", settings.redirectUri);
@@ -217,7 +224,14 @@ export async function finishDiscordOAuth({ requestUrl, cookieHeader, env, secure
     exp: now + 6 * 60 * 60 * 1000,
   };
   const sessionCookie = await seal(session, settings.sessionSecret);
-  return redirect("/profile.html", url.origin, [
+  const returnTo = typeof statePayload.returnTo === "string"
+    && statePayload.returnTo.startsWith("/")
+    && !statePayload.returnTo.startsWith("//")
+    && !statePayload.returnTo.includes("\\r")
+    && !statePayload.returnTo.includes("\\n")
+    ? statePayload.returnTo
+    : "/profile.html";
+  return redirect(returnTo, url.origin, [
     clearState,
     cookie(SESSION_COOKIE, sessionCookie, { maxAge: 6 * 60 * 60, secure }),
   ]);
