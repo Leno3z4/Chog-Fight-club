@@ -4,7 +4,10 @@ import {
   startDiscordOAuth,
   finishDiscordOAuth,
   readDiscordSession,
+  startWalletLink,
+  finishWalletLink,
 } from "./discordAuth.js";
+import { privateKeyToAccount } from "viem/accounts";
 
 const origin = "https://game.example";
 const env = {
@@ -139,4 +142,75 @@ test("uses the configured Chog guild as a default when no override is set", asyn
   });
   assert.equal(new URL(result.location).searchParams.get("client_id"), "client-id");
   assert.equal(new URL(result.location).searchParams.get("redirect_uri"), env.DISCORD_REDIRECT_URI);
+});
+
+
+test("wallet challenge links the recovered address to the authenticated Discord session", async () => {
+  const start = await startDiscordOAuth({ origin, env, secure: true });
+  const state = new URL(start.location).searchParams.get("state");
+  const stateCookie = cookiePair(start.cookies[0]);
+  const callback = await finishDiscordOAuth({
+    requestUrl: `${origin}/api/discord/callback?code=mock-code&state=${state}`,
+    cookieHeader: stateCookie,
+    env,
+    secure: true,
+    fetchImpl: async (url) => {
+      const target = String(url);
+      if (target.endsWith("/oauth2/token")) return mockResponse({ access_token: "mock-access-token" });
+      if (target.endsWith("/users/@me")) return mockResponse({ id: "discord-wallet-test", username: "wallet-linker" });
+      if (target.endsWith("/users/@me/guilds/1253481714710220810/member")) return mockResponse({ roles: ["1545507860455096460"] });
+      throw new Error("Unexpected Discord route: " + target);
+    },
+  });
+  const sessionCookie = cookiePair(callback.cookies.find((value) => value.startsWith("chog_session=")));
+  const walletStart = await startWalletLink({ cookieHeader: sessionCookie, env, origin, secure: true });
+  const challengeCookie = cookiePair(walletStart.cookies[0]);
+  const account = privateKeyToAccount("0x0000000000000000000000000000000000000000000000000000000000000001");
+  const signature = await account.signMessage({ message: walletStart.body.message });
+
+  const finish = await finishWalletLink({
+    cookieHeader: `${sessionCookie}; ${challengeCookie}`,
+    env,
+    message: walletStart.body.message,
+    signature,
+    secure: true,
+  });
+  assert.equal(finish.body.walletAddress, account.address.toLowerCase());
+  const updatedSessionCookie = cookiePair(finish.cookies.find((value) => value.startsWith("chog_session=")));
+  const session = await readDiscordSession({ cookieHeader: updatedSessionCookie, env });
+  assert.equal(session.authenticated, true);
+  assert.equal(session.user.discordId, "discord-wallet-test");
+  assert.equal(session.user.walletAddress, account.address.toLowerCase());
+  assert.ok(finish.cookies.some((value) => value.startsWith("chog_wallet_challenge=") && /Max-Age=0/.test(value)));
+});
+
+test("wallet challenge cannot be used by another Discord session", async () => {
+  const start = await startDiscordOAuth({ origin, env, secure: true });
+  const state = new URL(start.location).searchParams.get("state");
+  const callback = await finishDiscordOAuth({
+    requestUrl: `${origin}/api/discord/callback?code=mock-code&state=${state}`,
+    cookieHeader: cookiePair(start.cookies[0]),
+    env,
+    secure: true,
+    fetchImpl: async (url) => {
+      const target = String(url);
+      if (target.endsWith("/oauth2/token")) return mockResponse({ access_token: "token" });
+      if (target.endsWith("/users/@me")) return mockResponse({ id: "discord-a", username: "player-a" });
+      if (target.endsWith("/users/@me/guilds/1253481714710220810/member")) return mockResponse({ roles: ["1545507860455096460"] });
+      throw new Error("Unexpected route: " + target);
+    },
+  });
+  const sessionCookie = cookiePair(callback.cookies.find((value) => value.startsWith("chog_session=")));
+  const walletStart = await startWalletLink({ cookieHeader: sessionCookie, env, origin, secure: true });
+  const otherEnv = { ...env, SESSION_SECRET: "different-session-secret-for-player-b" };
+  await assert.rejects(
+    finishWalletLink({
+      cookieHeader: sessionCookie + "; " + cookiePair(walletStart.cookies[0]),
+      env: otherEnv,
+      message: walletStart.body.message,
+      signature: "0xdeadbeef",
+      secure: true,
+    }),
+    (error) => error.code === "DISCORD_SESSION_REQUIRED"
+  );
 });
