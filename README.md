@@ -51,6 +51,20 @@ Do **not** put private indexer/API keys in `VITE_*` variables: these become publ
 
 See [CHOG_NFT_INTEGRATION.md](./CHOG_NFT_INTEGRATION.md) for details.
 
+## Persistent challenge invitations
+
+The profile now has a challenge builder, incoming/outgoing lists, and a shared invitation lobby. Invitation state is stored in Supabase Postgres, not browser storage or a serverless function's memory. Before using it:
+
+1. Create a Supabase project.
+2. Run `supabase/migrations/20261015_chog_challenge_invites.sql` in the Supabase SQL Editor.
+3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as **server-side secrets** in Vercel or Cloudflare Pages. The service-role key must never be exposed through a `VITE_*` variable.
+4. Set `MONAD_RPC_URL` on the server for Chog ownership checks. The API checks `ownerOf(tokenId)` against the wallet linked by a signed message to the authenticated Discord session.
+5. Configure the Discord OAuth variables before testing invitations. The recipient must sign in with the specified Discord user ID and hold role `1545507860455096460` in guild `1253481714710220810`.
+
+Open invitations can be shared with `/invite.html?id=...`, remain pending for up to seven days, and can be accepted, declined, or cancelled. Conditions are limited to 500 characters and obviously unsafe conditions/links are rejected. A creator may have up to three open invitations. The database tracks acceptance and both players' ready flags.
+
+**Important current boundary:** the persistent invite and readiness state works as a lobby foundation; it does not yet launch a real multiplayer fight. The server-authoritative PvP relay, on-chain Pact NFT contract/mint, verified winner settlement, and fulfillment confirmation still need to be built. Do not treat a browser battle result as an official win or mint outcome NFTs from it.
+
 ## Challenge pact design
 
 The planned Discord-linked challenge flow and conditional NFTs are specified in [CHALLENGE_PACT_SPEC.md](./CHALLENGE_PACT_SPEC.md). They are **not deployed yet**. In particular, browser-only practice results are not valid proof for minting winner/loser outcome metadata; challenge settlement needs a server-authoritative or otherwise verifiable result resolver.
