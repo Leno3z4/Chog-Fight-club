@@ -280,8 +280,11 @@ async function init() {
     await loadInvite();
     if (state.wallet && window.ethereum?.request) {
       try {
-        const accounts = await window.ethereum.request({ method: "eth_accounts" });
-        if (accounts?.[0]?.toLowerCase() === state.wallet.toLowerCase()) {
+        const [accounts, chainId] = await Promise.all([
+          window.ethereum.request({ method: "eth_accounts" }),
+          window.ethereum.request({ method: "eth_chainId" }),
+        ]);
+        if (accounts?.[0]?.toLowerCase() === state.wallet.toLowerCase() && String(chainId).toLowerCase() === "0x8f") {
           $("#link-wallet").textContent = `${state.wallet.slice(0,6)}…${state.wallet.slice(-4)} ✓`;
           await loadChogs();
         } else {
