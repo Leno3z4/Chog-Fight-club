@@ -1,6 +1,7 @@
 const SESSION_COOKIE = "chog_session";
 const STATE_COOKIE = "chog_oauth_state";
 const DEFAULT_HOLDER_ROLE_ID = "1545507860455096460";
+const DEFAULT_GUILD_ID = "1253481714710220810";
 const DISCORD_API = "https://discord.com/api/v10";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -84,7 +85,7 @@ function clearCookie(name, secure) {
 }
 
 function config(env, origin) {
-  const required = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "DISCORD_GUILD_ID", "SESSION_SECRET"];
+  const required = ["DISCORD_CLIENT_ID", "DISCORD_CLIENT_SECRET", "SESSION_SECRET"];
   const missing = required.filter((key) => !String(env?.[key] ?? "").trim());
   if (missing.length) {
     throw new DiscordAuthError(
@@ -96,7 +97,7 @@ function config(env, origin) {
   return {
     clientId: env.DISCORD_CLIENT_ID,
     clientSecret: env.DISCORD_CLIENT_SECRET,
-    guildId: env.DISCORD_GUILD_ID,
+    guildId: env.DISCORD_GUILD_ID || DEFAULT_GUILD_ID,
     holderRoleId: env.DISCORD_HOLDER_ROLE_ID || DEFAULT_HOLDER_ROLE_ID,
     sessionSecret: env.SESSION_SECRET,
     redirectUri,
