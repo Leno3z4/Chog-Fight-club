@@ -43,20 +43,31 @@
         <div id="chog-grid" class="dashboard-chog-grid"></div>
       </section>
 
-      <section class="dashboard-panel" id="panel-invites">
-        <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE DESK</span><h2>Call them out.</h2><p>Choose your main Chog, create a challenge link, and send it to your rival. The invitation should remain open until accepted, declined, or expired.</p></div><div class="banner-mark orange-mark">VS<br /><b>?</b></div></div>
-        <div class="setup-warning"><strong>Invitation service not connected yet.</strong><span>The UI is ready to wire, but invites must be stored on a backend so the link works across devices and remains pending while the other player is offline. We will not fake persistence with browser storage.</span></div>
-        <div class="invite-steps"><article><b>01</b><h3>Make the invite</h3><p>Select an opponent and the Chog you're putting forward.</p></article><article><b>02</b><h3>They accept</h3><p>They open the link, pass the holder gate, connect their wallet, and choose their own fighter.</p></article><article><b>03</b><h3>Agree on terms</h3><p>Both players confirm the exact condition before the separate Pact NFTs are minted.</p></article><article><b>04</b><h3>Enter the arena</h3><p>When both are ready and online, the lobby moves both players into the same match.</p></article></div>
+       <section class="dashboard-panel" id="panel-invites">
+        <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE DESK</span><h2>Call them out.</h2><p>Choose your main Chog, write the proposed condition, and send your rival a persistent invitation link.</p></div><div class="banner-mark orange-mark">VS<br /><b>?</b></div></div>
+        <form id="create-invite-form" class="invite-form">
+          <div class="invite-form-heading"><span class="club-eyebrow">NEW CHALLENGE</span><h3>Set the terms before the bell.</h3><p>The recipient must sign in with the exact Discord account ID you enter. The chosen Chog is checked against Monad before the invitation is saved.</p></div>
+          <label class="field-label" for="opponent-discord-id">Opponent's Discord user ID</label>
+          <input id="opponent-discord-id" name="opponentDiscordId" inputmode="numeric" autocomplete="off" placeholder="e.g. 123456789012345678" required pattern="[0-9]{17,20}" />
+          <small class="field-help">In Discord, enable Developer Mode, right-click the person, then Copy User ID.</small>
+          <div class="selected-main-row"><div><span class="club-eyebrow">YOUR SELECTED FIGHTER</span><strong id="selected-main-name">No main Chog selected</strong><small id="selected-main-details">Select a Chog in My Chogs first.</small></div><button type="button" class="outline-button" id="go-to-chogs">Choose Chog</button></div>
+          <label class="field-label" for="invite-condition">Proposed condition</label>
+          <textarea id="invite-condition" name="condition" minlength="5" maxlength="500" rows="3" placeholder="Example: Post a harmless, silly community message and leave it up for 24 hours." required></textarea>
+          <label class="terms-check"><input id="invite-condition-agree" type="checkbox" required /><span>I agree to this condition, and understand the written terms may be publicly recorded if the separate Pact NFT feature is enabled. Conditions must be voluntary, harmless, and non-invasive.</span></label>
+          <button id="create-invite-button" type="submit" class="discord-button invite-submit">Create invitation link <b>↗</b></button>
+          <p id="create-invite-status" class="auth-status" role="status" aria-live="polite"></p>
+          <div id="created-invite-result" class="created-invite-result" hidden></div>
+        </form>
       </section>
 
       <section class="dashboard-panel" id="panel-incoming">
-        <div class="section-banner"><div><span class="club-eyebrow">YOUR LOBBY</span><h2>Invitations for you.</h2><p>Challenges should stay here until you accept, decline, or the sender cancels them.</p></div><div class="banner-mark">IN<br /><b>BOX</b></div></div>
-        <div class="setup-warning"><strong>No persistent invite store is configured yet.</strong><span>Once connected, incoming challenges will display sender, expiry, proposed Chog, and any condition draft. Accepting will move you to the two-player setup room, not straight into combat.</span></div>
+        <div class="section-banner"><div><span class="club-eyebrow">YOUR LOBBY</span><h2>Invitations for you.</h2><p>Incoming challenges stay here while you decide. Accepting takes you to the fighter and terms lobby.</p></div><div class="banner-mark">IN<br /><b>BOX</b></div></div>
+        <div id="incoming-invite-list" class="invite-list"><div class="roster-empty">Loading incoming invitations…</div></div>
       </section>
 
       <section class="dashboard-panel" id="panel-outgoing">
-        <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE TRACKER</span><h2>Sent challenges.</h2><p>See who has accepted, who is still deciding, and which invites have expired.</p></div><div class="banner-mark orange-mark">WAIT<br /><b>ING</b></div></div>
-        <div class="setup-warning"><strong>Outgoing invitations need backend persistence.</strong><span>Each invitation will have a durable ID and status, so refreshing the page or closing the browser will not erase it.</span></div>
+        <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE TRACKER</span><h2>Sent challenges.</h2><p>Track pending invitations, accepted terms, and whether both players are ready.</p></div><div class="banner-mark orange-mark">WAIT<br /><b>ING</b></div></div>
+        <div id="outgoing-invite-list" class="invite-list"><div class="roster-empty">Loading sent invitations…</div></div>
       </section>
 
       <section class="dashboard-panel" id="panel-history">
