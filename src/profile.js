@@ -137,15 +137,14 @@ async function requireDiscordSession() {
     return false;
   }
   state.session = payload.user;
-  state.account = state.session.walletAddress ?? null;
+  state.account = null;
   state.selectedTokenId = localStorage.getItem(`chog-main:${state.session.discordId}`);
   $("#member-name").textContent = state.session.username;
   const avatar = $("#member-avatar");
   if (state.session.avatar) avatar.innerHTML = `<img src="${escapeHtml(state.session.avatar)}" alt="" />`;
   else avatar.textContent = (state.session.username || "C").slice(0, 1).toUpperCase();
-  if (state.account) {
-    walletButton.textContent = `${state.account.slice(0,6)}…${state.account.slice(-4)} ✓`;
-    refreshButton.disabled = false;
+  if (state.session.walletAddress) {
+    walletButton.textContent = `Verify wallet ${state.session.walletAddress.slice(0,6)}…${state.session.walletAddress.slice(-4)}`;
   }
   return true;
 }
@@ -343,12 +342,29 @@ document.addEventListener("click", async (event) => {
   }
 });
 
-requireDiscordSession().then((ok) => {
+requireDiscordSession().then(async (ok) => {
   if (!ok) return;
-  if (state.account) {
-    refreshChogs();
-  } else {
-    subtitle.textContent = "Discord verified. Connect and sign your wallet to load your fighters.";
+  const linked = state.session?.walletAddress;
+  let walletReady = false;
+  if (linked && window.ethereum?.request) {
+    try {
+      const [accounts, chainId] = await Promise.all([
+        window.ethereum.request({ method: "eth_accounts" }),
+        window.ethereum.request({ method: "eth_chainId" }),
+      ]);
+      if (accounts?.[0]?.toLowerCase() === linked.toLowerCase() && String(chainId).toLowerCase() === "0x8f") {
+        state.account = linked;
+        walletButton.textContent = `${linked.slice(0,6)}…${linked.slice(-4)} ✓`;
+        refreshButton.disabled = false;
+        walletReady = true;
+      }
+    } catch {
+      walletReady = false;
+    }
   }
+  if (walletReady) refreshChogs();
+  else subtitle.textContent = linked
+    ? "Discord verified. Reconnect the linked wallet on Monad to load your fighters."
+    : "Discord verified. Connect and sign your wallet to load your fighters.";
   loadInvites("incoming");
 }).catch(() => window.location.replace("/"));
