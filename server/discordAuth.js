@@ -274,7 +274,7 @@ export async function startWalletLink({ cookieHeader, env, origin, secure = true
     `Issued at: ${issuedAt}`,
     `Expires at: ${new Date(expiresAt).toISOString()}`,
     "This signature does not authorize NFT transfers or token spending.",
-  ].join("\\n");
+  ].join("\n");
   const challengeCookie = await seal({ nonce, message, discordId: session.discordId, exp: expiresAt }, secret);
   return {
     status: 200,
