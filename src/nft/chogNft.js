@@ -113,6 +113,58 @@ async function readOwnedTokenIdsEnumerable(owner, balance) {
   return tokenIds;
 }
 
+async function readOwnedTokenIdsFromMonadScan(owner, expectedBalance) {
+  // Public MonadScan API requests without a key are rate limited. This fallback
+  // is suitable for prototype use; production deployments should proxy a keyed
+  // API through a server-side endpoint and keep that key out of browser code.
+  const base = "https://api.monadscan.com/api";
+  const offset = 1000;
+  const latestOwnerByToken = new Map();
+
+  for (let page = 1; page <= 20; page += 1) {
+    const url = new URL(base);
+    url.searchParams.set("module", "account");
+    url.searchParams.set("action", "tokennfttx");
+    url.searchParams.set("address", owner);
+    url.searchParams.set("contractaddress", CHOG_COLLECTION_ADDRESS);
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("offset", String(offset));
+    url.searchParams.set("sort", "desc");
+    url.searchParams.set("chainid", String(MONAD_CHAIN_DECIMAL));
+
+    const response = await fetch(url.toString(), { headers: { accept: "application/json" } });
+    if (!response.ok) throw new Error(`MonadScan NFT lookup failed (${response.status}).`);
+    const payload = await response.json();
+    const records = Array.isArray(payload?.result) ? payload.result : [];
+
+    if (!records.length) {
+      throw new Error("MonadScan returned no NFT transfer history although balanceOf reports Chogs. Configure a server-side indexer endpoint and try again.");
+    }
+
+    for (const record of records) {
+      const contract = record?.contractAddress ?? record?.contractaddress;
+      if (contract && String(contract).toLowerCase() !== CHOG_COLLECTION_ADDRESS.toLowerCase()) continue;
+      const tokenId = record?.tokenID ?? record?.tokenId ?? record?.token_id;
+      if (tokenId === undefined || tokenId === null) continue;
+      const key = String(tokenId);
+      if (latestOwnerByToken.has(key)) continue;
+      const from = String(record?.from ?? "").toLowerCase();
+      const to = String(record?.to ?? "").toLowerCase();
+      if (to === owner.toLowerCase()) latestOwnerByToken.set(key, true);
+      else if (from === owner.toLowerCase()) latestOwnerByToken.set(key, false);
+    }
+
+    const ownedIds = [...latestOwnerByToken.entries()].filter(([, isOwner]) => isOwner).map(([id]) => id);
+    if (ownedIds.length >= expectedBalance) return ownedIds.slice(0, expectedBalance);
+    if (records.length < offset) break;
+
+    // The no-key API allowance is intentionally slow. Only wait when pagination is needed.
+    await new Promise((resolve) => setTimeout(resolve, 5200));
+  }
+
+  throw new Error("The public NFT index did not return every Chog owned by this wallet. Configure a server-side indexer endpoint for reliable paging.");
+}
+
 async function readOwnedTokenIdsFromIndexer(owner) {
   if (!INDEXER_URL) {
     const error = new Error(
@@ -215,19 +267,21 @@ export async function getOwnedChogs(owner) {
     enumerable = await supportsEnumerable();
   } catch {
     // Some ERC-721 implementations do not expose ERC-165 reliably.
-    // Fall through to the configured indexer rather than treating this as no NFTs.
+    // Fall through to an indexed ownership lookup rather than treating this as empty.
   }
 
   if (enumerable) {
     try {
       tokenIds = await readOwnedTokenIdsEnumerable(owner, balance);
     } catch {
-      // If the collection advertises enumeration but does not implement it correctly,
-      // use the indexer path and still verify each returned token with ownerOf.
-      tokenIds = await readOwnedTokenIdsFromIndexer(owner);
+      tokenIds = INDEXER_URL
+        ? await readOwnedTokenIdsFromIndexer(owner)
+        : await readOwnedTokenIdsFromMonadScan(owner, balance);
     }
   } else {
-    tokenIds = await readOwnedTokenIdsFromIndexer(owner);
+    tokenIds = INDEXER_URL
+      ? await readOwnedTokenIdsFromIndexer(owner)
+      : await readOwnedTokenIdsFromMonadScan(owner, balance);
   }
 
   const uniqueIds = [...new Set(tokenIds.map(String))];
