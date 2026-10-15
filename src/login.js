@@ -2,6 +2,7 @@ import "./auth.css";
 
 const button = document.querySelector("#discord-connect");
 const status = document.querySelector("#auth-status");
+const accessBadge = document.querySelector("#access-badge");
 const params = new URLSearchParams(window.location.search);
 const returnTo = params.get("returnTo") || "/profile.html";
 let isAlreadyAuthenticated = false;
@@ -31,8 +32,9 @@ async function checkSession() {
     const session = await response.json();
     if (session?.authenticated) {
       isAlreadyAuthenticated = true;
+      if (session.user?.isAdmin && accessBadge) accessBadge.innerHTML = "<i></i> OWNER ACCESS";
       button.innerHTML = "<span class='discord-mark'>✓</span><span>Continue to profile</span><b>↗</b>";
-      setStatus(`Signed in as ${session.user?.username ?? "Discord member"}.`, "success");
+      setStatus(session.user?.isAdmin ? "Owner access enabled." : `Signed in as ${session.user?.username ?? "Discord member"}.`, "success");
     }
   } catch {
     // The login screen remains usable; the server may not be configured yet.
