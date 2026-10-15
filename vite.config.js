@@ -11,6 +11,9 @@ import {
   finishDiscordOAuth,
   readDiscordSession,
   endDiscordSession,
+  startWalletLink,
+  finishWalletLink,
+  DiscordAuthError,
 } from "./server/discordAuth.js";
 
 export default defineConfig(({ mode }) => {
@@ -24,7 +27,7 @@ export default defineConfig(({ mode }) => {
         server.middlewares.use(async (req, res, next) => {
           const requestUrl = new URL(req.url ?? "/", "http://localhost");
           const pathname = requestUrl.pathname;
-          if (!pathname.startsWith("/api/discord/")) return next();
+          if (!pathname.startsWith("/api/discord/") && !pathname.startsWith("/api/wallet/")) return next();
 
           const origin = env.DISCORD_APP_ORIGIN || "http://localhost:5173";
           const secure = origin.startsWith("https://");
@@ -64,15 +67,46 @@ export default defineConfig(({ mode }) => {
               res.setHeader("Cache-Control", "no-store");
               return sendJson(200, result.body);
             }
-            return sendJson(405, { error: "Method not allowed." }, { Allow: pathname.endsWith("/logout") ? "POST" : "GET" });
+            if (pathname === "/api/wallet/challenge" && req.method === "POST") {
+              const result = await startWalletLink({
+                cookieHeader: req.headers.cookie || "",
+                env,
+                origin,
+                secure,
+              });
+              if (result.cookies?.length) res.setHeader("Set-Cookie", result.cookies);
+              res.setHeader("Cache-Control", "no-store");
+              return sendJson(result.status, result.body);
+            }
+            if (pathname === "/api/wallet/verify" && req.method === "POST") {
+              const chunks = [];
+              for await (const chunk of req) chunks.push(Buffer.from(chunk));
+              let body = {};
+              try { body = JSON.parse(Buffer.concat(chunks).toString("utf8")); } catch { body = {}; }
+              const result = await finishWalletLink({
+                cookieHeader: req.headers.cookie || "",
+                env,
+                message: body?.message,
+                signature: body?.signature,
+                secure,
+              });
+              if (result.cookies?.length) res.setHeader("Set-Cookie", result.cookies);
+              res.setHeader("Cache-Control", "no-store");
+              return sendJson(result.status, result.body);
+            }
+            return sendJson(405, { error: "Method not allowed." }, { Allow: pathname.endsWith("/logout") ? "POST" : pathname.endsWith("/verify") || pathname.endsWith("/challenge") ? "POST" : "GET" });
           } catch (error) {
             if (pathname === "/api/discord/login") {
               const target = new URL("/", origin);
               target.searchParams.set("error", error?.code || "DISCORD_CONFIG_MISSING");
               return redirect({ status: 302, location: target.toString() });
             }
-            console.error("Local Discord auth handler failed", error?.code || error?.name || "Error");
-            return sendJson(500, { error: "Discord authentication could not be completed." });
+            const status = error instanceof DiscordAuthError ? error.status : 500;
+            console.error("Local auth handler failed", error?.code || error?.name || "Error");
+            return sendJson(status, {
+              error: error instanceof Error ? error.message : "Authentication could not be completed.",
+              code: error?.code || "AUTH_REQUEST_FAILED",
+            });
           }
         });
 
