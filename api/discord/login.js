@@ -12,6 +12,8 @@ export default async function handler(req, res) {
   } catch (error) {
     const url = new URL("/", origin);
     url.searchParams.set("error", error?.code || "DISCORD_CONFIG_MISSING");
-    return res.redirect(302, url.toString());
+    res.statusCode = 302;
+    res.setHeader("Location", url.toString());
+    return res.end();
   }
 }
