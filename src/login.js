@@ -3,6 +3,7 @@ import "./auth.css";
 const button = document.querySelector("#discord-connect");
 const status = document.querySelector("#auth-status");
 const params = new URLSearchParams(window.location.search);
+let isAlreadyAuthenticated = false;
 const errors = {
   discord_configuration: "Discord access is not configured yet.",
   DISCORD_CONFIG_MISSING: "Discord access is not configured yet.",
@@ -28,8 +29,8 @@ async function checkSession() {
     if (!response.ok) return;
     const session = await response.json();
     if (session?.authenticated) {
+      isAlreadyAuthenticated = true;
       button.innerHTML = "<span class='discord-mark'>✓</span><span>Continue to profile</span><b>↗</b>";
-      button.addEventListener("click", () => window.location.assign("/profile.html"), { once: true });
       setStatus(`Signed in as ${session.user?.username ?? "Discord member"}.`, "success");
     }
   } catch {
@@ -37,6 +38,10 @@ async function checkSession() {
   }
 }
 button.addEventListener("click", () => {
+  if (isAlreadyAuthenticated) {
+    window.location.assign("/profile.html");
+    return;
+  }
   button.disabled = true;
   setStatus("Taking you to Discord to verify your holder role…");
   window.location.assign("/api/discord/login");
