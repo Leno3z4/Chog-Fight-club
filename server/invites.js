@@ -13,52 +13,14 @@ export class InviteApiError extends Error {
   }
 }
 
-function inviteConfig(env) {
-  const url = String(env?.SUPABASE_URL ?? "").replace(/\/$/, "");
-  const key = String(env?.SUPABASE_SERVICE_ROLE_KEY ?? "");
-  if (!url || !key) {
+function getDb(env) {
+  if (!env?.CHOG_DB || typeof env.CHOG_DB.prepare !== "function") {
     throw new InviteApiError(
-      "Persistent invitations are not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY on the server, then apply the Supabase migration.",
-      { status: 503, code: "INVITE_STORE_NOT_CONFIGURED" }
+      "Cloudflare D1 is not configured. Create the D1 database, bind it to this Pages project as CHOG_DB, and apply migrations/0001_challenge_invites.sql.",
+      { status: 503, code: "D1_NOT_CONFIGURED" }
     );
   }
-  return { url, key };
-}
-
-async function dbRequest({ env, path, method = "GET", body, fetchImpl = fetch, prefer }) {
-  const config = inviteConfig(env);
-  const headers = {
-    apikey: config.key,
-    Authorization: `Bearer ${config.key}`,
-    Accept: "application/json",
-  };
-  if (body !== undefined) headers["Content-Type"] = "application/json";
-  if (prefer) headers.Prefer = prefer;
-  let response;
-  try {
-    response = await fetchImpl(`${config.url}/rest/v1/${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-  } catch {
-    throw new InviteApiError("The invitation store could not be reached.", { status: 502, code: "INVITE_STORE_UNAVAILABLE" });
-  }
-
-  const payload = await response.json().catch(() => null);
-  if (!response.ok) {
-    if (response.status === 404) {
-      throw new InviteApiError("Invitation not found.", { status: 404, code: "INVITE_NOT_FOUND" });
-    }
-    if (response.status === 409 || response.status === 412) {
-      throw new InviteApiError("This invitation changed while you were acting on it. Refresh and try again.", { status: 409, code: "INVITE_STATE_CONFLICT" });
-    }
-    if (response.status >= 500) {
-      throw new InviteApiError("The invitation store returned an error. Check the database migration and server credentials.", { status: 502, code: "INVITE_STORE_ERROR" });
-    }
-    throw new InviteApiError("The invitation request was rejected by the store.", { status: 400, code: "INVITE_STORE_REJECTED" });
-  }
-  return payload;
+  return env.CHOG_DB;
 }
 
 function validUuid(value) {
@@ -68,8 +30,7 @@ function validDiscordId(value) {
   return typeof value === "string" && /^\d{17,20}$/.test(value);
 }
 function validTokenId(value) {
-  return (typeof value === "string" || typeof value === "number")
-    && /^\d{1,78}$/.test(String(value));
+  return (typeof value === "string" || typeof value === "number") && /^\d{1,78}$/.test(String(value));
 }
 function cleanCondition(value) {
   if (typeof value !== "string") {
@@ -105,12 +66,7 @@ async function assertOwnsChog({ owner, tokenId, env, fetchImpl = fetch }) {
     response = await fetchImpl(rpcUrl, {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        jsonrpc: "2.0",
-        id: 1,
-        method: "eth_call",
-        params: [{ to: CHOG_CONTRACT, data }, "latest"],
-      }),
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to: CHOG_CONTRACT, data }, "latest"] }),
     });
   } catch {
     throw new InviteApiError("Could not verify Chog ownership on Monad. Try again.", { status: 502, code: "MONAD_RPC_UNAVAILABLE" });
@@ -127,6 +83,7 @@ async function assertOwnsChog({ owner, tokenId, env, fetchImpl = fetch }) {
 }
 
 function presentInvite(row, currentDiscordId) {
+  const expired = row.status === "PENDING_ACCEPTANCE" && Date.parse(row.expires_at) <= Date.now();
   return {
     id: row.id,
     challenger: {
@@ -134,20 +91,20 @@ function presentInvite(row, currentDiscordId) {
       username: row.challenger_username,
       wallet: row.challenger_wallet,
       tokenId: row.challenger_token_id,
-      termsAccepted: row.challenger_terms_accepted,
-      ready: row.challenger_ready,
+      termsAccepted: Boolean(row.challenger_terms_accepted),
+      ready: Boolean(row.challenger_ready),
     },
     opponent: {
       discordId: row.opponent_discord_id,
       username: row.opponent_username,
       wallet: row.opponent_wallet,
       tokenId: row.opponent_token_id,
-      termsAccepted: row.opponent_terms_accepted,
-      ready: row.opponent_ready,
+      termsAccepted: Boolean(row.opponent_terms_accepted),
+      ready: Boolean(row.opponent_ready),
     },
     condition: row.condition_text,
     termsHash: row.terms_hash,
-    status: row.status === "PENDING_ACCEPTANCE" && Date.parse(row.expires_at) <= Date.now() ? "EXPIRED" : row.status,
+    status: expired ? "EXPIRED" : row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     expiresAt: row.expires_at,
@@ -155,48 +112,40 @@ function presentInvite(row, currentDiscordId) {
   };
 }
 
-async function getInvite({ env, id, fetchImpl }) {
-  const rows = await dbRequest({
-    env,
-    path: `chog_challenge_invites?select=*&id=eq.${encodeURIComponent(id)}&limit=1`,
-    fetchImpl,
-  });
-  const row = Array.isArray(rows) ? rows[0] : null;
+async function getInvite({ env, id }) {
+  const db = getDb(env);
+  const row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
   if (!row) throw new InviteApiError("Invitation not found.", { status: 404, code: "INVITE_NOT_FOUND" });
   if (row.status === "PENDING_ACCEPTANCE" && Date.parse(row.expires_at) <= Date.now()) {
-    await dbRequest({
-      env,
-      path: `chog_challenge_invites?id=eq.${encodeURIComponent(id)}&status=eq.PENDING_ACCEPTANCE`,
-      method: "PATCH",
-      body: { status: "EXPIRED", updated_at: new Date().toISOString() },
-      prefer: "return=minimal",
-      fetchImpl,
-    });
+    await db.prepare(
+      "UPDATE chog_challenge_invites SET status = 'EXPIRED', updated_at = ?1 WHERE id = ?2 AND status = 'PENDING_ACCEPTANCE'"
+    ).bind(new Date().toISOString(), id).run();
     row.status = "EXPIRED";
   }
   return row;
 }
 
-async function updateState({ env, id, filters = "", body, fetchImpl }) {
-  const filter = `chog_challenge_invites?id=eq.${encodeURIComponent(id)}${filters}`;
-  const rows = await dbRequest({
-    env, path: filter, method: "PATCH", body, prefer: "return=representation", fetchImpl,
-  });
-  if (!Array.isArray(rows) || rows.length !== 1) {
-    throw new InviteApiError("This invitation is no longer in the expected state.", { status: 409, code: "INVITE_STATE_CONFLICT" });
+async function conditionalUpdate({ env, sql, values, conflictCode = "INVITE_STATE_CONFLICT" }) {
+  const db = getDb(env);
+  const result = await db.prepare(sql).bind(...values).first();
+  if (!result) {
+    throw new InviteApiError("This invitation is no longer in the expected state. Refresh and try again.", {
+      status: 409,
+      code: conflictCode,
+    });
   }
-  return rows[0];
+  return result;
 }
 
 async function createInvite({ user, body, env, origin, fetchImpl }) {
+  const db = getDb(env);
   if (!user.walletAddress) throw new InviteApiError("Link your wallet before creating an invitation.", { status: 409, code: "WALLET_NOT_LINKED" });
   const opponentDiscordId = String(body.opponentDiscordId ?? "").trim();
   if (!validDiscordId(opponentDiscordId)) {
     throw new InviteApiError("Enter the opponent's numeric Discord user ID. The recipient must sign in with that exact Discord account.", { status: 400, code: "OPPONENT_DISCORD_ID_INVALID" });
   }
-  if (opponentDiscordId === user.discordId) {
-    throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
-  }
+  if (opponentDiscordId === user.discordId) throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
+
   const tokenId = String(body.challengerTokenId ?? "");
   const condition = cleanCondition(body.condition);
   if (body.agreeToCondition !== true) {
@@ -205,41 +154,53 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
   await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
 
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-  const recent = await dbRequest({
-    env,
-    path: `chog_challenge_invites?select=id,status&challenger_discord_id=eq.${encodeURIComponent(user.discordId)}&created_at=gt.${encodeURIComponent(since)}&limit=30`,
-    fetchImpl,
-  });
-  const openCount = (Array.isArray(recent) ? recent : []).filter((row) => ACTIVE_STATUSES.includes(row.status)).length;
-  if (openCount >= 3) {
+  const recent = await db.prepare(
+    "SELECT COUNT(*) AS count FROM chog_challenge_invites WHERE challenger_discord_id = ?1 AND created_at > ?2 AND status IN ('PENDING_ACCEPTANCE','TERMS_ACCEPTED','READY')"
+  ).bind(user.discordId, since).first();
+  if (Number(recent?.count ?? 0) >= 3) {
     throw new InviteApiError("You already have three open challenges. Cancel or finish one before creating another.", { status: 429, code: "TOO_MANY_OPEN_INVITES" });
   }
 
   const now = new Date();
-  const row = {
+  const invite = {
     id: crypto.randomUUID(),
     challenger_discord_id: user.discordId,
     challenger_username: user.username,
     challenger_wallet: user.walletAddress.toLowerCase(),
     challenger_token_id: tokenId,
     opponent_discord_id: opponentDiscordId,
+    opponent_username: null,
+    opponent_wallet: null,
+    opponent_token_id: null,
     condition_text: condition,
     terms_hash: await hashText(condition),
-    challenger_terms_accepted: true,
+    challenger_terms_accepted: 1,
     challenger_terms_accepted_at: now.toISOString(),
-    opponent_terms_accepted: false,
+    opponent_terms_accepted: 0,
     opponent_terms_accepted_at: null,
-    challenger_ready: false,
-    opponent_ready: false,
+    challenger_ready: 0,
+    opponent_ready: 0,
     status: "PENDING_ACCEPTANCE",
+    created_at: now.toISOString(),
+    updated_at: now.toISOString(),
     expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
   };
-  const created = await dbRequest({
-    env, path: "chog_challenge_invites", method: "POST", body: row,
-    prefer: "return=representation", fetchImpl,
-  });
-  const invite = Array.isArray(created) ? created[0] : null;
-  if (!invite) throw new InviteApiError("The invitation could not be saved.", { status: 502, code: "INVITE_CREATE_FAILED" });
+
+  await db.prepare(
+    `INSERT INTO chog_challenge_invites (
+      id, challenger_discord_id, challenger_username, challenger_wallet, challenger_token_id,
+      opponent_discord_id, opponent_username, opponent_wallet, opponent_token_id, condition_text,
+      terms_hash, challenger_terms_accepted, challenger_terms_accepted_at, opponent_terms_accepted,
+      opponent_terms_accepted_at, challenger_ready, opponent_ready, status, created_at, updated_at, expires_at
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)`
+  ).bind(
+    invite.id, invite.challenger_discord_id, invite.challenger_username, invite.challenger_wallet,
+    invite.challenger_token_id, invite.opponent_discord_id, invite.opponent_username, invite.opponent_wallet,
+    invite.opponent_token_id, invite.condition_text, invite.terms_hash, invite.challenger_terms_accepted,
+    invite.challenger_terms_accepted_at, invite.opponent_terms_accepted, invite.opponent_terms_accepted_at,
+    invite.challenger_ready, invite.opponent_ready, invite.status, invite.created_at, invite.updated_at, invite.expires_at,
+  ).run();
+
   return {
     invite: presentInvite(invite, user.discordId),
     inviteUrl: new URL(`/invite.html?id=${encodeURIComponent(invite.id)}`, origin).toString(),
@@ -251,16 +212,15 @@ export async function handleInviteRequest({
 }) {
   const parsedUrl = new URL(url, origin || "http://localhost");
   const auth = await readDiscordSession({ cookieHeader, env });
-  if (!auth.authenticated) {
-    throw new InviteApiError("Connect Discord and verify the holder role first.", { status: 401, code: "DISCORD_SESSION_REQUIRED" });
-  }
+  if (!auth.authenticated) throw new InviteApiError("Connect Discord and verify the holder role first.", { status: 401, code: "DISCORD_SESSION_REQUIRED" });
   const user = auth.user;
+  const db = getDb(env);
 
   if (method === "GET") {
     const id = parsedUrl.searchParams.get("id");
     if (id) {
       if (!validUuid(id)) throw new InviteApiError("Invalid invitation ID.", { status: 400, code: "INVITE_ID_INVALID" });
-      const row = await getInvite({ env, id, fetchImpl });
+      const row = await getInvite({ env, id });
       if (![row.challenger_discord_id, row.opponent_discord_id].includes(user.discordId)) {
         throw new InviteApiError("This invitation belongs to another Discord account.", { status: 403, code: "INVITE_FORBIDDEN" });
       }
@@ -268,18 +228,15 @@ export async function handleInviteRequest({
     }
 
     const view = parsedUrl.searchParams.get("view") || "incoming";
-    if (!["incoming", "outgoing"].includes(view)) {
-      throw new InviteApiError("Choose the incoming or outgoing invitation view.", { status: 400, code: "INVITE_VIEW_INVALID" });
-    }
-    const field = view === "incoming" ? "opponent_discord_id" : "challenger_discord_id";
-    const rows = await dbRequest({
-      env,
-      path: `chog_challenge_invites?select=*&${field}=eq.${encodeURIComponent(user.discordId)}&order=created_at.desc&limit=50`,
-      fetchImpl,
-    });
+    if (!["incoming", "outgoing"].includes(view)) throw new InviteApiError("Choose the incoming or outgoing invitation view.", { status: 400, code: "INVITE_VIEW_INVALID" });
+    const column = view === "incoming" ? "opponent_discord_id" : "challenger_discord_id";
+    const result = await db.prepare(
+      `SELECT * FROM chog_challenge_invites WHERE ${column} = ?1 ORDER BY created_at DESC LIMIT 50`
+    ).bind(user.discordId).all();
+    const rows = Array.isArray(result?.results) ? result.results : [];
     return {
       status: 200,
-      body: { invites: (Array.isArray(rows) ? rows : []).map((row) => presentInvite(row, user.discordId)) },
+      body: { invites: rows.map((row) => presentInvite(row, user.discordId)) },
       headers: { "Cache-Control": "private, no-store" },
     };
   }
@@ -293,7 +250,7 @@ export async function handleInviteRequest({
 
   const id = String(body.id ?? "");
   if (!validUuid(id)) throw new InviteApiError("Invalid invitation ID.", { status: 400, code: "INVITE_ID_INVALID" });
-  const row = await getInvite({ env, id, fetchImpl });
+  const row = await getInvite({ env, id });
   const isChallenger = user.discordId === row.challenger_discord_id;
   const isOpponent = user.discordId === row.opponent_discord_id;
   if (!isChallenger && !isOpponent) throw new InviteApiError("This invitation belongs to another Discord account.", { status: 403, code: "INVITE_FORBIDDEN" });
@@ -304,44 +261,40 @@ export async function handleInviteRequest({
       throw new InviteApiError("This invitation is no longer accepting responses.", { status: 409, code: "INVITE_NOT_PENDING" });
     }
     if (!user.walletAddress) throw new InviteApiError("Link your wallet before accepting the challenge.", { status: 409, code: "WALLET_NOT_LINKED" });
-    if (body.agreeToCondition !== true) {
-      throw new InviteApiError("Read and explicitly accept the proposed condition before accepting.", { status: 400, code: "TERMS_NOT_ACKNOWLEDGED" });
-    }
+    if (body.agreeToCondition !== true) throw new InviteApiError("Read and explicitly accept the proposed condition before accepting.", { status: 400, code: "TERMS_NOT_ACKNOWLEDGED" });
+
     const tokenId = String(body.opponentTokenId ?? "");
     await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
     const now = new Date().toISOString();
-    const updated = await updateState({
-      env, id, filters: `&status=eq.PENDING_ACCEPTANCE&opponent_discord_id=eq.${encodeURIComponent(user.discordId)}&expires_at=gt.${encodeURIComponent(now)}`,
-      body: {
-        opponent_username: user.username,
-        opponent_wallet: user.walletAddress.toLowerCase(),
-        opponent_token_id: tokenId,
-        opponent_terms_accepted: true,
-        opponent_terms_accepted_at: now,
-        status: "TERMS_ACCEPTED",
-        updated_at: now,
-      },
-      fetchImpl,
+    const updated = await conditionalUpdate({
+      env,
+      sql: `UPDATE chog_challenge_invites SET
+        opponent_username = ?1, opponent_wallet = ?2, opponent_token_id = ?3,
+        opponent_terms_accepted = 1, opponent_terms_accepted_at = ?4,
+        status = 'TERMS_ACCEPTED', updated_at = ?4
+        WHERE id = ?5 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?6 AND expires_at > ?4
+        RETURNING *`,
+      values: [user.username, user.walletAddress.toLowerCase(), tokenId, now, id, user.discordId],
     });
     return { status: 200, body: { invite: presentInvite(updated, user.discordId) }, headers: { "Cache-Control": "no-store" } };
   }
 
   if (body.action === "decline") {
     if (!isOpponent) throw new InviteApiError("Only the challenged player can decline this invitation.", { status: 403, code: "INVITE_ACTION_FORBIDDEN" });
-    if (row.status !== "PENDING_ACCEPTANCE") throw new InviteApiError("Only a pending invitation can be declined.", { status: 409, code: "INVITE_NOT_PENDING" });
-    const updated = await updateState({
-      env, id, filters: `&status=eq.PENDING_ACCEPTANCE&opponent_discord_id=eq.${encodeURIComponent(user.discordId)}`,
-      body: { status: "DECLINED", updated_at: new Date().toISOString() }, fetchImpl,
+    const updated = await conditionalUpdate({
+      env,
+      sql: "UPDATE chog_challenge_invites SET status = 'DECLINED', updated_at = ?1 WHERE id = ?2 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?3 RETURNING *",
+      values: [new Date().toISOString(), id, user.discordId],
     });
     return { status: 200, body: { invite: presentInvite(updated, user.discordId) }, headers: { "Cache-Control": "no-store" } };
   }
 
   if (body.action === "cancel") {
     if (!isChallenger) throw new InviteApiError("Only the challenger can cancel the pending invitation.", { status: 403, code: "INVITE_ACTION_FORBIDDEN" });
-    if (row.status !== "PENDING_ACCEPTANCE") throw new InviteApiError("Only a pending invitation can be cancelled.", { status: 409, code: "INVITE_NOT_PENDING" });
-    const updated = await updateState({
-      env, id, filters: `&status=eq.PENDING_ACCEPTANCE&challenger_discord_id=eq.${encodeURIComponent(user.discordId)}`,
-      body: { status: "CANCELLED", updated_at: new Date().toISOString() }, fetchImpl,
+    const updated = await conditionalUpdate({
+      env,
+      sql: "UPDATE chog_challenge_invites SET status = 'CANCELLED', updated_at = ?1 WHERE id = ?2 AND status = 'PENDING_ACCEPTANCE' AND challenger_discord_id = ?3 RETURNING *",
+      values: [new Date().toISOString(), id, user.discordId],
     });
     return { status: 200, body: { invite: presentInvite(updated, user.discordId) }, headers: { "Cache-Control": "no-store" } };
   }
@@ -354,16 +307,24 @@ export async function handleInviteRequest({
     if (!user.walletAddress || !requiredWallet || user.walletAddress.toLowerCase() !== requiredWallet.toLowerCase()) {
       throw new InviteApiError("Reconnect the wallet selected for this challenge before confirming readiness.", { status: 403, code: "INVITE_WALLET_MISMATCH" });
     }
-    const result = await dbRequest({
+    const now = new Date().toISOString();
+    const updated = await conditionalUpdate({
       env,
-      path: "rpc/chog_set_invite_ready",
-      method: "POST",
-      body: { p_invite_id: id, p_discord_id: user.discordId },
-      prefer: "return=representation",
-      fetchImpl,
+      sql: `UPDATE chog_challenge_invites SET
+        challenger_ready = CASE WHEN challenger_discord_id = ?1 THEN 1 ELSE challenger_ready END,
+        opponent_ready = CASE WHEN opponent_discord_id = ?1 THEN 1 ELSE opponent_ready END,
+        status = CASE
+          WHEN (challenger_ready = 1 OR challenger_discord_id = ?1)
+           AND (opponent_ready = 1 OR opponent_discord_id = ?1) THEN 'READY'
+          ELSE status
+        END,
+        updated_at = ?2
+        WHERE id = ?3 AND status IN ('TERMS_ACCEPTED','READY')
+          AND (challenger_discord_id = ?1 OR opponent_discord_id = ?1)
+        RETURNING *`,
+      values: [user.discordId, now, id],
+      conflictCode: "INVITE_READY_CONFLICT",
     });
-    const updated = Array.isArray(result) ? result[0] : result;
-    if (!updated) throw new InviteApiError("Could not record readiness. Refresh the lobby.", { status: 409, code: "INVITE_READY_CONFLICT" });
     return {
       status: 200,
       body: {
