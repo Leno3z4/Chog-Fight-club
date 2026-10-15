@@ -7,6 +7,7 @@ export default defineConfig({
       input: {
         main: fileURLToPath(new URL("./index.html", import.meta.url)),
         battle: fileURLToPath(new URL("./battle.html", import.meta.url)),
+        roster: fileURLToPath(new URL("./roster.html", import.meta.url)),
       },
     },
   },
