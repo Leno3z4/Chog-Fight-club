@@ -1,10 +1,10 @@
-@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap");
+@import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Lilita+One&family=Nunito:wght@400;500;600;700;800;900&display=swap');
 
 :root {
   color-scheme: dark;
-  --roster-bg: #090811;
-  --roster-panel: #121020;
-  --roster-panel-2: #19152b;
+  --roster-bg: #160e22;
+  --roster-panel: #211431;
+  --roster-panel-2: #35204c;
   --roster-line: rgba(190, 161, 255, .18);
   --roster-purple: #a78bfa;
   --roster-purple-strong: #8b5cf6;
@@ -15,7 +15,7 @@
 body.roster-page {
   margin: 0; min-height: 100vh; color: var(--roster-text);
   background: radial-gradient(ellipse at 75% 0%, rgba(103, 58, 183, .19), transparent 44%), var(--roster-bg);
-  font-family: "Manrope", system-ui, sans-serif;
+  font-family: "Nunito", system-ui, sans-serif;
 }
 .roster-shell { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
 .roster-nav { display:flex; justify-content:space-between; align-items:center; padding:24px 0; border-bottom:1px solid var(--roster-line); }
@@ -29,7 +29,7 @@ body.roster-page {
 .roster-hero h1 em { color:var(--roster-purple); font-style:normal; }
 .roster-hero > p:not(.roster-kicker):not(.roster-status):not(.roster-contract) { max-width:620px; color:var(--roster-muted); line-height:1.7; font-size:15px; }
 .roster-actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:24px; }
-.roster-primary,.roster-secondary,.select-chog { border-radius:12px; padding:13px 18px; cursor:pointer; font:700 13px "Manrope",sans-serif; transition:transform .15s ease,background .15s ease; }
+.roster-primary,.roster-secondary,.select-chog { border-radius:12px; padding:13px 18px; cursor:pointer; font:700 13px "Nunito",sans-serif; transition:transform .15s ease,background .15s ease; }
 .roster-primary,.select-chog { color:#100b1b; border:1px solid transparent; background:linear-gradient(120deg,#c4b5fd,#8b5cf6); }
 .roster-secondary { color:var(--roster-text); background:#171326; border:1px solid var(--roster-line); }
 .roster-primary:hover,.roster-secondary:hover,.select-chog:hover { transform:translateY(-1px); }
@@ -72,3 +72,6 @@ body.roster-page {
 .roster-footer { display:flex; justify-content:space-between; gap:12px; padding:30px 0; border-top:1px solid var(--roster-line); margin-top:42px; color:#6f6881; font:10px "DM Mono",monospace; text-transform:uppercase; letter-spacing:.1em; }
 @media (max-width:850px) { .chog-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .roster-hero { padding-top:54px; } }
 @media (max-width:560px) { .roster-shell { width:calc(100% - 24px); } .roster-nav { padding:18px 0; } .roster-hero { padding:48px 0 28px; } .chog-grid { grid-template-columns:1fr; } .chog-card-image { height:220px; } .connection-note { display:block; } .connection-note strong { display:block; margin-bottom:5px; } .roster-footer { flex-direction:column; } }
+
+/* Chog Fight Club title type */
+.roster-brand,.roster-hero h1,.roster-section-heading h2,.chog-card h3 { font-family:'Lilita One',sans-serif; font-weight:400; }
