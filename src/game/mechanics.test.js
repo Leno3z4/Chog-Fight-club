@@ -78,9 +78,9 @@ const mappedBackgrounds = Object.values(BACKGROUND_GROUPS).flat();
 assert.equal(new Set(mappedAuras).size, sourceAuras.length, "Aura mappings must not duplicate values");
 assert.equal(new Set(mappedBackgrounds).size, sourceBackgrounds.length, "Background mappings must not duplicate values");
 
-assert.ok(getCounterMultiplier("burst", "defense") > 1);
-assert.ok(getCounterMultiplier("defense", "burst") > 1);
-assert.ok(getCounterMultiplier("control", "mobility") < 1);
+assert.ok(getCounterMultiplier("burst", "defense") < 1, "defense should mitigate burst damage");
+assert.ok(getCounterMultiplier("defense", "burst") > 1, "defense style has a counter advantage into burst");
+assert.ok(getCounterMultiplier("control", "mobility") < 1, "mobility should resist control");
 
 const attacker = createCombatant(first);
 const defender = createCombatant(water);
