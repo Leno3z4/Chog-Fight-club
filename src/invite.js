@@ -214,6 +214,8 @@ $("#accept-invite").addEventListener("click", async () => {
       opponentTokenId: String(state.selectedTokenId),
       agreeToCondition: true,
     });
+  } catch {
+    // postAction already renders a visible error.
   } finally {
     updateAcceptButton();
   }
@@ -224,6 +226,8 @@ $("#decline-invite").addEventListener("click", async () => {
   $("#decline-invite").disabled = true;
   try {
     await postAction("decline");
+  } catch {
+    // postAction already renders a visible error.
   } finally {
     $("#decline-invite").disabled = false;
   }
@@ -234,18 +238,25 @@ $("#cancel-invite").addEventListener("click", async () => {
   $("#cancel-invite").disabled = true;
   try {
     await postAction("cancel");
+  } catch {
+    // postAction already renders a visible error.
   } finally {
     $("#cancel-invite").disabled = false;
   }
 });
 $("#ready-button").addEventListener("click", async () => {
   if (state.busy) return;
-  if (!state.session?.walletAddress) return showAlert("Link your wallet to your Discord identity before confirming readiness.");
+  if (!state.wallet || !state.session?.walletAddress || state.wallet.toLowerCase() !== state.session.walletAddress.toLowerCase()) {
+    return showAlert("Connect and verify the linked wallet on Monad before confirming readiness.");
+  }
   $("#ready-button").disabled = true;
   try {
     await postAction("ready");
+  } catch {
+    // postAction already renders a visible error.
   } finally {
-    $("#ready-button").disabled = false;
+    if (state.invite) renderSummary(state.invite);
+    else $("#ready-button").disabled = false;
   }
 });
 $("#refresh-invite").addEventListener("click", async () => {
