@@ -5,6 +5,7 @@ A 2D/2.5D Chog fighting game prototype where each Chog's collection metadata res
 ## Current foundation
 
 - Phaser 3 + Vite; fixed side-on battle arena (not an explorable world).
+- Base fighter rendered from the repo's transparent PNG layers (`images/body.png`, `head.png`, `eyes.png`, arms, legs, and nose); aura glow picks up a color family from metadata. Trait-specific clothing/headwear still needs matching artist-supplied layers.
 - Real-time movement, jumping, basic attacks, abilities, energy, cooldowns, and round flow.
 - Battle DNA generated from Chog Genesis metadata: tier, aura, background, form/base, body, eyes, skin, and other available traits.
 - Wallet-connected Chog roster at `/roster.html`: owned Chogs are shown separately with metadata, rarity, and a Battle DNA preview.
