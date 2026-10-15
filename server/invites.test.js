@@ -272,3 +272,79 @@ test("a different holder cannot read or accept an invitation addressed to someon
     (error) => error instanceof InviteApiError && error.code === "INVITE_FORBIDDEN"
   );
 });
+
+
+test("both linked players can record readiness, and the second moves the lobby to READY", async () => {
+  const inviteId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+  const opponentAccount = privateKeyToAccount("0x0000000000000000000000000000000000000000000000000000000000000002");
+  const challengerCookie = await makeLinkedSession({ discordId: challengerId, username: "ChallengeMaker", walletAccount: account });
+  const opponentCookie = await makeLinkedSession({ discordId: opponentId, username: "Opponent", walletAccount: opponentAccount });
+  const now = new Date().toISOString();
+  const row = {
+    id: inviteId,
+    challenger_discord_id: challengerId,
+    challenger_username: "ChallengeMaker",
+    challenger_wallet: account.address.toLowerCase(),
+    challenger_token_id: "561",
+    opponent_discord_id: opponentId,
+    opponent_username: "Opponent",
+    opponent_wallet: opponentAccount.address.toLowerCase(),
+    opponent_token_id: "973",
+    condition_text: "Post a harmless silly message for one day.",
+    terms_hash: "c".repeat(64),
+    challenger_terms_accepted: true,
+    challenger_terms_accepted_at: now,
+    opponent_terms_accepted: true,
+    opponent_terms_accepted_at: now,
+    challenger_ready: false,
+    opponent_ready: false,
+    status: "TERMS_ACCEPTED",
+    created_at: now,
+    updated_at: now,
+    expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+  };
+  const fetchImpl = async (url, options = {}) => {
+    const target = String(url);
+    if (target.startsWith(env.SUPABASE_URL + "/rest/v1/chog_challenge_invites") && options.method === "GET") {
+      return jsonResponse([row]);
+    }
+    if (target === env.SUPABASE_URL + "/rest/v1/rpc/chog_set_invite_ready" && options.method === "POST") {
+      const body = JSON.parse(options.body);
+      assert.equal(body.p_invite_id, inviteId);
+      if (body.p_discord_id === challengerId) row.challenger_ready = true;
+      else if (body.p_discord_id === opponentId) row.opponent_ready = true;
+      else return jsonResponse([]);
+      if (row.challenger_ready && row.opponent_ready) row.status = "READY";
+      row.updated_at = new Date().toISOString();
+      return jsonResponse([row]);
+    }
+    throw new Error("Unexpected request: " + target);
+  };
+
+  const first = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: opponentCookie,
+    env,
+    origin,
+    fetchImpl,
+    body: { action: "ready", id: inviteId },
+  });
+  assert.equal(first.body.invite.status, "TERMS_ACCEPTED");
+  assert.equal(first.body.invite.opponent.ready, true);
+  assert.equal(first.body.invite.challenger.ready, false);
+  assert.equal(first.body.multiplayerAvailable, false);
+
+  const second = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: challengerCookie,
+    env,
+    origin,
+    fetchImpl,
+    body: { action: "ready", id: inviteId },
+  });
+  assert.equal(second.body.invite.status, "READY");
+  assert.equal(second.body.invite.opponent.ready, true);
+  assert.equal(second.body.invite.challenger.ready, true);
+});
