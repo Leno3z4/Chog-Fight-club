@@ -49,8 +49,13 @@ The holder role ID defaults to `1545507860455096460`; optionally override using 
 
 ## Implemented invite backend foundation
 
-The branch includes `server/invites.js`, Vercel/Cloudflare/local API adapters, and the Supabase migration at `supabase/migrations/20261015_chog_challenge_invites.sql`. The invite endpoint requires the signed Discord session plus a wallet that was linked through a fresh wallet signature. It checks the selected Chog with Monad's `ownerOf` before creating or accepting an invitation. Invite reads are restricted to the two specified Discord accounts; state changes use status filters, and the ready check uses an atomic Postgres function.
+The branch includes `server/invites.js`, the Cloudflare Pages adapter at `functions/api/invites.js`, and the Cloudflare D1 migration at `migrations/0001_challenge_invites.sql`. The invite endpoint requires the signed Discord session plus a wallet that was linked through a fresh wallet signature. It checks the selected Chog with Monad's `ownerOf` before creating or accepting an invitation. Invite reads are restricted to the two specified Discord accounts; state changes use status filters, and the ready check uses one conditional SQLite update through D1.
 
-To activate this portion, apply the SQL migration and configure `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `MONAD_RPC_URL` as server-side variables. Do not expose the service-role key to the browser.
+To activate this portion, create a Cloudflare D1 database, apply `migrations/0001_challenge_invites.sql` with Wrangler, then bind the database to the Cloudflare Pages project using the exact binding name `CHOG_DB`. Set `MONAD_RPC_URL` as a server-side variable. D1 binding setup is documented in `CLOUDFLARE_D1_SETUP.md`.
 
 The shared lobby updates status through polling and tracks both players' readiness. It deliberately does not enter the existing single-player Phaser arena as if it were a synchronized PvP match. Real-time battle transport, Pact NFT minting, validated result settlement, and fulfilment confirmation are not complete.
+
+
+## Cloudflare storage decision
+
+Cloudflare D1 is the only persistence service used by the invitation API. No Supabase project or secret is required. In the Pages Functions runtime, the binding is available as `env.CHOG_DB`. A missing binding returns an explicit `D1_NOT_CONFIGURED` response rather than silently storing invitations in browser storage.
