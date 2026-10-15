@@ -146,13 +146,46 @@ document.addEventListener("click", async (event) => {
   }
 });
 walletButton.addEventListener("click", async () => {
+  walletButton.disabled = true;
+  clearAlert();
   try {
-    state.account = await connectWallet();
-    walletButton.textContent = `${state.account.slice(0,6)}…${state.account.slice(-4)}`;
-    walletButton.disabled = true;
+    const address = await connectWallet();
+    const challengeResponse = await fetch("/api/wallet/challenge", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { accept: "application/json" },
+    });
+    const challenge = await challengeResponse.json().catch(() => ({}));
+    if (!challengeResponse.ok || !challenge.message) {
+      throw new Error(challenge.error || "Could not start wallet verification.");
+    }
+
+    const signature = await window.ethereum.request({
+      method: "personal_sign",
+      params: [challenge.message, address],
+    });
+    const verifyResponse = await fetch("/api/wallet/verify", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", accept: "application/json" },
+      body: JSON.stringify({ message: challenge.message, signature }),
+    });
+    const verified = await verifyResponse.json().catch(() => ({}));
+    if (!verifyResponse.ok || !verified?.ok) {
+      throw new Error(verified.error || "Wallet signature could not be verified.");
+    }
+
+    state.account = verified.walletAddress;
+    if (state.session) state.session.walletAddress = verified.walletAddress;
+    walletButton.textContent = `${state.account.slice(0,6)}…${state.account.slice(-4)} ✓`;
+    subtitle.textContent = "Wallet linked to your verified Discord identity. Loading your Chogs…";
     await refreshChogs();
   } catch (error) {
-    alertMessage(error?.message ?? "Wallet connection failed.");
+    if (error?.code === 4001) {
+      alertMessage("Wallet signature cancelled. Your wallet was not linked.");
+    } else {
+      alertMessage(error?.message ?? "Wallet linking failed. Please try again.");
+    }
   } finally {
     walletButton.disabled = false;
   }
@@ -166,6 +199,10 @@ $("#disconnect-discord").addEventListener("click", async () => {
 if (window.ethereum?.on) {
   window.ethereum.on("accountsChanged", (accounts) => {
     state.account = accounts?.[0] ?? null;
+    if (state.session?.walletAddress && state.session.walletAddress.toLowerCase() !== String(state.account || "").toLowerCase()) {
+      state.session.walletAddress = null;
+      alertMessage("Wallet account changed. Reconnect and sign the wallet-link message before creating challenges.");
+    }
     state.chogs = [];
     state.selectedTokenId = null;
     walletButton.textContent = state.account ? `${state.account.slice(0,6)}…${state.account.slice(-4)}` : "Connect wallet";
