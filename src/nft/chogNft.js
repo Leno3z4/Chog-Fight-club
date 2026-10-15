@@ -73,7 +73,7 @@ export async function connectWallet() {
         params: [{ chainId: MONAD_CHAIN_ID }],
       });
     } catch (error) {
-      if (error?.code !== 4902 && error?.code !== -32603) throw error;
+      if (error?.code !== 4902) throw error;
       await provider.request({
         method: "wallet_addEthereumChain",
         params: [{
@@ -210,12 +210,24 @@ export async function getOwnedChogs(owner) {
   if (balance === 0) return [];
 
   let tokenIds;
+  let enumerable = false;
   try {
-    tokenIds = await supportsEnumerable()
-      ? await readOwnedTokenIdsEnumerable(owner, balance)
-      : await readOwnedTokenIdsFromIndexer(owner);
-  } catch (error) {
-    throw error;
+    enumerable = await supportsEnumerable();
+  } catch {
+    // Some ERC-721 implementations do not expose ERC-165 reliably.
+    // Fall through to the configured indexer rather than treating this as no NFTs.
+  }
+
+  if (enumerable) {
+    try {
+      tokenIds = await readOwnedTokenIdsEnumerable(owner, balance);
+    } catch {
+      // If the collection advertises enumeration but does not implement it correctly,
+      // use the indexer path and still verify each returned token with ownerOf.
+      tokenIds = await readOwnedTokenIdsFromIndexer(owner);
+    }
+  } else {
+    tokenIds = await readOwnedTokenIdsFromIndexer(owner);
   }
 
   const uniqueIds = [...new Set(tokenIds.map(String))];
