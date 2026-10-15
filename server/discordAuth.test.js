@@ -10,7 +10,7 @@ const origin = "https://game.example";
 const env = {
   DISCORD_CLIENT_ID: "client-id",
   DISCORD_CLIENT_SECRET: "client-secret",
-  DISCORD_GUILD_ID: "guild-123",
+  DISCORD_GUILD_ID: "1253481714710220810",
   DISCORD_HOLDER_ROLE_ID: "1545507860455096460",
   DISCORD_REDIRECT_URI: "https://game.example/api/discord/callback",
   SESSION_SECRET: "test-secret-that-is-long-enough-for-tests-only",
@@ -61,7 +61,7 @@ test("callback validates OAuth state, checks role server-side, then creates a se
       assert.equal(options.headers.Authorization, "Bearer mock-access-token");
       return mockResponse({ id: "discord-user-1", username: "test-player", global_name: "Test Player", avatar: null });
     }
-    if (target.endsWith("/users/@me/guilds/guild-123/member")) {
+    if (target.endsWith("/users/@me/guilds/1253481714710220810/member")) {
       return mockResponse({ roles: ["ordinary-role", "1545507860455096460"] });
     }
     throw new Error("Unexpected Discord API route: " + target);
@@ -117,7 +117,7 @@ test("non-holder is denied and does not receive a session", async () => {
     const target = String(url);
     if (target.endsWith("/oauth2/token")) return mockResponse({ access_token: "mock-token" });
     if (target.endsWith("/users/@me")) return mockResponse({ id: "discord-user-2", username: "visitor" });
-    if (target.endsWith("/users/@me/guilds/guild-123/member")) return mockResponse({ roles: ["ordinary-role"] });
+    if (target.endsWith("/users/@me/guilds/1253481714710220810/member")) return mockResponse({ roles: ["ordinary-role"] });
     throw new Error("Unexpected route");
   };
   const result = await finishDiscordOAuth({
@@ -131,11 +131,12 @@ test("non-holder is denied and does not receive a session", async () => {
   assert.equal(result.cookies.some((value) => value.startsWith("chog_session=")), false);
 });
 
-test("missing guild ID blocks access rather than bypassing role checks", async () => {
+test("uses the configured Chog guild as a default when no override is set", async () => {
   const result = await startDiscordOAuth({
     origin,
     env: { ...env, DISCORD_GUILD_ID: "" },
     secure: true,
-  }).catch((error) => error);
-  assert.equal(result.code, "DISCORD_CONFIG_MISSING");
+  });
+  assert.equal(new URL(result.location).searchParams.get("client_id"), "client-id");
+  assert.equal(new URL(result.location).searchParams.get("redirect_uri"), env.DISCORD_REDIRECT_URI);
 });
