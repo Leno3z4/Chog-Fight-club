@@ -51,19 +51,21 @@ Do **not** put private indexer/API keys in `VITE_*` variables: these become publ
 
 See [CHOG_NFT_INTEGRATION.md](./CHOG_NFT_INTEGRATION.md) for details.
 
-## Persistent challenge invitations
+## Persistent challenge invitations on Cloudflare
 
-The profile now has a challenge builder, incoming/outgoing lists, and a shared invitation lobby. Invitation state is stored in Supabase Postgres, not browser storage or a serverless function's memory. Before using it:
+The profile includes a challenge creator, incoming/outgoing lists, and a shared invitation lobby. Invitation records are stored in **Cloudflare D1** through the Pages Functions binding named `CHOG_DB`; no Supabase service is used.
 
-1. Create a Supabase project.
-2. Run `supabase/migrations/20261015_chog_challenge_invites.sql` in the Supabase SQL Editor.
-3. Set `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as **server-side secrets** in Vercel or Cloudflare Pages. The service-role key must never be exposed through a `VITE_*` variable.
-4. Set `MONAD_RPC_URL` on the server for Chog ownership checks. The API checks `ownerOf(tokenId)` against the wallet linked by a signed message to the authenticated Discord session.
-5. Configure the Discord OAuth variables before testing invitations. The recipient must sign in with the specified Discord user ID and hold role `1545507860455096460` in guild `1253481714710220810`.
+### Set up D1 once
 
-Open invitations can be shared with `/invite.html?id=...`, remain pending for up to seven days, and can be accepted, declined, or cancelled. Conditions are limited to 500 characters and obviously unsafe conditions/links are rejected. A creator may have up to three open invitations. The database tracks acceptance and both players' ready flags.
+1. In Cloudflare, open **Workers & Pages → D1 SQL Database → Create database** and name it `chog-fight-club` (or choose your own name).
+2. Run the migration from the repository root:
+   ```bash
+   npx wrangler d1 execute chog-fight-club --remote --file=migrations/0001_challenge_invites.sql
+   ```
+3. Open the Cloudflare Pages project, then **Settings → Bindings → Add → D1 database**. Set the variable name to exactly `CHOG_DB`, select that database, save, and redeploy.
+4. Add the Discord OAuth and `OPENSEA_API_KEY` values as server-side secrets in Cloudflare Pages. Set `MONAD_RPC_URL=https://rpc.monad.xyz` as a server-side variable. Do not add secrets with a `VITE_*` prefix.
 
-**Important current boundary:** the persistent invite and readiness state works as a lobby foundation; it does not yet launch a real multiplayer fight. The server-authoritative PvP relay, on-chain Pact NFT contract/mint, verified winner settlement, and fulfillment confirmation still need to be built. Do not treat a browser battle result as an official win or mint outcome NFTs from it.
+The API checks the connected wallet's signed link to Discord and rechecks Chog `ownerOf(tokenId)` on Monad before accepting create/accept actions. Invitations can be accepted, declined, cancelled, and tracked while offline; pending invitations expire after seven days. Conditions are limited to 500 characters and obvious unsafe conditions or links are rejected.
 
 ## Challenge pact design
 
