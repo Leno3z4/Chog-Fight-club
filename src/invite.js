@@ -287,7 +287,7 @@ async function init() {
       return;
     }
     state.session = sessionPayload.user;
-    state.wallet = state.session.walletAddress || null;
+    state.wallet = null;
     await loadInvite();
     if (state.wallet && window.ethereum?.request) {
       try {
@@ -295,7 +295,9 @@ async function init() {
           window.ethereum.request({ method: "eth_accounts" }),
           window.ethereum.request({ method: "eth_chainId" }),
         ]);
-        if (accounts?.[0]?.toLowerCase() === state.wallet.toLowerCase() && String(chainId).toLowerCase() === "0x8f") {
+        const linkedWallet = state.session.walletAddress;
+        if (linkedWallet && accounts?.[0]?.toLowerCase() === linkedWallet.toLowerCase() && String(chainId).toLowerCase() === "0x8f") {
+          state.wallet = linkedWallet;
           $("#link-wallet").textContent = `${state.wallet.slice(0,6)}…${state.wallet.slice(-4)} ✓`;
           await loadChogs();
         } else {
