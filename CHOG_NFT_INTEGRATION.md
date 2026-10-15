@@ -8,6 +8,14 @@
 - Selecting a real NFT stores a local practice selection that the Phaser arena reads. It does not approve, transfer, or modify the Chog.
 - A clearly labelled local training fighter for testing when the developer owns no Chog.
 
+## OpenSea API lookup
+
+The default fallback is the server-side `/api/chogs?owner=0x...` route in `api/chogs.js`. It calls OpenSea's account NFT endpoint with `chain=monad` and `collection=chog-genesis`, paginates, and filters returned items to the exact Chog Genesis contract address. Monad appears in OpenSea's current supported-chain list, and its account endpoint supports collection filtering and pagination.
+
+Configure `OPENSEA_API_KEY` as a **server-side environment secret** in the Vercel project (Settings → Environment Variables), for Preview and Production as needed. Do not name it `VITE_OPENSEA_API_KEY`; any `VITE_*` variable is shipped to the browser. The endpoint returns only token IDs. The client then verifies each candidate with the actual Monad `ownerOf` call and reads the collection's `tokenURI` for traits and metadata.
+
+If the key is not configured or OpenSea is unavailable, the client falls back to the configured indexer or MonadScan transfer history. OpenSea is an index/discovery aid, not authority on current ownership. Rate limits and marketplace hidden-item behavior are possible, so the app still needs a production-owned indexer strategy and error states.
+
 ## Ownership discovery
 ERC-721 owner enumeration is optional. The client checks the `0x780e9d63` ERC-721 Enumerable interface first. If unsupported, it falls back to the public MonadScan `tokennfttx` API and reconstructs the latest transfer status per token. The public API is rate-limited when used without a key, so it is a prototype fallback rather than a production dependency.
 
