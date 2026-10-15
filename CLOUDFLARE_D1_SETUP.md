@@ -12,27 +12,23 @@ chog-fight-club
 
 Keep the database name and ID available for the next steps.
 
-## 2. Apply the schema
+## 2. Apply the schema in the dashboard
 
-From a local checkout at the repository root, authenticate Wrangler if needed:
+Open the D1 database you just created and select **Console**. Open the [migration SQL file](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/discord-gate-invitations/migrations/0001_challenge_invites.sql), copy all of it, paste it into the D1 Console, and press **Execute**. You should see the table and indexes created.
 
-```bash
-npx wrangler login
-npx wrangler d1 execute chog-fight-club --remote --file=migrations/0001_challenge_invites.sql
-```
+No terminal is needed.
 
-Replace `chog-fight-club` if you gave the database another name. This applies the schema to the **remote** D1 database. Do not run it against the wrong account/database.
+## 3. Wrangler configuration is in the repository
 
-## 3. Bind D1 to the Cloudflare Pages project
+The branch now contains [wrangler.jsonc](https://github.com/Leno3z4/Chog-Fight-club/blob/discord-gate-invitations/wrangler.jsonc) with:
 
-Open **Workers & Pages → your Chog Fight Club Pages project → Settings → Bindings → Add → D1 database**.
+- **Binding:** `CHOG_DB`
+- **Database:** `chog-fight-club`
+- **Database ID:** `8b61a704-51a0-40c0-a6dd-0f46bb81589e`
 
-Set:
+This matches the details in your screenshot. The config is in the branch, not deployed to your live Pages project until Cloudflare builds that branch.
 
-- **Variable name:** `CHOG_DB`
-- **D1 database:** the database created above
-
-Save the binding and redeploy the Pages project. The Cloudflare Function receives the database through `env.CHOG_DB`. A binding named something else will not work unless the code is changed to match it.
+Before deploying, check that your Cloudflare Pages project's name is `chog-fight-club`. The Wrangler `name` field should match the actual Pages project name. If your project has a different name, tell me the exact name and I'll adjust the file.
 
 ## 4. Configure Cloudflare Pages secrets
 
@@ -53,20 +49,9 @@ Never prefix server secrets with `VITE_`. Vite variables are bundled into browse
 
 Add the exact callback URL to the Discord application's OAuth2 redirect URI allowlist. Enable the scopes requested by the app: `identify` and `guilds.members.read`. The user must already belong to the configured guild and have the holder role; the server checks this with Discord rather than trusting the browser.
 
-## 6. Local Cloudflare Pages Functions testing
+## 6. Skip local terminal testing
 
-Vite's `npm run dev` is useful for frontend work, but D1 is provided by the Cloudflare runtime binding. For end-to-end local API testing, use Pages Functions via Wrangler:
-
-```bash
-cp .dev.vars.example .dev.vars
-# Fill in the Discord client ID/secret, SESSION_SECRET, and OpenSea API key.
-npm run build
-npx wrangler d1 execute chog-fight-club --local --file=migrations/0001_challenge_invites.sql
-npx wrangler d1 list
-npx wrangler pages dev dist --d1 CHOG_DB=YOUR_D1_DATABASE_ID
-```
-
-Use the database ID shown by Wrangler for the `CHOG_DB` binding. Local D1 data is separate from production data. Use the local Pages URL and make sure `DISCORD_REDIRECT_URI` exactly matches that local callback URL while testing; update it back to the deployed URL when testing production.
+You said you're using the Cloudflare dashboard, so skip the local Wrangler commands. Apply the schema in the D1 Console, add secrets in Pages settings, and let the Git-connected Pages deployment build the configured branch.
 
 ## 7. Test the invitation flow
 
