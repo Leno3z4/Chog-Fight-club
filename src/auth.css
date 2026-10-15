@@ -115,3 +115,34 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 @media(max-width:1050px){.app-layout{grid-template-columns:220px minmax(0,1fr)}.app-sidebar{padding-inline:12px}.dashboard-chog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.invite-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:760px){.login-layout{grid-template-columns:1fr;gap:20px;padding:40px 0}.login-copy h1{font-size:clamp(56px,14vw,88px)}.login-points{margin-top:26px}.login-footer{flex-wrap:wrap}.app-layout{display:block}.app-sidebar{height:auto;position:relative;padding:16px 16px 10px;border-right:0;border-bottom:1px solid rgba(163,132,255,.2)}.sidebar-logo{padding:0 4px 15px}.member-panel{margin:14px 0}.side-nav{display:flex;overflow-x:auto;padding-bottom:8px}.side-link{min-width:max-content;grid-template-columns:20px auto auto;padding:10px}.sidebar-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}.role-note{margin:0;padding:8px 0;border:0}.logout-button{width:auto}.profile-main{padding:23px 16px 0}.profile-topbar{align-items:flex-start;flex-direction:column}.section-banner{padding:23px 20px}.banner-mark{width:75px;height:75px;font-size:13px}.banner-mark b{font-size:10px}.invite-steps{grid-template-columns:1fr 1fr}}
 @media(max-width:480px){.login-shell{padding-inline:18px}.access-card{padding:30px 22px}.live-pill{font-size:8px}.dashboard-chog-grid{grid-template-columns:1fr}.chog-card-image{height:210px}.section-banner{align-items:flex-start}.banner-mark{display:none}.invite-steps{grid-template-columns:1fr}.profile-footer{flex-direction:column;align-items:flex-start}}
+
+
+/* Persistent challenge invite builder and lists */
+.invite-form{max-width:760px;margin-top:22px;padding:clamp(20px,3vw,32px);border:1px solid rgba(163,132,255,.38);border-radius:20px;background:linear-gradient(145deg,rgba(42,25,64,.92),rgba(27,17,42,.96));}
+.invite-form-heading h3{font:400 27px/1.05 'Lilita One',sans-serif;margin:10px 0 7px}
+.invite-form-heading p{margin:0 0 24px;max-width:620px;color:var(--club-muted);font-size:12px;line-height:1.65}
+.field-label{display:block;margin:19px 0 8px;font-weight:900;font-size:12px}
+.invite-form input:not([type=checkbox]),.invite-form textarea{display:block;width:100%;border:1px solid rgba(163,132,255,.38);border-radius:11px;background:#160e22;color:var(--club-cream);padding:13px 14px;font:600 13px 'Nunito',sans-serif;outline:none}
+.invite-form input:focus,.invite-form textarea:focus{border-color:var(--club-yellow);box-shadow:0 0 0 3px rgba(255,213,68,.08)}
+.invite-form textarea{resize:vertical;min-height:95px;line-height:1.6}
+.field-help{display:block;color:#a995bb;font-size:10px;line-height:1.6;margin-top:7px}
+.selected-main-row{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:14px;margin:20px 0;border-radius:13px;background:rgba(139,107,255,.1);border:1px solid rgba(163,132,255,.24)}
+.selected-main-row strong{display:block;margin-top:5px;font:400 18px 'Lilita One',sans-serif}
+.selected-main-row small{display:block;margin-top:4px;color:var(--club-muted);font-size:10px}
+.terms-check{display:flex;align-items:flex-start;gap:10px;margin:18px 0;color:var(--club-muted);font-size:11px;line-height:1.6}
+.terms-check input{flex-shrink:0;width:16px;height:16px;margin-top:2px;accent-color:var(--club-purple)}
+.invite-submit{margin:12px 0 8px;justify-content:flex-start;text-align:left}
+.invite-submit b{margin-left:auto}
+.created-invite-result{padding:16px;border:1px solid rgba(138,231,122,.3);background:rgba(138,231,122,.07);border-radius:12px;margin-top:12px;overflow-wrap:anywhere}
+.created-invite-result strong{display:block;font:400 17px 'Lilita One',sans-serif;color:#b7ff93;margin-bottom:8px}
+.created-invite-result a{font-size:12px;color:var(--club-yellow);text-decoration:underline;word-break:break-all}
+.copy-invite-link{display:inline-block;margin-top:12px;padding:9px 12px;border:1px solid rgba(163,132,255,.35);border-radius:9px;color:var(--club-cream);background:#35204c;font-weight:900;font-size:11px}
+.invite-list{display:grid;gap:12px;margin-top:22px}
+.invite-list-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:15px;align-items:center;padding:18px;border:1px solid rgba(163,132,255,.28);border-radius:15px;background:rgba(42,25,64,.58)}
+.invite-list-item h3{margin:0;font:400 18px 'Lilita One',sans-serif}
+.invite-list-item p{margin:6px 0 0;color:var(--club-muted);font-size:11px;line-height:1.55;overflow-wrap:anywhere}
+.invite-list-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.invite-state{display:inline-block;padding:5px 8px;border:1px solid rgba(163,132,255,.35);border-radius:99px;color:var(--club-yellow);font:500 9px 'DM Mono',monospace}
+.invite-open-button{padding:10px 13px;border:0;border-radius:10px;background:var(--club-yellow);color:#251535;font-weight:900;font-size:11px;white-space:nowrap}
+.invite-open-button:disabled{opacity:.5;cursor:not-allowed}
+@media(max-width:480px){.selected-main-row,.invite-list-item{grid-template-columns:1fr;align-items:start}.selected-main-row{display:flex;flex-direction:column;align-items:stretch}.invite-open-button{width:100%}}
