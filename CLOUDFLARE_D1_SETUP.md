@@ -53,7 +53,22 @@ Never prefix server secrets with `VITE_`. Vite variables are bundled into browse
 
 Add the exact callback URL to the Discord application's OAuth2 redirect URI allowlist. Enable the scopes requested by the app: `identify` and `guilds.members.read`. The user must already belong to the configured guild and have the holder role; the server checks this with Discord rather than trusting the browser.
 
-## 6. Test the invitation flow
+## 6. Local Cloudflare Pages Functions testing
+
+Vite's `npm run dev` is useful for frontend work, but D1 is provided by the Cloudflare runtime binding. For end-to-end local API testing, use Pages Functions via Wrangler:
+
+```bash
+cp .dev.vars.example .dev.vars
+# Fill in the Discord client ID/secret, SESSION_SECRET, and OpenSea API key.
+npm run build
+npx wrangler d1 execute chog-fight-club --local --file=migrations/0001_challenge_invites.sql
+npx wrangler d1 list
+npx wrangler pages dev dist --d1 CHOG_DB=YOUR_D1_DATABASE_ID
+```
+
+Use the database ID shown by Wrangler for the `CHOG_DB` binding. Local D1 data is separate from production data. Use the local Pages URL and make sure `DISCORD_REDIRECT_URI` exactly matches that local callback URL while testing; update it back to the deployed URL when testing production.
+
+## 7. Test the invitation flow
 
 After the D1 binding and Discord settings have been deployed:
 
