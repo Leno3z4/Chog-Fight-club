@@ -42,3 +42,15 @@ Open `/roster.html`, connect a wallet, and choose a real Chog or the local train
 - Production battle-result verification.
 
 Those should be added only with a server-side OAuth/session layer and a dedicated conditional NFT/challenge contract. The browser's session storage is only for practice UI; never use it as proof of ownership or as a settlement result.
+
+
+## Tests and checks
+
+Run the existing combat mechanics tests and the OpenSea ownership lookup tests with:
+
+```bash
+npm test
+```
+
+The OpenSea tests mock upstream responses; they cover contract filtering, pagination, duplicate IDs, missing server secret, invalid addresses, rate limiting, and pagination safety. They do not replace a live wallet test or a production build.
+
