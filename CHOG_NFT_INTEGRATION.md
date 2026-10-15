@@ -8,14 +8,16 @@
 - Selecting a real NFT stores a local practice selection that the Phaser arena reads. It does not approve, transfer, or modify the Chog.
 - A clearly labelled local training fighter for testing when the developer owns no Chog.
 
-## Ownership discovery requirement
-ERC-721 owner enumeration is optional. The client first checks the `0x780e9d63` ERC-721 Enumerable interface. If the Chog Genesis contract does not support it, set `VITE_CHOG_NFT_INDEXER_URL` to a **server-side** endpoint accepting `?owner=0x...` and returning token IDs, e.g.:
+## Ownership discovery
+ERC-721 owner enumeration is optional. The client checks the `0x780e9d63` ERC-721 Enumerable interface first. If unsupported, it falls back to the public MonadScan `tokennfttx` API and reconstructs the latest transfer status per token. The public API is rate-limited when used without a key, so it is a prototype fallback rather than a production dependency.
+
+For production, set `VITE_CHOG_NFT_INDEXER_URL` to a **server-side** endpoint accepting `?owner=0x...` and returning token IDs, e.g.:
 
 ```json
 { "tokenIds": ["561", "973"] }
 ```
 
-The client verifies each candidate with `ownerOf` before showing it. An indexer is only a discovery aid; it is not trusted as proof of current ownership. Keep provider API keys in server-side environment secrets, never in a `VITE_*` variable.
+The client verifies each candidate with `ownerOf` before showing it. An indexer is only a discovery aid; it is not trusted as proof of current ownership. Keep provider API keys in server-side environment secrets, never in a `VITE_*` variable. The roster uses the collection's `tokenURI` and does not ask the user to approve any transaction.
 
 ## Run
 ```bash
