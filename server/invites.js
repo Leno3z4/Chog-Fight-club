@@ -350,6 +350,10 @@ export async function handleInviteRequest({
     if (!["TERMS_ACCEPTED", "READY"].includes(row.status)) {
       throw new InviteApiError("Both players must accept the condition before readiness can be recorded.", { status: 409, code: "INVITE_TERMS_PENDING" });
     }
+    const requiredWallet = isChallenger ? row.challenger_wallet : row.opponent_wallet;
+    if (!user.walletAddress || !requiredWallet || user.walletAddress.toLowerCase() !== requiredWallet.toLowerCase()) {
+      throw new InviteApiError("Reconnect the wallet selected for this challenge before confirming readiness.", { status: 403, code: "INVITE_WALLET_MISMATCH" });
+    }
     const result = await dbRequest({
       env,
       path: "rpc/chog_set_invite_ready",
