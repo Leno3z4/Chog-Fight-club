@@ -1,4 +1,4 @@
-import { readDiscordSession } from "../../../server/discordAuth.js";
+import { readDiscordSession } from "../../server/discordAuth.js";
 
 export default async function handler(req, res) {
   if (req.method !== "GET") {
