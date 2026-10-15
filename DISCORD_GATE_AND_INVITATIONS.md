@@ -45,3 +45,12 @@ Recommended record fields:
 - `OPENSEA_API_KEY` (server-side only, for Chog discovery)
 
 The holder role ID defaults to `1545507860455096460`; optionally override using `DISCORD_HOLDER_ROLE_ID`.
+
+
+## Implemented invite backend foundation
+
+The branch includes `server/invites.js`, Vercel/Cloudflare/local API adapters, and the Supabase migration at `supabase/migrations/20261015_chog_challenge_invites.sql`. The invite endpoint requires the signed Discord session plus a wallet that was linked through a fresh wallet signature. It checks the selected Chog with Monad's `ownerOf` before creating or accepting an invitation. Invite reads are restricted to the two specified Discord accounts; state changes use status filters, and the ready check uses an atomic Postgres function.
+
+To activate this portion, apply the SQL migration and configure `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `MONAD_RPC_URL` as server-side variables. Do not expose the service-role key to the browser.
+
+The shared lobby updates status through polling and tracks both players' readiness. It deliberately does not enter the existing single-player Phaser arena as if it were a synchronized PvP match. Real-time battle transport, Pact NFT minting, validated result settlement, and fulfilment confirmation are not complete.
