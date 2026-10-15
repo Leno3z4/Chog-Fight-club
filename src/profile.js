@@ -248,7 +248,7 @@ async function loadInvites(view) {
         <div>
           <h3>${incoming ? "Challenge from" : "Challenge to"} ${escapeHtml(other?.username || "Discord player")}</h3>
           <p>${escapeHtml(other?.tokenId ? `Chog #${other.tokenId}` : "Fighter not selected")} · ${escapeHtml(invite.condition)}</p>
-          <div class="invite-list-meta"><span class="invite-state">${escapeHtml(status.replaceAll("_"," "))}</span><span class="invite-state">Expires ${escapeHtml(new Date(invite.expiresAt).toLocaleDateString())}</span></div>
+          <div class="invite-list-meta"><span class="invite-state">${escapeHtml(status.replaceAll("_"," "))}</span><span class="invite-state">Expires ${escapeHtml(invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : "No expiry")}</span></div>
         </div>
         <div class="invite-item-actions">
           <a class="invite-open-button" href="${url}">${canRespond ? "Review challenge" : "Open lobby"}</a>
