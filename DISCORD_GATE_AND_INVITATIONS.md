@@ -4,7 +4,7 @@
 - The landing route is the Discord connect screen.
 - The server performs Discord OAuth with `identify guilds.members.read`.
 - Access is granted only if the OAuth-authenticated Discord user is a member of `DISCORD_GUILD_ID` and their member-role list contains `DISCORD_HOLDER_ROLE_ID` (default `1545507860455096460`).
-- The role ID alone is insufficient; the server/guild ID is required as configuration.
+- The role ID alone is insufficient. The supplied Chog Discord guild ID is configured as the default: `1253481714710220810`; deployments may override it with `DISCORD_GUILD_ID`.
 - Never trust client-supplied Discord IDs, role names, screenshots, or a URL query. The backend must use Discord's OAuth identity and guild-member endpoint.
 
 ## Profile
