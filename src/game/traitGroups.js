@@ -21,7 +21,7 @@ export const BACKGROUND_GROUPS = {
     "Blood Red", "Red Sky", "Afternoon Orange", "Lemon Yellow", "Bright Yellow", "Gold",
   ],
   control: [
-    "Aqua", "Deep Aqua", "Sky Blue", "Aqua Blue", "Deep Blue", "Noble Blue",
+    "Aqua", "Deep Aqua", "Sky Blue", "Aqua Blue", "Deep Blue", "Noble Blue", "Royal Blue",
   ],
   sustain: [
     "Fresh Green", "Lime Green", "Mint", "Aqua Mint",
