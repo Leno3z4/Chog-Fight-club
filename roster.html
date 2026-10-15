@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Connect your wallet and choose a Chog fighter." />
+  <title>My Chogs — Chog Fight Club</title>
+</head>
+<body class="roster-page">
+  <main class="roster-shell">
+    <header class="roster-nav">
+      <a href="/" class="roster-brand">CHOG <span>FIGHT CLUB</span></a>
+      <a class="roster-back" href="/">← Back to home</a>
+    </header>
+
+    <section class="roster-hero">
+      <p class="roster-kicker">FIGHTER SELECT</p>
+      <h1>Your Chogs.<br /><em>Your choice.</em></h1>
+      <p>Connect your Monad wallet. Each Chog is read directly from the collection, and its metadata is turned into a separate Battle DNA profile.</p>
+      <div class="roster-actions">
+        <button id="connect-wallet" class="roster-primary">Connect wallet</button>
+        <button id="refresh-chogs" class="roster-secondary" disabled>Refresh Chogs</button>
+      </div>
+      <p id="wallet-status" class="roster-status" role="status">Wallet not connected.</p>
+      <p class="roster-contract">CHOG GENESIS · <code>0xc96d…73763</code> · Monad Mainnet</p>
+    </section>
+
+    <section id="connection-note" class="connection-note">
+      <strong>Wallet ownership only.</strong>
+      <span>This page never requests approval to transfer or modify your Chog NFTs. A server-side indexer may be required if the collection does not support ERC-721 owner enumeration.</span>
+    </section>
+
+    <section class="roster-list-section">
+      <div class="roster-section-heading">
+        <div><p class="roster-kicker">YOUR COLLECTION</p><h2 id="roster-heading">My Chogs</h2></div>
+        <span id="roster-count" class="roster-count">—</span>
+      </div>
+      <div id="roster-empty" class="roster-empty">Connect your wallet to load the Chogs it owns.</div>
+      <div id="chog-grid" class="chog-grid"></div>
+    </section>
+
+    <section class="roster-list-section prototype-section">
+      <div class="roster-section-heading">
+        <div><p class="roster-kicker">PRACTICE / TESTING</p><h2>Prototype fighter</h2></div>
+        <span class="prototype-tag">DEMO ONLY</span>
+      </div>
+      <p class="prototype-copy">You do not need to own a real Chog to test the battle screen. This training fighter is local demo data, not a minted NFT and not eligible for real challenges.</p>
+      <div id="prototype-grid" class="chog-grid"></div>
+    </section>
+
+    <footer class="roster-footer">
+      <span>CHOG FIGHT CLUB</span>
+      <span>Wallet + metadata integration · first milestone</span>
+    </footer>
+  </main>
+  <script type="module" src="/src/roster.js"></script>
+</body>
+</html>

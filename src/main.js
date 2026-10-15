@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import "./style.css";
+import { readSelectedFighter } from "./nft/chogNft.js";
 import { BootScene } from "./bootScene.js";
 import { buildBattleDNA } from "./game/battleDNA.js";
 import combatData from "./game/data/combat.json";
@@ -26,8 +27,9 @@ const GAME_HEIGHT = 720;
 const WORLD_WIDTH = 1600;
 const FLOOR_Y = 610;
 
-const PLAYER_METADATA = {
-  tokenId: 561, name: "Blaze", Tier: "Legendary", Base: "1:1", Form: "Chog", Skin: "Red",
+const SELECTED_FIGHTER = readSelectedFighter();
+const PLAYER_METADATA = SELECTED_FIGHTER?.metadata ?? {
+  tokenId: 561, name: "Blaze (practice)", Tier: "Legendary", Base: "1:1", Form: "Chog", Skin: "Red",
   Body: "Tuxedo", Eyes: "Angry", Head: "Crown", Aura: "Burning Aura", Background: "Blood Red",
   Mouth: "Smile", Side: "Left", Naked: "No",
 };
@@ -471,6 +473,8 @@ class ArenaScene extends Phaser.Scene {
     const textStyle = { fontFamily: "system-ui, sans-serif", color: "#ffffff" };
     this.add.text(32, 28, "CHOG FIGHT CLUB", { ...textStyle, fontSize: "22px", fontStyle: "700" }).setScrollFactor(0);
     this.add.text(32, 58, "A / D or ← / → move  •  SPACE / W / ↑ jump  •  F basic  •  1 base  •  2 special  •  3 defense", { ...textStyle, fontSize: "14px", color: "#c8ccd4" }).setScrollFactor(0);
+    this.add.text(32, 92, `YOU: ${PLAYER_METADATA.name ?? `CHOG #${PLAYER_METADATA.tokenId ?? "—"}`}`, { ...textStyle, fontSize: "12px", color: "#d8c8ff" }).setScrollFactor(0);
+    this.add.text(GAME_WIDTH - 332, 92, `OPPONENT: ${OPPONENT_METADATA.name ?? "Training Opponent"}`, { ...textStyle, fontSize: "12px", color: "#ffc5d0" }).setScrollFactor(0);
     this.playerHpText = this.add.text(32, 178, "", { ...textStyle, fontSize: "14px" }).setScrollFactor(0);
     this.playerEnergyText = this.add.text(32, 218, "", { ...textStyle, fontSize: "13px", color: "#b8ffca" }).setScrollFactor(0);
     this.playerCooldownText = this.add.text(32, 238, "", { ...textStyle, fontSize: "12px", color: "#c8ccd4" }).setScrollFactor(0);
