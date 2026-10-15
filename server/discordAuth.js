@@ -1,5 +1,8 @@
+import { recoverMessageAddress } from "viem";
+
 const SESSION_COOKIE = "chog_session";
 const STATE_COOKIE = "chog_oauth_state";
+const WALLET_CHALLENGE_COOKIE = "chog_wallet_challenge";
 const DEFAULT_HOLDER_ROLE_ID = "1545507860455096460";
 const DEFAULT_GUILD_ID = "1253481714710220810";
 const DISCORD_API = "https://discord.com/api/v10";
@@ -236,12 +239,86 @@ export async function readDiscordSession({ cookieHeader, env }) {
       discriminator: session.discriminator,
       avatar: session.avatar,
       roleId: session.roleId,
+      walletAddress: session.walletAddress ?? null,
+      walletLinkedAt: session.walletLinkedAt ?? null,
       verifiedAt: session.verifiedAt,
       expiresAt: session.exp,
     },
   };
 }
 
+async function readRawSession(cookieHeader, env) {
+  const secret = String(env?.SESSION_SECRET ?? "");
+  if (!secret) throw new DiscordAuthError("Discord session signing is not configured.", { status: 503, code: "DISCORD_CONFIG_MISSING" });
+  const raw = parseCookies(cookieHeader)[SESSION_COOKIE];
+  const session = await unseal(raw, secret);
+  if (!session || !session.discordId || !session.exp || session.exp < Date.now()) {
+    throw new DiscordAuthError("Connect Discord again before linking a wallet.", { status: 401, code: "DISCORD_SESSION_REQUIRED" });
+  }
+  return { session, secret };
+}
+
+export async function startWalletLink({ cookieHeader, env, origin, secure = true }) {
+  const { session, secret } = await readRawSession(cookieHeader, env);
+  const random = new Uint8Array(32);
+  crypto.getRandomValues(random);
+  const nonce = base64UrlEncode(random);
+  const issuedAt = new Date().toISOString();
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+  const message = [
+    "Link this wallet to Chog Fight Club.",
+    `Domain: ${new URL(origin).host}`,
+    `Origin: ${origin}`,
+    `Discord user ID: ${session.discordId}`,
+    `Nonce: ${nonce}`,
+    `Issued at: ${issuedAt}`,
+    `Expires at: ${new Date(expiresAt).toISOString()}`,
+    "This signature does not authorize NFT transfers or token spending.",
+  ].join("\\n");
+  const challengeCookie = await seal({ nonce, message, discordId: session.discordId, exp: expiresAt }, secret);
+  return {
+    status: 200,
+    body: { message, expiresAt },
+    cookies: [cookie(WALLET_CHALLENGE_COOKIE, challengeCookie, { maxAge: 300, secure })],
+  };
+}
+
+export async function finishWalletLink({ cookieHeader, env, message, signature, secure = true }) {
+  const { session, secret } = await readRawSession(cookieHeader, env);
+  const cookies = parseCookies(cookieHeader);
+  const challenge = await unseal(cookies[WALLET_CHALLENGE_COOKIE], secret);
+  if (!challenge || challenge.exp < Date.now() || challenge.discordId !== session.discordId || challenge.message !== message) {
+    throw new DiscordAuthError("Wallet-link challenge expired or does not match this Discord session. Try again.", { status: 400, code: "WALLET_CHALLENGE_INVALID" });
+  }
+  if (typeof signature !== "string" || !/^0x[0-9a-fA-F]+$/.test(signature)) {
+    throw new DiscordAuthError("A valid wallet signature is required.", { status: 400, code: "WALLET_SIGNATURE_INVALID" });
+  }
+  let address;
+  try {
+    address = await recoverMessageAddress({ message, signature });
+  } catch {
+    throw new DiscordAuthError("Could not verify this wallet signature.", { status: 400, code: "WALLET_SIGNATURE_INVALID" });
+  }
+  if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+    throw new DiscordAuthError("The wallet signature recovered an invalid address.", { status: 400, code: "WALLET_ADDRESS_INVALID" });
+  }
+
+  const updatedSession = {
+    ...session,
+    walletAddress: address.toLowerCase(),
+    walletLinkedAt: Date.now(),
+  };
+  const sessionCookie = await seal(updatedSession, secret);
+  return {
+    status: 200,
+    body: { ok: true, walletAddress: updatedSession.walletAddress, walletLinkedAt: updatedSession.walletLinkedAt },
+    cookies: [
+      cookie(SESSION_COOKIE, sessionCookie, { maxAge: Math.max(0, (updatedSession.exp - Date.now()) / 1000), secure }),
+      clearCookie(WALLET_CHALLENGE_COOKIE, secure),
+    ],
+  };
+}
+
 export function endDiscordSession({ secure = true }) {
-  return { status: 200, cookies: [clearCookie(SESSION_COOKIE, secure), clearCookie(STATE_COOKIE, secure)], body: { ok: true } };
+  return { status: 200, cookies: [clearCookie(SESSION_COOKIE, secure), clearCookie(STATE_COOKIE, secure), clearCookie(WALLET_CHALLENGE_COOKIE, secure)], body: { ok: true } };
 }
