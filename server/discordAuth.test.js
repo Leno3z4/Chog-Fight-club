@@ -112,6 +112,30 @@ test("wrong OAuth state is rejected before calling Discord", async () => {
   assert.ok(result.cookies.some((value) => value.startsWith("chog_oauth_state=") && /Max-Age=0/.test(value)));
 });
 
+test("configured project owner can enter without the holder role", async () => {
+  const start = await startDiscordOAuth({ origin, env, secure: true });
+  const state = new URL(start.location).searchParams.get("state");
+  const result = await finishDiscordOAuth({
+    requestUrl: `${origin}/api/discord/callback?code=mock-code&state=${state}`,
+    cookieHeader: cookiePair(start.cookies[0]),
+    env,
+    secure: true,
+    fetchImpl: async (url) => {
+      const target = String(url);
+      if (target.endsWith("/oauth2/token")) return mockResponse({ access_token: "owner-token" });
+      if (target.endsWith("/users/@me")) return mockResponse({ id: "1304031867162595361", username: "project-owner" });
+      if (target.endsWith("/users/@me/guilds/1253481714710220810/member")) return mockResponse({ roles: ["ordinary-role"] });
+      throw new Error("Unexpected route: " + target);
+    },
+  });
+  assert.equal(new URL(result.location).pathname, "/profile.html");
+  const sessionCookie = cookiePair(result.cookies.find((value) => value.startsWith("chog_session=")));
+  const session = await readDiscordSession({ cookieHeader: sessionCookie, env });
+  assert.equal(session.authenticated, true);
+  assert.equal(session.user.discordId, "1304031867162595361");
+  assert.equal(session.user.isAdmin, true);
+});
+
 test("non-holder is denied and does not receive a session", async () => {
   const start = await startDiscordOAuth({ origin, env, secure: true });
   const state = new URL(start.location).searchParams.get("state");
