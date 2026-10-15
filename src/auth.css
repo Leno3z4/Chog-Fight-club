@@ -1,0 +1,117 @@
+@import url('https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap');
+
+:root {
+  color-scheme: dark;
+  --club-bg:#160e22; --club-bg2:#211431; --club-panel:#2a1940; --club-panel2:#35204c;
+  --club-purple:#8b6bff; --club-purple2:#a28aff; --club-yellow:#ffd544; --club-orange:#ff7908;
+  --club-cream:#fff1d8; --club-muted:#c6b3d7; --club-line:rgba(163,132,255,.44);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--club-bg);color:var(--club-cream);font-family:'Nunito',system-ui,sans-serif}
+button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:none}
+.club-body{background:radial-gradient(ellipse at 80% 15%,rgba(116,72,211,.24),transparent 36%),radial-gradient(ellipse at 15% 92%,rgba(255,121,8,.1),transparent 35%),var(--club-bg)}
+.club-logo{display:inline-flex;align-items:center;gap:7px;font:400 20px 'Lilita One',sans-serif;letter-spacing:.02em;white-space:nowrap}
+.club-logo span{color:var(--club-yellow)}
+.club-eyebrow{display:block;font:500 10px 'DM Mono',monospace;letter-spacing:.15em;color:var(--club-purple2);text-transform:uppercase}
+.login-shell{max-width:1460px;min-height:100vh;margin:auto;padding:0 4.5vw;display:flex;flex-direction:column}
+.login-top{height:84px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(166,130,255,.2)}
+.live-pill{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--club-line);background:rgba(139,107,255,.14);padding:9px 13px;border-radius:999px;font:500 10px 'DM Mono',monospace;letter-spacing:.06em}
+.live-pill i,.network-tag i,.role-dot{width:7px;height:7px;display:inline-block;border-radius:50%;background:#8ae77a;box-shadow:0 0 12px #8ae77a}
+.login-layout{flex:1;display:grid;grid-template-columns:1.05fr minmax(340px,.75fr);gap:8vw;align-items:center;padding:7vh 0}
+.login-copy{padding:20px 0}
+.login-copy h1{font:400 clamp(58px,7.6vw,112px)/.88 'Lilita One',sans-serif;letter-spacing:-.025em;margin:22px 0 26px;text-shadow:0 4px 0 rgba(255,121,8,.15)}
+.login-copy h1 span{color:var(--club-yellow)}
+.login-lede{color:var(--club-muted);font-size:17px;line-height:1.65;max-width:540px}
+.login-points{max-width:480px;margin-top:42px;border-top:1px solid rgba(166,130,255,.24)}
+.login-points div{display:flex;align-items:center;gap:18px;padding:15px 0;border-bottom:1px solid rgba(166,130,255,.2);font-weight:800}
+.login-points b{display:grid;place-items:center;width:30px;height:30px;background:var(--club-yellow);color:#211431;border-radius:10px;font:400 15px 'Lilita One',sans-serif}
+.access-card{position:relative;border:2px solid var(--club-purple);border-radius:28px;padding:38px 34px 30px;background:linear-gradient(150deg,rgba(54,33,79,.95),rgba(27,17,42,.98));box-shadow:12px 12px 0 rgba(7,5,11,.48);overflow:hidden}
+.access-card:before{content:'';position:absolute;right:-90px;top:-95px;width:220px;height:220px;border-radius:50%;background:rgba(255,121,8,.12);filter:blur(2px)}
+.access-stamp{position:absolute;right:26px;top:22px;font:400 16px 'Lilita One',sans-serif;color:var(--club-yellow);transform:rotate(8deg)}
+.access-stamp span{color:var(--club-orange)}
+.access-card h2{position:relative;font:400 35px/1 'Lilita One',sans-serif;margin:17px 0 14px}
+.access-card>p:not(.club-eyebrow){position:relative;color:var(--club-muted);font-size:14px;line-height:1.65}
+.discord-button{position:relative;display:flex;align-items:center;gap:12px;width:100%;margin:28px 0 13px;padding:16px 18px;background:var(--club-purple);border:0;border-radius:14px;color:white;font:400 19px 'Lilita One',sans-serif;box-shadow:0 5px 0 #5740ab;transition:transform .15s,box-shadow .15s}
+.discord-button:hover{transform:translateY(2px);box-shadow:0 3px 0 #5740ab}
+.discord-button:disabled{opacity:.6;cursor:wait}
+.discord-button b{margin-left:auto;font-family:'Nunito',sans-serif}
+.discord-mark{display:grid;place-items:center;width:30px;height:30px;background:#fff;border-radius:10px;color:#5865f2;font-size:19px}
+.auth-status{min-height:38px;color:var(--club-muted);font-size:12px;line-height:1.5}
+.auth-status[data-kind=error]{color:#ff9c83}.auth-status[data-kind=success]{color:#b7ff93}
+.access-rule{display:grid;gap:5px;margin:20px 0;padding:16px 0;border-block:1px solid rgba(166,130,255,.22)}
+.access-rule span{font:500 9px 'DM Mono',monospace;color:var(--club-purple2);letter-spacing:.15em}
+.access-rule strong{font:400 20px 'Lilita One',sans-serif}
+.access-rule code{font:11px 'DM Mono',monospace;color:var(--club-muted)}
+.access-card small{display:block;color:#a995bb;font-size:11px;line-height:1.6}
+.login-footer,.profile-footer{display:flex;justify-content:space-between;gap:16px;align-items:center;padding:22px 0;border-top:1px solid rgba(166,130,255,.18);color:#9985ad;font:10px 'DM Mono',monospace;letter-spacing:.08em}
+.login-footer a,.profile-footer a{color:var(--club-yellow)}
+/* Member dashboard */
+.app-layout{min-height:100vh;display:grid;grid-template-columns:270px minmax(0,1fr)}
+.app-sidebar{height:100vh;position:sticky;top:0;display:flex;flex-direction:column;padding:25px 17px 18px;background:#130c1d;border-right:1px solid rgba(163,132,255,.2)}
+.sidebar-logo{font-size:17px;padding:0 11px 23px;border-bottom:1px solid rgba(163,132,255,.18)}
+.member-panel{display:flex;align-items:center;gap:10px;margin:23px 4px 24px;padding:12px 10px;background:rgba(139,107,255,.1);border:1px solid rgba(163,132,255,.25);border-radius:14px;min-width:0}
+.member-avatar{display:grid;place-items:center;flex-shrink:0;width:40px;height:40px;border-radius:12px;background:var(--club-purple);color:white;overflow:hidden;font:400 20px 'Lilita One',sans-serif}
+.member-avatar img{width:100%;height:100%;object-fit:cover}
+.member-panel strong{display:block;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:135px}
+.member-panel small{display:block;color:var(--club-yellow);font:500 8px 'DM Mono',monospace;letter-spacing:.09em;margin-top:4px}
+.member-check{margin-left:auto;color:#aaff8b;font-weight:900}
+.side-nav{display:grid;gap:7px}
+.side-link{width:100%;display:grid;grid-template-columns:25px 1fr auto;align-items:center;gap:7px;text-align:left;padding:13px 11px;border:1px solid transparent;background:transparent;border-radius:12px;color:#c3b3d0;font-size:12px}
+.side-link>span{font-size:17px;color:var(--club-purple2)}
+.side-link b{font-weight:800}
+.side-link i{font:500 9px 'DM Mono',monospace;font-style:normal;color:var(--club-muted)}
+.side-link.active{background:var(--club-panel2);border-color:rgba(163,132,255,.38);color:var(--club-cream);box-shadow:inset 3px 0 var(--club-yellow)}
+.side-link.active>span{color:var(--club-yellow)}
+.nav-notice{display:grid;place-items:center;min-width:18px;height:18px;border-radius:99px;background:var(--club-orange);color:#fff!important}
+.sidebar-bottom{margin-top:auto}
+.role-note{display:flex;align-items:center;gap:10px;margin:0 8px 15px;padding:13px 0;border-top:1px solid rgba(163,132,255,.2)}
+.role-note strong{display:block;font-size:11px}.role-note small{display:block;font-size:10px;color:var(--club-muted);margin-top:3px}
+.logout-button{width:100%;text-align:left;padding:12px;border:1px solid rgba(163,132,255,.22);border-radius:10px;background:transparent;color:#c6b3d7;font-size:11px}
+.profile-main{min-width:0;padding:32px clamp(20px,4vw,58px) 0;max-width:1600px;width:100%;margin:0 auto}
+.profile-topbar{display:flex;justify-content:space-between;align-items:center;gap:20px;padding-bottom:25px;border-bottom:1px solid rgba(163,132,255,.2)}
+.profile-topbar h1{margin:8px 0 0;font:400 clamp(32px,4vw,49px)/1 'Lilita One',sans-serif;letter-spacing:-.015em}
+.topbar-actions{display:flex;gap:10px;align-items:center}
+.network-tag{display:inline-flex;align-items:center;gap:7px;padding:9px 11px;border:1px solid rgba(163,132,255,.25);border-radius:999px;color:var(--club-muted);font:500 9px 'DM Mono',monospace}
+.network-tag i{background:var(--club-purple2);box-shadow:0 0 10px var(--club-purple2)}
+.wallet-button,.outline-button{padding:11px 14px;border:1px solid var(--club-line);background:var(--club-panel2);border-radius:11px;color:var(--club-cream);font-weight:900;font-size:11px}
+.wallet-button{background:var(--club-yellow);border-color:var(--club-yellow);color:#251535}
+.profile-alert{margin-top:18px;padding:12px 15px;background:rgba(255,121,8,.12);border:1px solid rgba(255,121,8,.35);border-radius:10px;color:#ffd2aa;font-size:12px;line-height:1.55}
+.dashboard-panel{display:none;padding:26px 0 12px}.dashboard-panel.active{display:block}
+.section-banner{position:relative;display:flex;justify-content:space-between;gap:20px;align-items:center;overflow:hidden;min-height:190px;padding:28px 32px;border:2px solid var(--club-purple);border-radius:22px;background:linear-gradient(115deg,#241534,#33204b 68%,#45295f)}
+.section-banner:after{content:'';position:absolute;width:260px;height:260px;right:100px;top:-170px;border-radius:50%;background:rgba(139,107,255,.14)}
+.section-banner h2{position:relative;margin:12px 0 8px;font:400 clamp(30px,3.3vw,42px)/.98 'Lilita One',sans-serif}
+.section-banner p{position:relative;max-width:570px;color:#c8b7d8;font-size:12px;line-height:1.6;margin:0}
+.banner-mark{position:relative;z-index:1;flex-shrink:0;display:grid;place-content:center;width:112px;height:112px;text-align:center;transform:rotate(8deg);border:3px solid var(--club-yellow);outline:1px solid rgba(255,213,68,.3);border-radius:50%;color:var(--club-yellow);font:400 18px/.85 'Lilita One',sans-serif}
+.banner-mark b{color:#fff1d8;font-size:14px;margin-top:6px}.orange-mark{border-color:var(--club-orange);color:var(--club-orange)}
+.roster-toolbar{display:flex;align-items:center;justify-content:space-between;gap:15px;margin:28px 0 16px}
+.roster-toolbar strong{display:block;font:400 19px 'Lilita One',sans-serif}.roster-toolbar span{display:block;color:var(--club-muted);font-size:11px;margin-top:4px}
+.roster-empty{padding:25px;border:1px dashed rgba(163,132,255,.36);border-radius:14px;color:var(--club-muted);font-size:12px;text-align:center;line-height:1.6}
+.dashboard-chog-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.chog-card{overflow:hidden;border:1px solid rgba(163,132,255,.32);border-radius:17px;background:#211430;min-width:0}
+.chog-card-image{height:168px;display:grid;place-items:center;background:radial-gradient(ellipse at 50% 88%,rgba(139,107,255,.22),transparent 62%),#180f25;border-bottom:1px solid rgba(163,132,255,.2)}
+.chog-card-image img{max-width:100%;max-height:100%;object-fit:contain;display:block}
+.chog-card-image .no-art{display:grid;place-items:center;width:90px;height:90px;border-radius:38%;background:linear-gradient(150deg,#9a7aff,#522b99);color:white;font:400 32px 'Lilita One',sans-serif}
+.chog-card-body{padding:15px}
+.chog-card-title-row{display:flex;justify-content:space-between;gap:8px;align-items:start}
+.chog-card h3{margin:0;font:400 17px 'Lilita One',sans-serif;overflow-wrap:anywhere}
+.chog-token{margin-top:4px;color:var(--club-muted);font:10px 'DM Mono',monospace}
+.tier-chip{flex-shrink:0;border-radius:99px;padding:5px 8px;background:rgba(255,213,68,.11);color:var(--club-yellow);border:1px solid rgba(255,213,68,.25);font-size:9px;font-weight:900}
+.dna-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;margin:15px 0 12px}
+.dna-stat{padding:8px 3px;text-align:center;border-radius:8px;background:rgba(255,255,255,.035)}
+.dna-stat b{display:block;font:500 16px 'DM Mono',monospace;color:var(--club-yellow)}
+.dna-stat span{color:var(--club-muted);font:9px 'DM Mono',monospace;letter-spacing:.04em}
+.card-traits{min-height:47px;display:flex;flex-wrap:wrap;gap:5px;margin-bottom:13px;align-content:flex-start}
+.trait-chip{padding:5px 6px;border-radius:6px;color:#d3c6e2;background:rgba(255,255,255,.055);font-size:9px}
+.ability-line{border-top:1px solid rgba(163,132,255,.2);padding-top:11px;margin-bottom:13px;font-size:10px;line-height:1.5;color:var(--club-muted)}
+.ability-line strong{display:block;color:var(--club-cream);font-size:11px;margin-bottom:3px}
+.select-chog{width:100%;padding:11px;background:var(--club-yellow);color:#241531;border:0;border-radius:9px;font-weight:900;font-size:11px}
+.setup-warning{display:grid;gap:5px;margin-top:22px;padding:19px 20px;background:rgba(255,121,8,.08);border:1px solid rgba(255,121,8,.36);border-radius:14px}
+.setup-warning strong{font:400 17px 'Lilita One',sans-serif;color:#ffae54}.setup-warning span{font-size:12px;line-height:1.65;color:#d0b9d8}
+.invite-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:20px}
+.invite-steps article{padding:17px;border:1px solid rgba(163,132,255,.25);border-radius:13px;background:rgba(42,25,64,.6)}
+.invite-steps article>b{display:grid;place-items:center;width:27px;height:27px;border-radius:8px;background:var(--club-yellow);color:#211431;font:400 14px 'Lilita One',sans-serif}
+.invite-steps h3{font:400 16px 'Lilita One',sans-serif;margin:20px 0 7px}.invite-steps p{margin:0;color:var(--club-muted);font-size:11px;line-height:1.6}
+.profile-footer{margin-top:45px}
+@media(max-width:1050px){.app-layout{grid-template-columns:220px minmax(0,1fr)}.app-sidebar{padding-inline:12px}.dashboard-chog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.invite-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.login-layout{grid-template-columns:1fr;gap:20px;padding:40px 0}.login-copy h1{font-size:clamp(56px,14vw,88px)}.login-points{margin-top:26px}.login-footer{flex-wrap:wrap}.app-layout{display:block}.app-sidebar{height:auto;position:relative;padding:16px 16px 10px;border-right:0;border-bottom:1px solid rgba(163,132,255,.2)}.sidebar-logo{padding:0 4px 15px}.member-panel{margin:14px 0}.side-nav{display:flex;overflow-x:auto;padding-bottom:8px}.side-link{min-width:max-content;grid-template-columns:20px auto auto;padding:10px}.sidebar-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}.role-note{margin:0;padding:8px 0;border:0}.logout-button{width:auto}.profile-main{padding:23px 16px 0}.profile-topbar{align-items:flex-start;flex-direction:column}.section-banner{padding:23px 20px}.banner-mark{width:75px;height:75px;font-size:13px}.banner-mark b{font-size:10px}.invite-steps{grid-template-columns:1fr 1fr}}
+@media(max-width:480px){.login-shell{padding-inline:18px}.access-card{padding:30px 22px}.live-pill{font-size:8px}.dashboard-chog-grid{grid-template-columns:1fr}.chog-card-image{height:210px}.section-banner{align-items:flex-start}.banner-mark{display:none}.invite-steps{grid-template-columns:1fr}.profile-footer{flex-direction:column;align-items:flex-start}}

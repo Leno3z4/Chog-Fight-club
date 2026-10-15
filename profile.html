@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Your Chog Fight Club profile and battle invitations." />
+  <title>Your Club — Chog Fight Club</title>
+</head>
+<body class="club-body profile-body">
+  <div class="app-layout">
+    <aside class="app-sidebar">
+      <a class="club-logo sidebar-logo" href="/">CHOG <span>FIGHT CLUB</span></a>
+      <div class="member-panel">
+        <div id="member-avatar" class="member-avatar">C</div>
+        <div><strong id="member-name">Loading member…</strong><small>HOLDER ACCESS</small></div>
+        <span class="member-check">✓</span>
+      </div>
+      <nav class="side-nav" aria-label="Profile navigation">
+        <button class="side-link active" data-panel="chogs"><span>◈</span><b>My Chogs</b><i id="nav-chog-count">—</i></button>
+        <button class="side-link" data-panel="invites"><span>↗</span><b>Invite to battle</b></button>
+        <button class="side-link" data-panel="incoming"><span>↓</span><b>Incoming invites</b><i class="nav-notice" id="incoming-count">0</i></button>
+        <button class="side-link" data-panel="outgoing"><span>↑</span><b>Sent invites</b></button>
+        <button class="side-link" data-panel="history"><span>✦</span><b>Battle history</b></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="role-note"><span class="role-dot"></span><div><strong>Holder verified</strong><small>Discord access active</small></div></div>
+        <button id="disconnect-discord" class="logout-button">Disconnect Discord ↗</button>
+      </div>
+    </aside>
+
+    <main class="profile-main">
+      <header class="profile-topbar">
+        <div><span class="club-eyebrow">MEMBER AREA / <span id="panel-overline">YOUR COLLECTION</span></span><h1 id="panel-title">My Chogs</h1></div>
+        <div class="topbar-actions"><span class="network-tag"><i></i> MONAD</span><button id="connect-wallet" class="wallet-button">Connect wallet</button></div>
+      </header>
+
+      <div id="profile-alert" class="profile-alert" hidden></div>
+
+      <section class="dashboard-panel active" id="panel-chogs">
+        <div class="section-banner"><div><span class="club-eyebrow">FIGHTER SELECT</span><h2>Pick your main.</h2><p>Every Chog gets its own Battle DNA. Choose the one you want to take into a challenge.</p></div><div class="banner-mark">CHOG<br /><b>ROSTER</b></div></div>
+        <div class="roster-toolbar"><div><strong>Your fighters</strong><span id="roster-subtitle">Connect a wallet to load the collection.</span></div><button id="refresh-chogs" class="outline-button" disabled>↻ Refresh</button></div>
+        <div id="roster-empty" class="roster-empty">Connect your Monad wallet. Your Chogs will appear here as separate fighter cards.</div>
+        <div id="chog-grid" class="dashboard-chog-grid"></div>
+      </section>
+
+      <section class="dashboard-panel" id="panel-invites">
+        <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE DESK</span><h2>Call them out.</h2><p>Choose your main Chog, create a challenge link, and send it to your rival. The invitation should remain open until accepted, declined, or expired.</p></div><div class="banner-mark orange-mark">VS<br /><b>?</b></div></div>
+        <div class="setup-warning"><strong>Invitation service not connected yet.</strong><span>The UI is ready to wire, but invites must be stored on a backend so the link works across devices and remains pending while the other player is offline. We will not fake persistence with browser storage.</span></div>
+        <div class="invite-steps"><article><b>01</b><h3>Make the invite</h3><p>Select an opponent and the Chog you're putting forward.</p></article><article><b>02</b><h3>They accept</h3><p>They open the link, pass the holder gate, connect their wallet, and choose their own fighter.</p></article><article><b>03</b><h3>Agree on terms</h3><p>Both players confirm the exact condition before the separate Pact NFTs are minted.</p></article><article><b>04</b><h3>Enter the arena</h3><p>When both are ready and online, the lobby moves both players into the same match.</p></article></div>
+      </section>
+
+      <section class="dashboard-panel" id="panel-incoming">
+        <div class="section-banner"><div><span class="club-eyebrow">YOUR LOBBY</span><h2>Invitations for you.</h2><p>Challenges should stay here until you accept, decline, or the sender cancels them.</p></div><div class="banner-mark">IN<br /><b>BOX</b></div></div>
+        <div class="setup-warning"><strong>No persistent invite store is configured yet.</strong><span>Once connected, incoming challenges will display sender, expiry, proposed Chog, and any condition draft. Accepting will move you to the two-player setup room, not straight into combat.</span></div>
+      </section>
+
+      <section class="dashboard-panel" id="panel-outgoing">
+        <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE TRACKER</span><h2>Sent challenges.</h2><p>See who has accepted, who is still deciding, and which invites have expired.</p></div><div class="banner-mark orange-mark">WAIT<br /><b>ING</b></div></div>
+        <div class="setup-warning"><strong>Outgoing invitations need backend persistence.</strong><span>Each invitation will have a durable ID and status, so refreshing the page or closing the browser will not erase it.</span></div>
+      </section>
+
+      <section class="dashboard-panel" id="panel-history">
+        <div class="section-banner"><div><span class="club-eyebrow">YOUR RECORD</span><h2>Battle history.</h2><p>Finished fights, pact terms, results, and whether the agreed condition has been fulfilled.</p></div><div class="banner-mark">W / L<br /><b>LOG</b></div></div>
+        <div class="setup-warning"><strong>No verified challenge results yet.</strong><span>Real pact outcomes will only be revealed after the match result is validated. Practice battles will be kept separate from official challenges.</span></div>
+      </section>
+      <footer class="profile-footer"><span>CHOG FIGHT CLUB</span><span>YOUR CHOGS. YOUR CHALLENGES.</span><a href="/landing.html">Game details ↗</a></footer>
+    </main>
+  </div>
+  <script type="module" src="/src/profile.js"></script>
+</body>
+</html>
