@@ -3,6 +3,7 @@ import "./auth.css";
 const button = document.querySelector("#discord-connect");
 const status = document.querySelector("#auth-status");
 const params = new URLSearchParams(window.location.search);
+const returnTo = params.get("returnTo") || "/profile.html";
 let isAlreadyAuthenticated = false;
 const errors = {
   discord_configuration: "Discord access is not configured yet.",
@@ -39,11 +40,11 @@ async function checkSession() {
 }
 button.addEventListener("click", () => {
   if (isAlreadyAuthenticated) {
-    window.location.assign("/profile.html");
+    window.location.assign(returnTo.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/profile.html");
     return;
   }
   button.disabled = true;
   setStatus("Taking you to Discord to verify your holder role…");
-  window.location.assign("/api/discord/login");
+  window.location.assign("/api/discord/login?returnTo=" + encodeURIComponent(returnTo));
 });
 checkSession();
