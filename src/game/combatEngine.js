@@ -1,4 +1,4 @@
-import combatData from "./data/combat.json";
+import combatData from "./data/combat.json" with { type: "json" };
 
 export const ACTIONS = {
   BASIC: "basic",
