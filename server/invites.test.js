@@ -101,7 +101,7 @@ class MockD1 {
   async updateReturning(sql, v) {
     if (sql.includes("opponent_username = ?1")) {
       const row = this.rows.get(v[4]);
-      if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[5] || !(row.expires_at > v[3])) return null;
+      if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[5]) return null;
       Object.assign(row, {
         opponent_username: v[0], opponent_wallet: v[1], opponent_token_id: v[2],
         opponent_terms_accepted: 1, opponent_terms_accepted_at: v[3], status: "TERMS_ACCEPTED", updated_at: v[3],
@@ -199,7 +199,7 @@ function makeRow(overrides = {}) {
     status: "PENDING_ACCEPTANCE",
     created_at: now,
     updated_at: now,
-    expires_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+    expires_at: null,
     ...overrides,
   };
 }
