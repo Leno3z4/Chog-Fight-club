@@ -47,7 +47,7 @@ export default defineConfig(({ mode }) => {
 
           try {
             if (pathname === "/api/discord/login" && req.method === "GET") {
-              return redirect(await startDiscordOAuth({ origin, env, secure }));
+              return redirect(await startDiscordOAuth({ origin, env, secure, returnTo: requestUrl.searchParams.get("returnTo") || "/profile.html" }));
             }
             if (pathname === "/api/discord/callback" && req.method === "GET") {
               return redirect(await finishDiscordOAuth({
