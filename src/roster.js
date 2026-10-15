@@ -144,11 +144,7 @@ async function loadRoster() {
   } catch (error) {
     state.chogs = [];
     renderRealChogs();
-    if (error?.code === "CHOG_INDEXER_REQUIRED") {
-      emptyNode.innerHTML = "Wallet connected, but the collection cannot enumerate token IDs directly. The next setup step is a server-side NFT indexer endpoint; no private API key should be placed in frontend code.";
-    } else {
-      emptyNode.textContent = error?.message ?? "Could not load this wallet's Chogs.";
-    }
+    emptyNode.textContent = error?.message ?? "Could not load this wallet's Chogs. Try again or configure a server-side NFT indexer endpoint.";
     setStatus(error?.message ?? "Chog loading failed.", "error");
   } finally {
     state.loading = false;
