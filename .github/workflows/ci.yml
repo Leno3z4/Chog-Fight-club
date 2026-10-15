@@ -1,0 +1,35 @@
+name: Chog Fight Club website CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  website-tests-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install dependencies
+        run: npm install
+      - name: Test website services
+        run: npm test
+      - name: Validate Cloudflare D1 migration
+        run: |
+          python - <<'PY'
+          import sqlite3
+          db = sqlite3.connect(":memory:")
+          with open("migrations/0001_challenge_invites.sql", encoding="utf-8") as migration:
+              db.executescript(migration.read())
+          found = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_challenge_invites'").fetchone()
+          assert found is not None, "D1 migration did not create the invitations table"
+          print("D1 migration is valid SQLite and creates chog_challenge_invites")
+          PY
+      - name: Build website
+        run: npm run build

@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Review and respond to a Chog Fight Club challenge." />
+  <title>Challenge Lobby — Chog Fight Club</title>
+</head>
+<body class="club-body invite-body">
+  <main class="invite-page-shell">
+    <header class="invite-page-header">
+      <a class="club-logo" href="/profile.html">CHOG <span>FIGHT CLUB</span></a>
+      <span class="live-pill"><i></i> CHALLENGE LOBBY</span>
+    </header>
+    <section class="invite-page-hero">
+      <span class="club-eyebrow">INVITATION / <code id="invite-short-id">LOADING</code></span>
+      <h1 id="invite-headline">YOUR RIVAL<br /><span>HAS CALLED.</span></h1>
+      <p id="invite-intro" class="invite-page-lede">Loading the challenge details…</p>
+      <div id="invite-page-alert" class="profile-alert" hidden></div>
+    </section>
+
+    <section class="lobby-grid">
+      <div class="lobby-primary">
+        <article class="lobby-card">
+          <div class="lobby-card-heading"><div><span class="club-eyebrow">THE CHALLENGE</span><h2>Terms on the table.</h2></div><span id="invite-status-chip" class="invite-state">LOADING</span></div>
+          <blockquote id="invite-condition" class="condition-quote">Fetching the proposed condition…</blockquote>
+          <div class="condition-meta"><span>PUBLIC TERMS HASH</span><code id="condition-hash">—</code></div>
+          <p class="lobby-note">Read the exact condition. It cannot be edited after acceptance. Conditions must be voluntary, harmless, and non-invasive. On-chain Pact NFTs are not enabled yet; this lobby records the invitation and consent in the configured database only.</p>
+        </article>
+
+        <article class="lobby-card">
+          <div class="lobby-card-heading"><div><span class="club-eyebrow">BOTH SIDES</span><h2>Choose your Chog.</h2></div><span id="fighter-count" class="invite-state">WALLET REQUIRED</span></div>
+          <p id="fighter-prompt" class="lobby-note">Link the wallet belonging to your Discord account, then pick the Chog that will represent you. Ownership is rechecked server-side before acceptance.</p>
+          <button id="link-wallet" class="discord-button" type="button">Connect and verify wallet <b>↗</b></button>
+          <div id="lobby-chog-grid" class="lobby-chog-grid"></div>
+          <p id="selected-fighter-status" class="auth-status" role="status"></p>
+        </article>
+
+        <article class="lobby-card" id="accept-card" hidden>
+          <span class="club-eyebrow">FINAL CHECK</span>
+          <h2>Accept the challenge?</h2>
+          <label class="terms-check"><input id="accept-condition-check" type="checkbox" /><span>I have read and agree to this exact condition. I understand the selected Chog will be referenced, not transferred, and that the Pact NFT has not been deployed yet.</span></label>
+          <div class="lobby-actions"><button id="accept-invite" class="discord-button" type="button" disabled>Accept challenge <b>↗</b></button><button id="decline-invite" class="outline-button" type="button">Decline</button></div>
+        </article>
+
+        <article class="lobby-card" id="ready-card" hidden>
+          <div class="lobby-card-heading"><div><span class="club-eyebrow">PRE-FIGHT CHECK</span><h2>Ready when you are.</h2></div><span id="ready-status-chip" class="invite-state">WAITING</span></div>
+          <p id="ready-explanation" class="lobby-note">Both players must confirm they are ready. This lobby state is persistent.</p>
+          <button id="ready-button" class="discord-button" type="button">I'm ready <b>↗</b></button>
+          <p class="lobby-note">The shared readiness flow is implemented, but the server-authoritative multiplayer combat relay and Pact NFT minting are not enabled yet. We will not falsely send you into a single-player arena and call it PvP.</p>
+        </article>
+      </div>
+
+      <aside class="lobby-aside">
+        <div class="lobby-card">
+          <span class="club-eyebrow">FIGHTERS</span>
+          <div class="lobby-player">
+            <div class="lobby-player-icon">A</div>
+            <div><strong id="challenger-name">Challenger</strong><span id="challenger-chog">Chog not selected</span><small id="challenger-terms">Terms accepted: —</small><small id="challenger-ready">Ready: —</small></div>
+          </div>
+          <div class="versus-divider"><span>VS</span></div>
+          <div class="lobby-player">
+            <div class="lobby-player-icon orange-player">B</div>
+            <div><strong id="opponent-name">Opponent</strong><span id="opponent-chog">Chog not selected</span><small id="opponent-terms">Terms accepted: —</small><small id="opponent-ready">Ready: —</small></div>
+          </div>
+        </div>
+        <div class="lobby-card">
+          <span class="club-eyebrow">INVITE STATUS</span>
+          <ol id="lobby-timeline" class="lobby-timeline">
+            <li class="current">Invitation created</li>
+            <li>Opponent accepts</li>
+            <li>Both agree to condition</li>
+            <li>Both players ready</li>
+            <li>Verified match</li>
+          </ol>
+          <button id="refresh-invite" class="outline-button refresh-lobby" type="button">↻ Refresh lobby</button>
+          <button id="cancel-invite" class="outline-button refresh-lobby" type="button" hidden>Cancel invitation</button>
+        </div>
+      </aside>
+    </section>
+    <footer class="profile-footer"><span>CHOG FIGHT CLUB</span><span>NO CHOG CUSTODY. NO SILENT TERMS CHANGES.</span><a href="/profile.html">Back to profile ↗</a></footer>
+  </main>
+  <script type="module" src="/src/invite.js"></script>
+</body>
+</html>

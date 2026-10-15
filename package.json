@@ -1,0 +1,21 @@
+{
+  "name": "chog-fight-club",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:opensea": "node --test server/openSeaChogs.test.js",
+    "test:discord": "node --test server/discordAuth.test.js",
+    "test:invites": "node --test server/invites.test.js",
+    "test": "npm run test:opensea && npm run test:discord && npm run test:invites"
+  },
+  "dependencies": {
+    "viem": "^2.37.3"
+  },
+  "devDependencies": {
+    "vite": "^6.3.5"
+  }
+}
