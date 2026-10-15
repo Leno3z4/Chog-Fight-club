@@ -10,9 +10,9 @@
 
 ## OpenSea API lookup
 
-The default fallback is the server-side `/api/chogs?owner=0x...` route in `api/chogs.js`. It calls OpenSea's account NFT endpoint with `chain=monad` and `collection=chog-genesis`, paginates, and filters returned items to the exact Chog Genesis contract address. Monad appears in OpenSea's current supported-chain list, and its account endpoint supports collection filtering and pagination.
+The default fallback is the server-side `/api/chogs?owner=0x...` route. Vercel uses `api/chogs.js`; Cloudflare Pages uses `functions/api/chogs.js`. Both call the shared `server/openSeaChogs.js` implementation. It calls OpenSea's account NFT endpoint with `chain=monad` and `collection=chog-genesis`, paginates, and filters returned items to the exact Chog Genesis contract address. Monad appears in OpenSea's current supported-chain list, and its account endpoint supports collection filtering and pagination.
 
-Configure `OPENSEA_API_KEY` as a **server-side environment secret** in the Vercel project (Settings → Environment Variables), for Preview and Production as needed. Do not name it `VITE_OPENSEA_API_KEY`; any `VITE_*` variable is shipped to the browser. The endpoint returns only token IDs. The client then verifies each candidate with the actual Monad `ownerOf` call and reads the collection's `tokenURI` for traits and metadata.
+Configure `OPENSEA_API_KEY` as a **server-side environment secret** in your deployment platform: Vercel → Settings → Environment Variables, or Cloudflare Pages → Settings → Variables and Secrets (secret, not plain text), for the environments that serve the app. Do not name it `VITE_OPENSEA_API_KEY`; any `VITE_*` variable is shipped to the browser. The endpoint returns only token IDs. The client then verifies each candidate with the actual Monad `ownerOf` call and reads the collection's `tokenURI` for traits and metadata.
 
 If the key is not configured or OpenSea is unavailable, the client falls back to the configured indexer or MonadScan transfer history. OpenSea is an index/discovery aid, not authority on current ownership. Rate limits and marketplace hidden-item behavior are possible, so the app still needs a production-owned indexer strategy and error states.
 
