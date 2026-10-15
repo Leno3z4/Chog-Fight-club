@@ -22,7 +22,7 @@ Open the Vite URL for the landing page. Open `/roster.html` to connect a Monad M
 
 ## OpenSea API key
 
-The app includes a server-side `/api/chogs` route. Add `OPENSEA_API_KEY` in the deployment platform's server-side environment settings. **Do not use a `VITE_OPENSEA_API_KEY` variable.** The OpenSea route discovers Chog token IDs; the app rechecks each candidate's current ownership on Monad before using its NFT metadata.
+The app includes a server-side `/api/chogs` route for Vercel (`api/chogs.js`) and Cloudflare Pages (`functions/api/chogs.js`), backed by `server/openSeaChogs.js`. Add `OPENSEA_API_KEY` in the deployment platform's server-side environment settings (Vercel Environment Variables or Cloudflare Pages Variables and Secrets). **Do not use a `VITE_OPENSEA_API_KEY` variable.** The OpenSea route discovers Chog token IDs; the app rechecks each candidate's current ownership on Monad before using its NFT metadata.
 
 For local development, the frontend may fall back to MonadScan if the Vercel serverless route is not available. Live OpenSea lookup requires the server-side key to be configured in the deployed environment.
 
