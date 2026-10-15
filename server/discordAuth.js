@@ -208,13 +208,18 @@ export async function finishDiscordOAuth({ requestUrl, cookieHeader, env, secure
   }
 
   const roles = Array.isArray(member?.roles) ? member.roles.map(String) : [];
-  if (!roles.includes(settings.holderRoleId)) {
+  // The project owner can enter without the holder role, but must still authenticate with Discord.
+  const ownerDiscordIds = String(env?.ADMIN_DISCORD_IDS || "1304031867162595361")
+    .split(",").map((value) => value.trim()).filter(Boolean);
+  const isAdmin = ownerDiscordIds.includes(String(user.id));
+  if (!isAdmin && !roles.includes(settings.holderRoleId)) {
     return redirect(oauthErrorPath("holder_role_required"), url.origin, [clearState]);
   }
 
   const now = Date.now();
   const session = {
     discordId: String(user.id),
+    isAdmin,
     username: String(user.global_name || user.username || "Discord member"),
     discriminator: String(user.discriminator || ""),
     avatar: user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128` : null,
@@ -253,6 +258,7 @@ export async function readDiscordSession({ cookieHeader, env }) {
       discriminator: session.discriminator,
       avatar: session.avatar,
       roleId: session.roleId,
+      isAdmin: Boolean(session.isAdmin),
       walletAddress: session.walletAddress ?? null,
       walletLinkedAt: session.walletLinkedAt ?? null,
       verifiedAt: session.verifiedAt,
