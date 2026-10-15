@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS chog_challenge_invites (
     )),
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  expires_at TEXT NOT NULL,
+  expires_at TEXT,
   CHECK (challenger_discord_id <> opponent_discord_id),
   CHECK ((opponent_terms_accepted = 1 AND opponent_terms_accepted_at IS NOT NULL)
       OR (opponent_terms_accepted = 0 AND opponent_terms_accepted_at IS NULL))
