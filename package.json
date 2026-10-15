@@ -9,8 +9,9 @@
     "preview": "vite preview",
     "test:mechanics": "node src/game/mechanics.test.js && node src/game/matchFlow.test.js",
     "test:opensea": "node --test server/openSeaChogs.test.js",
-    "test": "npm run test:mechanics && npm run test:opensea && npm run test:discord",
-    "test:discord": "node --test server/discordAuth.test.js"
+    "test": "npm run test:mechanics && npm run test:opensea && npm run test:discord && npm run test:invites",
+    "test:discord": "node --test server/discordAuth.test.js",
+    "test:invites": "node --test server/invites.test.js"
   },
   "dependencies": {
     "phaser": "^3.90.0",
