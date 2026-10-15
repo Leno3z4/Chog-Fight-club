@@ -1,0 +1,11 @@
+# Copy this file to .dev.vars for local Cloudflare Pages Functions development.
+# Keep the real .dev.vars file private; it is ignored by .gitignore.
+
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+DISCORD_GUILD_ID=1253481714710220810
+DISCORD_HOLDER_ROLE_ID=1545507860455096460
+DISCORD_REDIRECT_URI=http://localhost:8788/api/discord/callback
+SESSION_SECRET=
+OPENSEA_API_KEY=
+MONAD_RPC_URL=https://rpc.monad.xyz
