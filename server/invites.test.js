@@ -38,7 +38,7 @@ async function makeLinkedSession() {
       const target = String(url);
       if (target.endsWith("/oauth2/token")) return jsonResponse({ access_token: "mock-access" });
       if (target.endsWith("/users/@me")) return jsonResponse({ id: challengerId, username: "ChallengeMaker", global_name: "Challenge Maker" });
-      if (target.endsWith(`/users/@me/guilds/${env.DISCORD_GUILD_ID}/member")) return jsonResponse({ roles: [env.DISCORD_HOLDER_ROLE_ID] });
+      if (target.endsWith(`/users/@me/guilds/${env.DISCORD_GUILD_ID}/member`) return jsonResponse({ roles: [env.DISCORD_HOLDER_ROLE_ID] });
       throw new Error("Unexpected Discord endpoint: " + target);
     },
   });
