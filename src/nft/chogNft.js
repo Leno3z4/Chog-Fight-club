@@ -324,9 +324,7 @@ export async function getOwnedChogs(owner) {
     try {
       tokenIds = await readOwnedTokenIdsEnumerable(owner, balance);
     } catch {
-      tokenIds = INDEXER_URL
-        ? await readOwnedTokenIdsFromIndexer(owner)
-        : await readOwnedTokenIdsFromMonadScan(owner, balance);
+      tokenIds = await discoverOwnedTokenIds(owner, balance);
     }
   } else {
     tokenIds = await discoverOwnedTokenIds(owner, balance);
