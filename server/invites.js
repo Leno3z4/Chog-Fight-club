@@ -83,7 +83,7 @@ async function assertOwnsChog({ owner, tokenId, env, fetchImpl = fetch }) {
 }
 
 function presentInvite(row, currentDiscordId) {
-  const expired = row.status === "PENDING_ACCEPTANCE" && Date.parse(row.expires_at) <= Date.now();
+  const expired = row.status === "PENDING_ACCEPTANCE" && row.expires_at && Date.parse(row.expires_at) <= Date.now();
   return {
     id: row.id,
     challenger: {
@@ -116,7 +116,7 @@ async function getInvite({ env, id }) {
   const db = getDb(env);
   const row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
   if (!row) throw new InviteApiError("Invitation not found.", { status: 404, code: "INVITE_NOT_FOUND" });
-  if (row.status === "PENDING_ACCEPTANCE" && Date.parse(row.expires_at) <= Date.now()) {
+  if (row.status === "PENDING_ACCEPTANCE" && row.expires_at && Date.parse(row.expires_at) <= Date.now()) {
     await db.prepare(
       "UPDATE chog_challenge_invites SET status = 'EXPIRED', updated_at = ?1 WHERE id = ?2 AND status = 'PENDING_ACCEPTANCE'"
     ).bind(new Date().toISOString(), id).run();
@@ -183,7 +183,8 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     status: "PENDING_ACCEPTANCE",
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
-    expires_at: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    // Pending invites persist until accepted, declined, or cancelled; no automatic expiry.
+    expires_at: null,
   };
 
   await db.prepare(
@@ -272,7 +273,7 @@ export async function handleInviteRequest({
         opponent_username = ?1, opponent_wallet = ?2, opponent_token_id = ?3,
         opponent_terms_accepted = 1, opponent_terms_accepted_at = ?4,
         status = 'TERMS_ACCEPTED', updated_at = ?4
-        WHERE id = ?5 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?6 AND expires_at > ?4
+        WHERE id = ?5 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?6
         RETURNING *`,
       values: [user.username, user.walletAddress.toLowerCase(), tokenId, now, id, user.discordId],
     });
