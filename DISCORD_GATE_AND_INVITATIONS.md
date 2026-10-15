@@ -20,7 +20,7 @@ Alternate terminal/recovery states:
 1. Player A chooses a real owned Chog and creates an invitation link with an unguessable invitation ID. Store a record on the backend immediately; the link must survive refreshes, logout, and the recipient being offline.
 2. Player B opens the link. They pass Discord role verification, connect their wallet, and choose their own Chog.
 3. The lobby displays both players, Discord display names, selected Chog images/IDs, metadata-derived stats, and a persistent invitation status.
-4. Either side can decline. The sender can cancel while pending. Pending invites have an expiry and rate limits. One invitation ID can be accepted only once.
+4. Either side can decline. The sender can cancel while pending. Pending invites remain stored until accepted, declined, or cancelled; creation is rate-limited. One invitation ID can be accepted only once.
 5. Both players see the exact condition text and disclosure that pact terms/outcomes are public on-chain. Each signs/accepts the same `termsHash`.
 6. Only after both players consent does the pact NFT mint. The Chog NFTs are never approved, transferred, or escrowed.
 7. When both players are online and click Ready, the shared lobby enters the arena. A reconnect token restores the lobby after refresh.
