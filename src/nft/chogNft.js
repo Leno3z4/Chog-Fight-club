@@ -165,6 +165,56 @@ async function readOwnedTokenIdsFromMonadScan(owner, expectedBalance) {
   throw new Error("The public NFT index did not return every Chog owned by this wallet. Configure a server-side indexer endpoint for reliable paging.");
 }
 
+async function readOwnedTokenIdsFromOpenSea(owner) {
+  // The API key lives in api/chogs.js on the server. Never call OpenSea with a key from the browser.
+  const url = new URL("/api/chogs", window.location.origin);
+  url.searchParams.set("owner", owner);
+  const response = await fetch(url.toString(), { headers: { accept: "application/json" } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    const error = new Error(payload?.error || `OpenSea Chog lookup failed (${response.status}).`);
+    error.code = payload?.code || "OPENSEA_LOOKUP_FAILED";
+    throw error;
+  }
+  if (!Array.isArray(payload?.tokenIds)) throw new Error("OpenSea roster endpoint returned an invalid response.");
+  return payload.tokenIds.map(String);
+}
+
+async function discoverOwnedTokenIds(owner, expectedBalance) {
+  const candidates = new Set();
+  const errors = [];
+
+  const add = (ids) => {
+    for (const id of ids ?? []) {
+      if (id !== undefined && id !== null && /^\d+$/.test(String(id))) candidates.add(String(id));
+    }
+  };
+
+  const sources = [
+    ["OpenSea", () => readOwnedTokenIdsFromOpenSea(owner)],
+    ...(INDEXER_URL ? [["configured indexer", () => readOwnedTokenIdsFromIndexer(owner)]] : []),
+    ["MonadScan", () => readOwnedTokenIdsFromMonadScan(owner, expectedBalance)],
+  ];
+
+  for (const [label, getIds] of sources) {
+    try {
+      add(await getIds());
+      if (candidates.size >= expectedBalance) break;
+    } catch (error) {
+      errors.push(`${label}: ${error?.message ?? "lookup failed"}`);
+    }
+  }
+
+  if (!candidates.size) {
+    throw new Error(errors.length
+      ? `Could not discover Chog token IDs. ${errors.join(" | ")}`
+      : "No Chog token IDs were returned by the NFT indexers.");
+  }
+
+  // These IDs are only candidates. getOwnedChogs verifies ownerOf on Monad before using any item.
+  return [...candidates];
+}
+
 async function readOwnedTokenIdsFromIndexer(owner) {
   if (!INDEXER_URL) {
     const error = new Error(
@@ -279,9 +329,7 @@ export async function getOwnedChogs(owner) {
         : await readOwnedTokenIdsFromMonadScan(owner, balance);
     }
   } else {
-    tokenIds = INDEXER_URL
-      ? await readOwnedTokenIdsFromIndexer(owner)
-      : await readOwnedTokenIdsFromMonadScan(owner, balance);
+    tokenIds = await discoverOwnedTokenIds(owner, balance);
   }
 
   const uniqueIds = [...new Set(tokenIds.map(String))];
