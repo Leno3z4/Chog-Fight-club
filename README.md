@@ -20,6 +20,12 @@ npm run dev
 
 Open the Vite URL for the landing page. Open `/roster.html` to connect a Monad Mainnet wallet, load the Chog roster, and choose a fighter for practice mode.
 
+## OpenSea API key
+
+The app includes a server-side `/api/chogs` route. Add `OPENSEA_API_KEY` in the deployment platform's server-side environment settings. **Do not use a `VITE_OPENSEA_API_KEY` variable.** The OpenSea route discovers Chog token IDs; the app rechecks each candidate's current ownership on Monad before using its NFT metadata.
+
+For local development, the frontend may fall back to MonadScan if the Vercel serverless route is not available. Live OpenSea lookup requires the server-side key to be configured in the deployed environment.
+
 ## Chog ownership lookup
 
 The app detects ERC-721 Enumerable support and uses `tokenOfOwnerByIndex` when available. Otherwise it falls back to the public MonadScan NFT transfer API, which is rate-limited without an API key. For production, configure `VITE_CHOG_NFT_INDEXER_URL` to a server-side indexer endpoint that accepts `?owner=0x...` and returns `{ "tokenIds": ["561", "973"] }`.
