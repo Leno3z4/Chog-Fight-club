@@ -39,9 +39,9 @@ The profile sidebar includes My Chogs, Invite to Battle, Incoming Invites, Sent 
 
 ## OpenSea API key
 
-The app includes a server-side `/api/chogs` route for Vercel (`api/chogs.js`) and Cloudflare Pages (`functions/api/chogs.js`), backed by `server/openSeaChogs.js`. Add `OPENSEA_API_KEY` in the deployment platform's server-side environment settings (Vercel Environment Variables or Cloudflare Pages Variables and Secrets). **Do not use a `VITE_OPENSEA_API_KEY` variable.** The OpenSea route discovers Chog token IDs; the app rechecks each candidate's current ownership on Monad before using its NFT metadata.
+Cloudflare Pages uses the server-side `functions/api/chogs.js` route backed by `server/openSeaChogs.js`. Add `OPENSEA_API_KEY` under your Cloudflare Pages project's server-side Variables and Secrets. **Do not use a `VITE_OPENSEA_API_KEY` variable.** OpenSea discovers candidate Chog token IDs; the app verifies current ownership on Monad before using metadata.
 
-For local development, the frontend may fall back to MonadScan if the Vercel serverless route is not available. Live OpenSea lookup requires the server-side key to be configured in the deployed environment.
+For local production-like testing, use Wrangler Pages Functions rather than treating Vite's UI-only dev server as a fully bound Cloudflare environment. See `CLOUDFLARE_D1_SETUP.md`.
 
 ## Chog ownership lookup
 
