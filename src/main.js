@@ -84,8 +84,8 @@ class ArenaScene extends Phaser.Scene {
     this.opponent = this.physics.add.staticSprite(1080, FLOOR_Y - 72, "chog-hitbox");
     this.opponent.setVisible(false);
 
-    this.playerVisual = this.createChogVisual(360, FLOOR_Y - 120, false);
-    this.opponentVisual = this.createChogVisual(1080, FLOOR_Y - 120, true);
+    this.playerVisual = this.createChogVisual(360, FLOOR_Y - 120, false, PLAYER_METADATA);
+    this.opponentVisual = this.createChogVisual(1080, FLOOR_Y - 120, true, OPPONENT_METADATA);
     this.playerHurtbox = this.createHurtbox(this.player);
     this.opponentHurtbox = this.createHurtbox(this.opponent);
 
@@ -523,22 +523,51 @@ class ArenaScene extends Phaser.Scene {
     this.add.text(WORLD_WIDTH / 2, 120, "TRAINING ARENA", { fontFamily: "system-ui, sans-serif", fontSize: "14px", color: "#ffffff" }).setOrigin(0.5).setAlpha(0.65);
   }
 
-  createChogVisual(x, y, mirrored) {
+  createChogVisual(x, y, mirrored, metadata = {}) {
     const container = this.add.container(x, y);
-    const shadow = this.add.ellipse(0, 113, 150, 24, 0x30452e, 0.22);
-    const body = this.add.ellipse(0, 0, 150, 170, 0xd9a72f, 1);
-    const belly = this.add.ellipse(0, 28, 112, 116, 0xe7bd4e, 1);
-    const leftArm = this.add.ellipse(-72, 25, 42, 72, 0xd9a72f, 1); leftArm.setAngle(12);
-    const rightArm = this.add.ellipse(72, 25, 42, 72, 0xd9a72f, 1); rightArm.setAngle(-12);
-    const leftFoot = this.add.ellipse(-45, 87, 48, 26, 0x9a6a22, 1);
-    const rightFoot = this.add.ellipse(45, 87, 48, 26, 0x9a6a22, 1);
-    const leftEye = this.add.ellipse(-25, -20, 20, 28, 0x171717, 1);
-    const rightEye = this.add.ellipse(25, -20, 20, 28, 0x171717, 1);
-    const leftHighlight = this.add.circle(-22, -25, 4, 0xffffff, 0.9);
-    const rightHighlight = this.add.circle(28, -25, 4, 0xffffff, 0.9);
-    const mouth = this.add.ellipse(0, 18, 30, 13, 0x5c2a1d, 1);
-    const flash = this.add.ellipse(0, 0, 155, 175, 0xffffff, 1).setAlpha(0).setData("flash", true);
-    container.add([shadow, leftArm, rightArm, leftFoot, rightFoot, body, belly, leftEye, rightEye, leftHighlight, rightHighlight, mouth, flash]);
+    const auraName = String(metadata.Aura ?? "").toLowerCase();
+    const backgroundName = String(metadata.Background ?? "").toLowerCase();
+    const auraColor = auraName.includes("fire") || auraName.includes("flam") || auraName.includes("burn")
+      ? 0xff6b4a
+      : auraName.includes("aqua") || auraName.includes("water") || auraName.includes("cool")
+        ? 0x44c7ff
+        : auraName.includes("electric") || auraName.includes("shock")
+          ? 0xf8df55
+          : auraName.includes("green") || auraName.includes("mint") || auraName.includes("nature")
+            ? 0x72e5a1
+            : auraName.includes("royal") || auraName.includes("blue")
+              ? 0x7299ff
+              : auraName.includes("smoke") || auraName.includes("shadow")
+                ? 0x9284c9
+                : backgroundName.includes("red") || backgroundName.includes("orange")
+                  ? 0xf58a77
+                  : 0xb39aff;
+
+    const aura = this.add.ellipse(0, 12, 205, 225, auraColor, 0.13);
+    const shadow = this.add.ellipse(0, 126, 166, 24, 0x17131f, 0.32);
+
+    // The supplied PNGs are same-canvas transparent layers. Reusing the same
+    // position and display size preserves their alignment when assembled.
+    const makeLayer = (name, depth) => {
+      const layer = this.add.image(0, 36, `chog-${name}`);
+      layer.setDisplaySize(320, 320);
+      layer.setDepth(depth);
+      return layer;
+    };
+
+    const leftLeg = makeLayer("left-leg", 1);
+    const rightLeg = makeLayer("right-leg", 2);
+    const leftArm = makeLayer("left-arm", 3);
+    const body = makeLayer("body", 4);
+    const rightArm = makeLayer("right-arm", 5);
+    const head = makeLayer("head", 6);
+    const eyes = makeLayer("eyes", 7);
+    const nose = makeLayer("nose", 8);
+    const flash = this.add.ellipse(0, 12, 205, 225, 0xffffff, 0).setData("flash", true).setDepth(10);
+
+    container.add([aura, shadow, leftLeg, rightLeg, leftArm, body, rightArm, head, eyes, nose, flash]);
+    container.setData("baseLayers", { aura, shadow, leftLeg, rightLeg, leftArm, body, rightArm, head, eyes, nose });
+    container.setData("metadata", metadata);
     container.setScale(mirrored ? -1 : 1, 1);
     return container;
   }
