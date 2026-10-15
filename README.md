@@ -19,7 +19,23 @@ npm install
 npm run dev
 ```
 
-Open the Vite URL for the landing page. Open `/roster.html` to connect a Monad Mainnet wallet, load the Chog roster, and choose a fighter for practice mode.
+Open the Vite URL for the Discord holder gate. After successful Discord role verification, the app opens `/profile.html`, where the player can connect a Monad Mainnet wallet, view Chogs, and choose a main fighter. The previous game overview remains at `/landing.html`; the standalone `/roster.html` practice page is also retained.
+
+## Discord holder gate
+
+The root page now starts with **Connect Discord**. Server-side OAuth requests the `identify` and `guilds.members.read` scopes and only creates a signed session if the authenticated Discord user is in the configured guild and has the required role. The role ID defaults to `1545507860455096460`.
+
+Configure these server-side environment variables:
+
+- `DISCORD_CLIENT_ID`
+- `DISCORD_CLIENT_SECRET`
+- `DISCORD_GUILD_ID` — the Discord server ID (different from the role ID)
+- `DISCORD_REDIRECT_URI` — must exactly match the callback URL registered in the Discord Developer Portal
+- `SESSION_SECRET` — long random signing secret
+
+The role check is performed on the server using Discord's `/users/@me/guilds/{guild.id}/member` endpoint. The browser cannot grant itself holder access by changing JavaScript or query parameters. Vercel routes live under `api/discord/`; Cloudflare Pages routes live under `functions/api/discord/`; Vite local development has middleware for the same endpoints.
+
+The profile sidebar includes My Chogs, Invite to Battle, Incoming Invites, Sent Invites, and Battle History. The invitation screens are currently UI/spec only. Persistent invitations and the pact NFT lifecycle require a configured database/storage layer and verified match settlement before they should be enabled.
 
 ## OpenSea API key
 
