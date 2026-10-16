@@ -1,6 +1,6 @@
-# Chog Fight Club — website and challenge lobby
+# Chog Battle Arena — website and challenge lobby
 
-The website layer for Chog Fight Club. It contains the Discord holder gate, player profile, read-only Chog roster, wallet linking, persistent challenge invitations, and Cloudflare Pages API routes.
+The website layer for Chog Battle Arena. It contains the Discord holder gate, player profile, read-only Chog roster, wallet linking, persistent challenge invitations, and Cloudflare Pages API routes.
 
 ## What's included on this branch
 
