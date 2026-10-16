@@ -1,47 +1,47 @@
 # Chog Battle Arena — website and challenge lobby
 
-The website layer for Chog Battle Arena. It contains the Discord holder gate, player profile, read-only Chog roster, wallet linking, persistent challenge invitations, and Cloudflare Pages API routes.
+The website and Discord sign-in run on **Vercel**. Cloudflare provides the D1-backed invitation API. The browser stays on the Vercel domain.
 
-## What's included on this branch
+## What's included
 
-- Root page: connect Discord and verify holder role before entering.
-- Profile: connect a Monad wallet, view owned Chogs and choose a main fighter.
-- Invites: send a challenge link to a specific Discord user, accept/decline/cancel, review the agreed condition, and persist both players' ready states.
-- Separate challenge lobby page with polling so an offline recipient can open the invitation later.
-- Cloudflare Pages Functions for Discord OAuth, wallet signature verification, OpenSea lookup, and invitations.
-- Cloudflare D1 storage through the binding `CHOG_DB`.
-- Bold rounded display typography and the purple/yellow/orange community palette.
+- Discord OAuth and holder-role verification, including owner access for the configured Discord user.
+- Player profile and Chog roster selection.
+- Wallet-signature linking to the Discord session.
+- Incoming/outgoing challenge invitations with a persistent review lobby.
+- Cloudflare D1 storage through the Pages Functions binding `CHOG_DB`.
+- A separate website-only stat preview while the combat engine remains under development.
 
-The unfinished battle engine and battle screen are intentionally **not included on main**. The website shows a metadata-derived roster preview; its numbers are not an authoritative final combat balance.
+The unfinished battle engine and battle screen are intentionally not included on `main`. The lobby tracks acceptance and readiness but does not launch synchronized PvP combat. The Pact NFT contract, validated match settlement, and fulfillment flow are still future work.
 
-## Cloudflare Pages setup
+## Vercel: website and browser-facing API
 
-Build command: `npm run build`  
-Build output directory: `dist`
-
-The repository includes `wrangler.jsonc` with the D1 binding from the Cloudflare dashboard:
-- Binding: `CHOG_DB`
-- Database: `chog-fight-club`
-- Database ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`
-
-Run the SQL in `migrations/0001_challenge_invites.sql` in the D1 Console, then make sure the Pages project uses the same D1 binding.
-
-## Required server-side variables/secrets
+Vercel automatically deploys functions under `/api`. Set these production environment variables in **Vercel → Project → Settings → Environment Variables**:
 
 - `DISCORD_CLIENT_ID`
 - `DISCORD_CLIENT_SECRET`
-- `DISCORD_REDIRECT_URI` — exact callback: `https://YOUR-DOMAIN/api/discord/callback`
-- `SESSION_SECRET`
+- `DISCORD_REDIRECT_URI=https://chog-fight-club.vercel.app/api/discord/callback`
+- `SESSION_SECRET` — must match the value on Cloudflare exactly
 - `OPENSEA_API_KEY`
-- `MONAD_RPC_URL` — `https://rpc.monad.xyz`
+- `MONAD_RPC_URL=https://rpc.monad.xyz`
+- `CLOUDFLARE_BACKEND_URL=https://chog-fight-club.pages.dev` — use your actual Pages backend URL if it differs
 
-Default Discord guild: `1253481714710220810`  
-Default holder role: `1545507860455096460`
+The Discord OAuth Redirects list in the Developer Portal must include the exact Vercel callback URL above. Do not use the Cloudflare Pages URL as the Discord callback. Never expose secrets with a `VITE_*` prefix.
 
-Never expose secrets with a `VITE_*` prefix.
+## Cloudflare: D1 invitation backend
 
-See [Cloudflare D1 setup](./CLOUDFLARE_D1_SETUP.md) and [Discord/invitation design](./DISCORD_GATE_AND_INVITATIONS.md).
+The Pages Functions API is only used behind Vercel's `/api/invites` proxy. In Cloudflare Pages, bind the D1 database as `CHOG_DB`, and set:
 
-## Current boundary
+- `SESSION_SECRET` — exactly the same secret as Vercel, so the backend can validate the signed Discord session
+- `MONAD_RPC_URL=https://rpc.monad.xyz`
 
-The D1-backed invitation lifecycle is a lobby foundation. It does not launch synchronized combat. The multiplayer relay, Pact NFT contract/mint, verified winner settlement, and fulfillment confirmation remain later milestones. No Chog Genesis NFT is ever transferred or approved by this website layer.
+Run `migrations/0001_challenge_invites.sql` in the D1 dashboard's Console. Database binding ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
+
+### Cloudflare deployment settings
+
+This is a **Pages** project, not a Worker script. If the dashboard provides a build command and output directory, use `npm run build` and `dist`. Do not use `npx wrangler deploy`. If the project specifically requires a deploy command, use `npx wrangler pages deploy dist --project-name=chog-fight-club` after the build step.
+
+## Development and validation
+
+`npm test` runs the service tests. GitHub Actions validates the D1 migration as SQLite and builds the Vite website.
+
+See [Cloudflare setup](./CLOUDFLARE_D1_SETUP.md) and [Discord/invitation design](./DISCORD_GATE_AND_INVITATIONS.md).
