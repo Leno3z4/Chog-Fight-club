@@ -1,76 +1,82 @@
-# Cloudflare D1 setup for Chog Fight Club
+# Cloudflare D1 backend setup for Chog Battle Arena
 
-The invitation feature uses **Cloudflare D1**, Cloudflare's native serverless SQL database. It does not use Supabase.
+**Vercel hosts the website and Discord sign-in. Cloudflare is used for the persistent invitation API and D1 database.** Users should keep browsing the Vercel site; its `/api/invites` function forwards invitation requests to Cloudflare.
 
-## 1. Create the database
+## 1. D1 database
 
-In the Cloudflare dashboard, open **Workers & Pages → D1 SQL Database → Create database**. Use a name such as:
+Your database details are:
+
+- Database: `chog-fight-club`
+- Binding: `CHOG_DB`
+- Database ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`
+
+Open **Cloudflare Dashboard → Workers & Pages → D1 SQL Database → chog-fight-club → Console**. Copy all SQL from [`migrations/0001_challenge_invites.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/main/migrations/0001_challenge_invites.sql), paste it in Console, and click **Execute**.
+
+## 2. Bind D1 to the Pages backend
+
+Open **Workers & Pages → your Pages project → Settings → Bindings → Add → D1 database**.
+
+Set **Variable name** to exactly `CHOG_DB`, select the database above, save, and redeploy.
+
+## 3. Fix the failed Cloudflare deployment
+
+The build log shows the deploy command is `npx wrangler deploy`. That is the wrong command for a Pages project; it attempts to deploy a Worker and fails with “Missing entry-point to Worker script or to assets directory.”
+
+In the Cloudflare project’s build settings, set:
+
+- **Build command:** `npm run build`
+- **Build output directory:** `dist`
+
+If your dashboard is showing a separate **Deploy command** field (as in the log you sent), change that command from `npx wrangler deploy` to:
 
 ```text
-chog-fight-club
+npx wrangler pages deploy dist --project-name=chog-fight-club
 ```
 
-Keep the database name and ID available for the next steps.
+That deploy command must run after the build command. If you are using the normal Git-connected Pages build settings that deploy automatically, do not add a separate deploy command at all. The project name in the command must match the actual Pages project name.
 
-## 2. Apply the schema in the dashboard
+## 4. Cloudflare backend settings
 
-Open the D1 database you just created and select **Console**. Open the [migration SQL file](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/discord-gate-invitations/migrations/0001_challenge_invites.sql), copy all of it, paste it into the D1 Console, and press **Execute**. You should see the table and indexes created.
+In **Pages → Settings → Variables and Secrets**, set:
 
-No terminal is needed.
+- `SESSION_SECRET` — exactly the same value configured in Vercel
+- `MONAD_RPC_URL` — `https://rpc.monad.xyz`
 
-## 3. Wrangler configuration is in the repository
+The matching session secret is required because Vercel signs the Discord session and Cloudflare validates that same signed session before allowing invitation access. Do not share or commit the secret.
 
-The branch now contains [wrangler.jsonc](https://github.com/Leno3z4/Chog-Fight-club/blob/discord-gate-invitations/wrangler.jsonc) with:
+The Discord OAuth client ID, client secret, and redirect URI belong on **Vercel**, not Cloudflare, because the live browser signs in at the Vercel domain.
 
-- **Binding:** `CHOG_DB`
-- **Database:** `chog-fight-club`
-- **Database ID:** `8b61a704-51a0-40c0-a6dd-0f46bb81589e`
+## 5. Configure Vercel to reach Cloudflare
 
-This matches the details in your screenshot. The config is in the branch, not deployed to your live Pages project until Cloudflare builds that branch.
+In **Vercel → your Chog Battle Arena project → Settings → Environment Variables**, set:
 
-Before deploying, check that your Cloudflare Pages project's name is `chog-fight-club`. The Wrangler `name` field should match the actual Pages project name. If your project has a different name, tell me the exact name and I'll adjust the file.
-
-## 4. Configure Cloudflare Pages secrets
-
-Under your Pages project settings, add the server-side environment variables:
-
+- `CLOUDFLARE_BACKEND_URL` — the base URL of your deployed Pages backend, e.g. `https://chog-fight-club.pages.dev`
+- `SESSION_SECRET` — same exact value as Cloudflare
 - `DISCORD_CLIENT_ID`
 - `DISCORD_CLIENT_SECRET`
-- `DISCORD_REDIRECT_URI` — must exactly match the callback URL registered in Discord's Developer Portal, e.g. `https://YOUR-PROJECT.pages.dev/api/discord/callback`
-- `SESSION_SECRET` — use a long random secret
+- `DISCORD_REDIRECT_URI=https://chog-fight-club.vercel.app/api/discord/callback`
 - `OPENSEA_API_KEY`
-- `MONAD_RPC_URL` — recommended value: `https://rpc.monad.xyz`
+- `MONAD_RPC_URL=https://rpc.monad.xyz`
 
-The default Discord guild is `1253481714710220810` and the holder role is `1545507860455096460`. You can override them with `DISCORD_GUILD_ID` and `DISCORD_HOLDER_ROLE_ID` if necessary.
+If your actual Vercel or Cloudflare hostname differs, use the exact hostname shown in that platform's dashboard.
 
-Never prefix server secrets with `VITE_`. Vite variables are bundled into browser code. After updating environment variables, redeploy the Pages project.
+## 6. Discord redirect
 
-## 5. Discord Developer Portal
+In [Discord Developer Portal](https://discord.com/developers/applications) → your application → **OAuth2**, add this exact Redirect URL:
 
-Add the exact callback URL to the Discord application's OAuth2 redirect URI allowlist. Enable the scopes requested by the app: `identify` and `guilds.members.read`. The user must already belong to the configured guild and have the holder role; the server checks this with Discord rather than trusting the browser.
+`https://chog-fight-club.vercel.app/api/discord/callback`
 
-## 6. Skip local terminal testing
+The URL must match `DISCORD_REDIRECT_URI` on Vercel. Do not register the Pages URL as the callback.
 
-You said you're using the Cloudflare dashboard, so skip the local Wrangler commands. Apply the schema in the D1 Console, add secrets in Pages settings, and let the Git-connected Pages deployment build the configured branch.
+## 7. Test
 
-## 7. Test the invitation flow
+After both deployments and variables are set:
 
-After the D1 binding and Discord settings have been deployed:
+1. Open the Vercel website.
+2. Click **Connect Discord**; the URL should remain on the Vercel domain until Discord's own authorization page opens.
+3. After authorization, Discord should return to the Vercel callback and send you to the profile.
+4. Connect the Monad wallet and sign the wallet-link message.
+5. Create an invitation and verify it appears in the sent list. Open it as the intended Discord user to test acceptance.
 
-1. Sign in as a holder and confirm the profile opens.
-2. Connect the wallet and approve the message signature. This signature links an address to the Discord session; it does not authorize transactions.
-3. Load the Chog roster and select a Chog currently owned by that wallet.
-4. Open **Invite to battle**, enter the opponent's numeric Discord user ID, write a harmless condition, confirm the disclosure, and create the invitation.
-5. Send the generated URL to that user. They must sign in with the exact account ID the invitation targets.
-6. The recipient chooses their own Chog and accepts the condition. Both players can then mark themselves ready.
-7. Refresh the page or open the invite link in a fresh browser session to confirm the invitation remains persisted.
+The invite API does not yet launch a synchronized PvP match or mint a Pact NFT. Those are separate remaining tasks.
 
-The ready state does not launch a real synchronized multiplayer match yet. The authoritative PvP relay, Pact NFT contract/mint, result verification, and fulfillment confirmation are still separate work. Do not mint winner metadata from a client-only battle result.
-
-## Cloudflare D1 plan limit note
-
-Cloudflare's current D1 limits documentation lists **5 GB total storage across a Free account**, while **each individual Free database is capped at 500 MB**. Invitation rows are small text/metadata records; use retention and cleanup policies if the project grows. Free-plan read/write limits also apply.
-
-Official docs:
-- https://developers.cloudflare.com/d1/platform/limits/
-- https://developers.cloudflare.com/pages/functions/bindings/
