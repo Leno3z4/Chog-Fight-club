@@ -20,6 +20,8 @@ jobs:
         run: npm install
       - name: Test website services
         run: npm test
+      - name: Syntax-check Vercel API routes
+        run: find api -name '*.js' -print0 | xargs -0 -n1 node --check
       - name: Validate Cloudflare D1 migration
         run: |
           python - <<'PY'
