@@ -140,6 +140,11 @@ async function requireDiscordSession() {
   state.account = null;
   state.selectedTokenId = localStorage.getItem(`chog-main:${state.session.discordId}`);
   $("#member-name").textContent = state.session.username;
+  const accessLabel = state.session.isAdmin ? "OWNER ACCESS" : "HOLDER ACCESS";
+  const accessBadge = $("#member-access-label");
+  const accessStatus = $("#member-access-status");
+  if (accessBadge) accessBadge.textContent = accessLabel;
+  if (accessStatus) accessStatus.textContent = state.session.isAdmin ? "Owner access" : "Holder verified";
   const avatar = $("#member-avatar");
   if (state.session.avatar) avatar.innerHTML = `<img src="${escapeHtml(state.session.avatar)}" alt="" />`;
   else avatar.textContent = (state.session.username || "C").slice(0, 1).toUpperCase();
