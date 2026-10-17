@@ -12,6 +12,8 @@ const state = {
   selectedTokenId: null,
   invite: null,
   busy: false,
+  battle: null,
+  battleBusy: false,
 };
 const alertNode = $("#invite-page-alert");
 const isBattleLobbyPage = window.location.pathname.endsWith("/battle-lobby.html");
@@ -102,6 +104,80 @@ function renderSummary(invite) {
     : `Your readiness: ${viewer(invite).ready ? "confirmed" : "not confirmed"}. Opponent readiness: ${opponent(invite).ready ? "confirmed" : "waiting"}.`;
   updateTimeline(invite);
 }
+function renderBattle(battle) {
+  state.battle = battle;
+  const card = $("#combat-card");
+  if (!card || !isBattleLobbyPage) return;
+  const relevant = ["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(battle?.inviteStatus)
+    || ["IN_BATTLE", "FINISHED"].includes(battle?.status);
+  card.hidden = !relevant;
+  if (!relevant) return;
+  $("#combat-status").textContent = statusText(battle.status || battle.inviteStatus);
+  const start = $("#combat-start");
+  start.hidden = !(battle.inviteStatus === "READY" && battle.status === "WAITING_FOR_READY");
+  start.disabled = state.battleBusy;
+  const moves = $("#combat-moves");
+  moves.hidden = !(battle.status === "IN_BATTLE" && battle.yourTurn);
+  for (const button of moves.querySelectorAll("[data-battle-move]")) {
+    button.disabled = state.battleBusy || (button.dataset.battleMove === "special"
+      && Number((battle.viewerRole === "challenger" ? battle.challenger?.energy : battle.opponent?.energy) || 0) <= 0);
+  }
+  if (battle.status === "WAITING_FOR_READY") {
+    $("#combat-message").textContent = battle.inviteStatus === "READY"
+      ? "Both fighters are ready. Start the battle when both players have arrived in this room."
+      : "Both players must confirm readiness first.";
+  } else if (battle.status === "IN_BATTLE") {
+    $("#combat-message").textContent = battle.yourTurn
+      ? "Your turn. Choose a move. Your opponent will see the resolved state automatically."
+      : "Waiting for your opponent's move. The room will update automatically.";
+  } else if (battle.status === "FINISHED") {
+    $("#combat-message").textContent = battle.youWon ? "You won. The result is recorded; the Pact NFT and condition-fulfilment flow are the next integration." : "You lost this match. The result is recorded; the agreed condition remains to be fulfilled.";
+  } else {
+    $("#combat-message").textContent = "Waiting for both players.";
+  }
+  const renderFighter = (prefix, fighter) => {
+    const dna = fighter?.dna;
+    const maxHp = Math.max(1, Number(dna?.stats?.maxHp || fighter?.hp || 1));
+    const hp = Math.max(0, Number(fighter?.hp || 0));
+    const pct = Math.max(0, Math.min(100, Math.round(hp / maxHp * 100)));
+    $(`#combat-${prefix}-name`).textContent = fighter?.username || (prefix === "challenger" ? "Challenger" : "Opponent");
+    $(`#combat-${prefix}-hp-text`).textContent = `${hp} / ${maxHp} HP`;
+    $(`#combat-${prefix}-hp-bar`).style.width = `${pct}%`;
+    $(`#combat-${prefix}-dna`).textContent = dna
+      ? `${dna.name} · ${dna.tier} · ${dna.ability}`
+      : fighter?.tokenId ? `Chog #${fighter.tokenId}` : "Waiting for battle data";
+    $(`#combat-${prefix}-energy`).textContent = `Energy: ${fighter?.energy ?? "—"}${fighter?.guard ? " · Guard up" : ""}`;
+  };
+  renderFighter("challenger", battle.challenger);
+  renderFighter("opponent", battle.opponent);
+  const log = $("#combat-log");
+  log.innerHTML = (battle.log || []).slice(-24).map((entry) => `<li>${escapeHtml(entry.text || "Battle update")}</li>`).join("")
+    || "<li>Battle events will appear here.</li>";
+}
+async function loadBattle() {
+  if (!isBattleLobbyPage || !state.session || !state.id) return;
+  const payload = await requestJson(`/api/battle?id=${encodeURIComponent(state.id)}`);
+  renderBattle(payload.battle);
+}
+async function postBattleAction(action, extra = {}) {
+  if (state.battleBusy) return;
+  state.battleBusy = true;
+  clearAlert();
+  renderBattle(state.battle || { inviteStatus: state.invite?.status, status: "WAITING_FOR_READY" });
+  try {
+    const payload = await requestJson("/api/battle", {
+      method: "POST",
+      body: JSON.stringify({ action, id: state.id, ...extra }),
+    });
+    renderBattle(payload.battle);
+    if (payload.battle?.status === "FINISHED") await loadInvite();
+  } catch (error) {
+    showAlert(error?.message || "The battle action failed.");
+  } finally {
+    state.battleBusy = false;
+    if (state.battle) renderBattle(state.battle);
+  }
+}
 function renderChogs() {
   const target = $("#lobby-chog-grid");
   $("#fighter-count").textContent = state.chogs.length ? `${state.chogs.length} CHOG(S)` : "NO CHOGS";
@@ -141,7 +217,7 @@ async function requestJson(url, options = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   if (response.status === 401 || payload.code === "DISCORD_SESSION_REQUIRED") {
-    const returnTo = `/invite.html?id=${encodeURIComponent(state.id || "")}`;
+    const returnTo = `${isBattleLobbyPage ? "/battle-lobby.html" : "/invite.html"}?id=${encodeURIComponent(state.id || "")}`;
     window.location.replace("/?returnTo=" + encodeURIComponent(returnTo));
     throw new Error("Redirecting to Discord verification…");
   }
@@ -158,6 +234,7 @@ async function loadInvite() {
     window.location.replace(`/battle-lobby.html?id=${encodeURIComponent(state.id)}`);
     return;
   }
+  if (isBattleLobbyPage) await loadBattle();
 }
 async function loadChogs() {
   if (!state.wallet) return;
@@ -219,6 +296,12 @@ async function postAction(action, extra = {}) {
 }
 
 $("#link-wallet").addEventListener("click", connectAndLoadWallet);
+$("#combat-start").addEventListener("click", () => postBattleAction("start"));
+$("#combat-moves").addEventListener("click", (event) => {
+  const button = event.target.closest("[data-battle-move]");
+  if (!button || state.battleBusy) return;
+  postBattleAction("move", { move: button.dataset.battleMove });
+});
 $("#accept-condition-check").addEventListener("change", updateAcceptButton);
 $("#accept-invite").addEventListener("click", async () => {
   if (state.busy) return;
@@ -346,7 +429,7 @@ async function init() {
 
 init();
 window.setInterval(async () => {
-  if (document.hidden || state.busy || !state.session || !state.id) return;
+  if (document.hidden || state.busy || state.battleBusy || !state.session || !state.id) return;
   try {
     await loadInvite();
   } catch {
