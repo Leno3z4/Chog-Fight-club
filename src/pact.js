@@ -26,6 +26,9 @@ const PACT_ABI = [
     { name: "challengerSignature", type: "bytes" },
     { name: "opponentSignature", type: "bytes" },
   ], outputs: [{ name: "pactId", type: "uint256" }] },
+  { type: "function", name: "confirmFulfillment", stateMutability: "nonpayable", inputs: [
+    { name: "pactId", type: "uint256" }
+  ], outputs: [] },
 ];
 function getChain(chainId = 143) {
   return defineChain({
@@ -91,6 +94,23 @@ export async function mintPactAgreement(wallet, pact) {
   });
   const chain = getChain(chainId);
   const publicClient = createPublicClient({ chain, transport: http(DEFAULT_RPC) });
+  await publicClient.waitForTransactionReceipt({ hash });
+  return hash;
+}
+
+export async function confirmPactFulfillment(wallet, pact) {
+  if (!pact?.minted || !pact?.pactId) throw new Error("The Pact NFT has not been minted.");
+  const chainId = pact.typedData.domain.chainId;
+  const currentChain = await window.ethereum.request({ method: "eth_chainId" });
+  if (BigInt(currentChain) !== BigInt(chainId)) throw new Error("Switch your wallet to Monad before confirming fulfilment.");
+  const client = walletClient(wallet, chainId);
+  const hash = await client.writeContract({
+    address: pact.contractAddress,
+    abi: PACT_ABI,
+    functionName: "confirmFulfillment",
+    args: [BigInt(pact.pactId)],
+  });
+  const publicClient = createPublicClient({ chain: getChain(chainId), transport: http(DEFAULT_RPC) });
   await publicClient.waitForTransactionReceipt({ hash });
   return hash;
 }
