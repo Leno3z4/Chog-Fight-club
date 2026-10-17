@@ -29,6 +29,19 @@ function validUuid(value) {
 function validDiscordId(value) {
   return typeof value === "string" && /^\d{17,20}$/.test(value);
 }
+function normalizeDiscordUsername(value) {
+  const username = String(value ?? "").trim().replace(/^@/, "").toLowerCase();
+  return /^[a-z0-9][a-z0-9._]{0,30}[a-z0-9_]$/.test(username) ? username : "";
+}
+function usernameInviteTarget(row) {
+  return typeof row?.opponent_discord_id === "string" && row.opponent_discord_id.startsWith("username:")
+    ? row.opponent_discord_id.slice("username:".length)
+    : "";
+}
+function isUsernameInviteFor(row, user) {
+  const target = usernameInviteTarget(row);
+  return Boolean(target && normalizeDiscordUsername(user?.discordUsername) === target);
+}
 function validTokenId(value) {
   return (typeof value === "string" || typeof value === "number") && /^\d{1,78}$/.test(String(value));
 }
@@ -140,20 +153,34 @@ async function conditionalUpdate({ env, sql, values, conflictCode = "INVITE_STAT
 async function createInvite({ user, body, env, origin, fetchImpl }) {
   const db = getDb(env);
   if (!user.walletAddress) throw new InviteApiError("Link your wallet before creating an invitation.", { status: 409, code: "WALLET_NOT_LINKED" });
-  const opponentDiscordId = String(body.opponentDiscordId ?? "").trim();
-  if (!validDiscordId(opponentDiscordId)) {
-    throw new InviteApiError("Choose a player from the username search results.", { status: 400, code: "OPPONENT_DISCORD_ID_INVALID" });
-  }
-  if (opponentDiscordId === user.discordId) throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
+  const requestedDiscordId = String(body.opponentDiscordId ?? "").trim();
+  const requestedUsername = normalizeDiscordUsername(body.opponentUsername);
+  let opponentDiscordId = "";
+  let opponentName = "";
 
-  const opponent = await db.prepare(
-    "SELECT discord_id, username, display_name FROM chog_players WHERE discord_id = ?1 LIMIT 1"
-  ).bind(opponentDiscordId).first();
-  if (!opponent) {
-    throw new InviteApiError(
-      "That player is not in the Arena directory yet. Ask them to sign in to Chog Battle Arena once, then search their username again.",
-      { status: 404, code: "PLAYER_NOT_REGISTERED" },
-    );
+  if (validDiscordId(requestedDiscordId)) {
+    if (requestedDiscordId === user.discordId) throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
+    const opponent = await db.prepare(
+      "SELECT discord_id, username, display_name FROM chog_players WHERE discord_id = ?1 LIMIT 1"
+    ).bind(requestedDiscordId).first();
+    if (!opponent) {
+      throw new InviteApiError(
+        "That selected player is no longer in the Arena directory. Search again and select the username result.",
+        { status: 404, code: "PLAYER_NOT_REGISTERED" },
+      );
+    }
+    opponentDiscordId = requestedDiscordId;
+    opponentName = String(opponent.display_name || opponent.username || "Discord player");
+  } else {
+    if (!requestedUsername) {
+      throw new InviteApiError("Select a player from search or choose a valid Discord username to invite.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
+    }
+    if (requestedUsername === normalizeDiscordUsername(user.discordUsername)) {
+      throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
+    }
+    // Unregistered usernames can be invited. Their Discord identity is bound on acceptance.
+    opponentDiscordId = `username:${requestedUsername}`;
+    opponentName = `@${requestedUsername}`;
   }
 
   const tokenId = String(body.challengerTokenId ?? "");
@@ -179,7 +206,7 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     challenger_wallet: user.walletAddress.toLowerCase(),
     challenger_token_id: tokenId,
     opponent_discord_id: opponentDiscordId,
-    opponent_username: String(opponent.display_name || opponent.username || "Discord player"),
+    opponent_username: opponentName,
     opponent_wallet: null,
     opponent_token_id: null,
     condition_text: condition,
@@ -232,7 +259,7 @@ export async function handleInviteRequest({
     if (id) {
       if (!validUuid(id)) throw new InviteApiError("Invalid invitation ID.", { status: 400, code: "INVITE_ID_INVALID" });
       const row = await getInvite({ env, id });
-      if (![row.challenger_discord_id, row.opponent_discord_id].includes(user.discordId)) {
+      if (![row.challenger_discord_id, row.opponent_discord_id].includes(user.discordId) && !isUsernameInviteFor(row, user)) {
         throw new InviteApiError("This invitation belongs to another Discord account.", { status: 403, code: "INVITE_FORBIDDEN" });
       }
       return { status: 200, body: { invite: presentInvite(row, user.discordId) }, headers: { "Cache-Control": "private, no-store" } };
@@ -240,10 +267,13 @@ export async function handleInviteRequest({
 
     const view = parsedUrl.searchParams.get("view") || "incoming";
     if (!["incoming", "outgoing"].includes(view)) throw new InviteApiError("Choose the incoming or outgoing invitation view.", { status: 400, code: "INVITE_VIEW_INVALID" });
-    const column = view === "incoming" ? "opponent_discord_id" : "challenger_discord_id";
-    const result = await db.prepare(
-      `SELECT * FROM chog_challenge_invites WHERE ${column} = ?1 ORDER BY created_at DESC LIMIT 50`
-    ).bind(user.discordId).all();
+    const result = view === "incoming"
+      ? await db.prepare(
+          "SELECT * FROM chog_challenge_invites WHERE opponent_discord_id = ?1 OR opponent_discord_id = ?2 ORDER BY created_at DESC LIMIT 50"
+        ).bind(user.discordId, `username:${normalizeDiscordUsername(user.discordUsername)}`).all()
+      : await db.prepare(
+          "SELECT * FROM chog_challenge_invites WHERE challenger_discord_id = ?1 ORDER BY created_at DESC LIMIT 50"
+        ).bind(user.discordId).all();
     const rows = Array.isArray(result?.results) ? result.results : [];
     return {
       status: 200,
@@ -263,7 +293,8 @@ export async function handleInviteRequest({
   if (!validUuid(id)) throw new InviteApiError("Invalid invitation ID.", { status: 400, code: "INVITE_ID_INVALID" });
   const row = await getInvite({ env, id });
   const isChallenger = user.discordId === row.challenger_discord_id;
-  const isOpponent = user.discordId === row.opponent_discord_id;
+  const isUsernameClaim = isUsernameInviteFor(row, user);
+  const isOpponent = user.discordId === row.opponent_discord_id || isUsernameClaim;
   if (!isChallenger && !isOpponent) throw new InviteApiError("This invitation belongs to another Discord account.", { status: 403, code: "INVITE_FORBIDDEN" });
 
   if (body.action === "accept") {
@@ -280,12 +311,12 @@ export async function handleInviteRequest({
     const updated = await conditionalUpdate({
       env,
       sql: `UPDATE chog_challenge_invites SET
-        opponent_username = ?1, opponent_wallet = ?2, opponent_token_id = ?3,
-        opponent_terms_accepted = 1, opponent_terms_accepted_at = ?4,
-        status = 'TERMS_ACCEPTED', updated_at = ?4
-        WHERE id = ?5 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?6
+        opponent_discord_id = ?1, opponent_username = ?2, opponent_wallet = ?3, opponent_token_id = ?4,
+        opponent_terms_accepted = 1, opponent_terms_accepted_at = ?5,
+        status = 'TERMS_ACCEPTED', updated_at = ?5
+        WHERE id = ?6 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?7
         RETURNING *`,
-      values: [user.username, user.walletAddress.toLowerCase(), tokenId, now, id, user.discordId],
+      values: [user.discordId, user.username, user.walletAddress.toLowerCase(), tokenId, now, id, row.opponent_discord_id],
     });
     return { status: 200, body: { invite: presentInvite(updated, user.discordId) }, headers: { "Cache-Control": "no-store" } };
   }
@@ -294,8 +325,8 @@ export async function handleInviteRequest({
     if (!isOpponent) throw new InviteApiError("Only the challenged player can decline this invitation.", { status: 403, code: "INVITE_ACTION_FORBIDDEN" });
     const updated = await conditionalUpdate({
       env,
-      sql: "UPDATE chog_challenge_invites SET status = 'DECLINED', updated_at = ?1 WHERE id = ?2 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?3 RETURNING *",
-      values: [new Date().toISOString(), id, user.discordId],
+      sql: "UPDATE chog_challenge_invites SET opponent_discord_id = ?1, status = 'DECLINED', updated_at = ?2 WHERE id = ?3 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?4 RETURNING *",
+      values: [user.discordId, new Date().toISOString(), id, row.opponent_discord_id],
     });
     return { status: 200, body: { invite: presentInvite(updated, user.discordId) }, headers: { "Cache-Control": "no-store" } };
   }
