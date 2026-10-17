@@ -35,10 +35,19 @@ class MockD1Statement {
 }
 
 class MockD1 {
-  constructor() { this.rows = new Map(); }
+  constructor() {
+    this.rows = new Map();
+    this.players = new Map([[opponentId, {
+      discord_id: opponentId, username: "rival", display_name: "Rival Player",
+      avatar_url: null, last_seen: new Date().toISOString(),
+    }]]);
+  }
   prepare(sql) { return new MockD1Statement(this, sql); }
   async first(sql, v) {
     const normalized = sql.replace(/\s+/g, " ").trim();
+    if (normalized.startsWith("SELECT discord_id, username, display_name FROM chog_players WHERE discord_id = ?1")) {
+      return clone(this.players.get(v[0]) || null);
+    }
     if (normalized.startsWith("SELECT * FROM chog_challenge_invites WHERE id = ?1")) {
       return clone(this.rows.get(v[0]) || null);
     }
@@ -77,6 +86,12 @@ class MockD1 {
   }
   async run(sql, v) {
     const normalized = sql.replace(/\s+/g, " ").trim();
+    if (normalized.startsWith("INSERT INTO chog_players")) {
+      const [discord_id, username, display_name, avatar_url, wallet_address, last_seen, created_at] = v;
+      const previous = this.players.get(discord_id);
+      this.players.set(discord_id, { discord_id, username, display_name, avatar_url, wallet_address, last_seen, created_at: previous?.created_at || created_at });
+      return { success: true, meta: { changes: 1 } };
+    }
     if (normalized.startsWith("INSERT INTO chog_challenge_invites")) {
       const fields = [
         "id","challenger_discord_id","challenger_username","challenger_wallet","challenger_token_id",
