@@ -259,7 +259,7 @@ contract ChogBattlePactFactory {
             ". Condition: ", pact.condition,
             ". Status: ", outcome,
             ". Terms hash: ", _toHexBytes32(pact.termsHash),
-            pact.termsURI.length == 0 ? "" : string.concat(". Terms document: ", pact.termsURI)
+            bytes(pact.termsURI).length == 0 ? "" : string.concat(". Terms document: ", pact.termsURI)
         );
         string memory attributes = string.concat(
             '[{"trait_type":"Challenge ID","value":"', _toString(pactId),
