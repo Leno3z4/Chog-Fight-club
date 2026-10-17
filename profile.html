@@ -46,11 +46,14 @@
        <section class="dashboard-panel" id="panel-invites">
         <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE DESK</span><h2>Call them out.</h2><p>Choose your main Chog, write the proposed condition, and send your rival a persistent invitation link.</p></div><div class="banner-mark orange-mark">VS<br /><b>?</b></div></div>
         <form id="create-invite-form" class="invite-form">
-          <div class="invite-form-heading"><span class="club-eyebrow">NEW CHALLENGE</span><h3>Set the terms before the bell.</h3><p>The recipient must sign in with the exact Discord account ID you enter. The chosen Chog is checked against Monad before the invitation is saved.</p></div>
-          <label class="field-label" for="opponent-discord-id">Opponent's Discord user ID</label>
-          <input id="opponent-discord-id" name="opponentDiscordId" inputmode="numeric" autocomplete="off" placeholder="e.g. 123456789012345678" required pattern="[0-9]{17,20}" />
-          <small class="field-help">In Discord, enable Developer Mode, right-click the person, then Copy User ID.</small>
-          <div class="selected-main-row"><div><span class="club-eyebrow">YOUR SELECTED FIGHTER</span><strong id="selected-main-name">No main Chog selected</strong><small id="selected-main-details">Select a Chog in My Chogs first.</small></div><button type="button" class="outline-button" id="go-to-chogs">Choose Chog</button></div>
+          <div class="invite-form-heading"><h3>Challenge a player</h3><p>Search by Discord username and select the right person. Choose your Chog and set the condition before sending the invite.</p></div>
+          <label class="field-label" for="opponent-search">Player username</label>
+          <input id="opponent-search" name="opponentSearch" autocomplete="off" spellcheck="false" placeholder="Search Discord username…" aria-autocomplete="list" aria-controls="opponent-search-results" required />
+          <input type="hidden" id="opponent-discord-id" name="opponentDiscordId" />
+          <div id="opponent-search-results" class="player-search-results" role="listbox" aria-label="Matching players" hidden></div>
+          <p id="opponent-selected" class="selected-player-note" aria-live="polite">Choose a player from the results.</p>
+          <small class="field-help">Only players who have opened Chog Battle Arena at least once appear in search.</small>
+          <div class="selected-main-row"><div><strong id="selected-main-name">No main Chog selected</strong><small id="selected-main-details">Select a Chog in My Chogs first.</small></div><button type="button" class="outline-button" id="go-to-chogs">Choose Chog</button></div>
           <label class="field-label" for="invite-condition">Proposed condition</label>
           <textarea id="invite-condition" name="condition" minlength="5" maxlength="500" rows="3" placeholder="Example: Post a harmless, silly community message and leave it up for 24 hours." required></textarea>
           <label class="terms-check"><input id="invite-condition-agree" type="checkbox" required /><span>I agree to this condition, and understand the written terms may be publicly recorded if the separate Pact NFT feature is enabled. Conditions must be voluntary, harmless, and non-invasive.</span></label>
