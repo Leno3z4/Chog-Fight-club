@@ -247,7 +247,7 @@ async function loadInvites(view) {
       const other = incoming ? invite.challenger : invite.opponent;
       const status = invite.status;
       const accepted = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
-      const url = `${accepted ? "/battle-lobby.html" : "/invite.html"}?id=${encodeURIComponent(invite.id)}`;
+      const url = `${accepted || !incoming ? "/battle-lobby.html" : "/invite.html"}?id=${encodeURIComponent(invite.id)}`;
       const canRespond = incoming && status === "PENDING_ACCEPTANCE";
       const canCancel = !incoming && status === "PENDING_ACCEPTANCE";
       return `<article class="invite-list-item">
@@ -257,7 +257,7 @@ async function loadInvites(view) {
           <div class="invite-list-meta"><span class="invite-state">${escapeHtml(status.replaceAll("_"," "))}</span><span class="invite-state">Expires ${escapeHtml(invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : "No expiry")}</span></div>
         </div>
         <div class="invite-item-actions">
-          <a class="invite-open-button" href="${url}">${canRespond ? "Review challenge" : accepted ? "Open battle lobby" : "Open invitation"}</a>
+          <a class="invite-open-button" href="${url}">${canRespond ? "Join lobby" : accepted ? "Join lobby" : incoming ? "Review challenge" : "Wait in lobby"}</a>
           ${canCancel ? `<button class="copy-invite-link" data-cancel-invite="${escapeHtml(invite.id)}" type="button">Cancel</button><button class="copy-invite-link" data-copy-invite="${escapeHtml(invite.id)}" type="button">Copy invite link</button>` : ""}
         </div>
       </article>`;
@@ -397,7 +397,7 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
     if (!response.ok || !payload.inviteUrl) throw new Error(payload.error || "Invitation could not be created.");
     status.textContent = `Invitation saved for @${state.selectedOpponent?.username || "your opponent"}.`;
     status.dataset.kind = "success";
-    resultNode.innerHTML = `<strong>Challenge created · ${escapeHtml(payload.invite.status.replaceAll("_"," "))}</strong><a href="${escapeHtml(payload.inviteUrl)}">${escapeHtml(payload.inviteUrl)}</a><br /><button type="button" class="copy-invite-link" id="copy-created-invite">Copy invitation link</button> <a class="copy-invite-link" href="/invite.html?id=${encodeURIComponent(payload.invite.id)}">Open lobby</a>`;
+    resultNode.innerHTML = `<strong>Challenge created · ${escapeHtml(payload.invite.status.replaceAll("_"," "))}</strong><a href="${escapeHtml(payload.inviteUrl)}">${escapeHtml(payload.inviteUrl)}</a><br /><button type="button" class="copy-invite-link" id="copy-created-invite">Copy invitation link</button> <a class="copy-invite-link" href="/battle-lobby.html?id=${encodeURIComponent(payload.invite.id)}">Wait in lobby</a>`;
     resultNode.hidden = false;
     $("#copy-created-invite").addEventListener("click", async () => {
       try {
@@ -453,6 +453,61 @@ document.addEventListener("click", async (event) => {
   }
 });
 
+const joinNotice = $("#lobby-join-notice");
+const notifiedJoinIds = new Set();
+function showLobbyJoinNotice(invite) {
+  if (!joinNotice || !invite?.id) return;
+  const link = `/battle-lobby.html?id=${encodeURIComponent(invite.id)}`;
+  $("#lobby-join-title").textContent = `@${invite.opponent?.username || "Your rival"} joined your lobby`;
+  $("#lobby-join-copy").textContent = "They accepted the challenge. Open the shared room to agree on both demands.";
+  $("#lobby-join-link").href = link;
+  joinNotice.hidden = false;
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      const notification = new Notification("Chog Battle Arena", {
+        body: `@${invite.opponent?.username || "Your rival"} joined your challenge lobby.`,
+        tag: `chog-join-${invite.id}`,
+      });
+      notification.onclick = () => window.location.assign(link);
+    } catch { /* the in-page notification remains available */ }
+  }
+}
+async function pollLobbyJoins(initial = false) {
+  try {
+    const response = await fetch("/api/invites?view=outgoing", { credentials: "same-origin", headers: { accept: "application/json" } });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return;
+    const rows = Array.isArray(payload.invites) ? payload.invites : [];
+    let changed = false;
+    for (const invite of rows) {
+      const joined = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(invite.status);
+      const previous = window.sessionStorage.getItem(`chog-invite-status-${invite.id}`);
+      if (joined && !notifiedJoinIds.has(invite.id)) {
+        const alreadySeen = window.sessionStorage.getItem(`chog-join-seen-${invite.id}`) === "1";
+        if (!alreadySeen && (initial || previous === "PENDING_ACCEPTANCE")) showLobbyJoinNotice(invite);
+        notifiedJoinIds.add(invite.id);
+      }
+      if (previous && previous !== invite.status) changed = true;
+      window.sessionStorage.setItem(`chog-invite-status-${invite.id}`, invite.status);
+    }
+    if (changed) loadInvites("outgoing");
+  } catch {
+    // The notification poll is best-effort; manual refresh remains available.
+  }
+}
+$("#dismiss-lobby-notice")?.addEventListener("click", () => {
+  const link = $("#lobby-join-link")?.href || "";
+  const id = new URL(link).searchParams.get("id");
+  if (id) window.sessionStorage.setItem(`chog-join-seen-${id}`, "1");
+  if (joinNotice) joinNotice.hidden = true;
+});
+$("#lobby-join-link")?.addEventListener("click", () => {
+  try {
+    const id = new URL($("#lobby-join-link").href).searchParams.get("id");
+    if (id) window.sessionStorage.setItem(`chog-join-seen-${id}`, "1");
+  } catch {}
+});
+
 requireDiscordSession().then(async (ok) => {
   if (!ok) return;
   await fetch("/api/players", { method: "POST", credentials: "same-origin", headers: { accept: "application/json" } }).catch(() => {});
@@ -479,4 +534,6 @@ requireDiscordSession().then(async (ok) => {
     ? "Discord verified. Reconnect the linked wallet on Monad to load your fighters."
     : "Discord verified. Connect and sign your wallet to load your fighters.";
   loadInvites("incoming");
+  await pollLobbyJoins(true);
+  window.setInterval(() => pollLobbyJoins(false), 3500);
 }).catch(() => window.location.replace("/"));
