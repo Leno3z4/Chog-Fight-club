@@ -44,6 +44,11 @@ function normalizeAttributes(nft) {
   }
   return traits;
 }
+const PROTOTYPE_METADATA = {
+  "prototype:ember": { name: "Ember", Tier: "Rare", Aura: "Fire", Skin: "Red", Body: "Toad", Eyes: "Angry" },
+  "prototype:tide": { name: "Tide", Tier: "Uncommon", Aura: "Water", Skin: "Blue", Body: "Toad", Eyes: "Happy" },
+  "prototype:volt": { name: "Volt", Tier: "Epic", Aura: "Electric", Skin: "Yellow", Body: "Tuxedo", Eyes: "Angry" },
+};
 function abilityFromTraits(meta) {
   const signal = `${meta.Aura || ""} ${meta.Background || ""} ${meta.Skin || ""}`.toLowerCase();
   if (/fire|flame|ember|red/.test(signal)) return "Ember Strike";
@@ -94,6 +99,8 @@ async function verifyChogOwner(fetchImpl, env, tokenId, wallet) {
   }
 }
 async function fetchCombatDNA(fetchImpl, env, tokenId) {
+  const prototype = PROTOTYPE_METADATA[String(tokenId)];
+  if (prototype) return buildCombatDNA(prototype);
   const apiKey = String(env?.OPENSEA_API_KEY || "");
   if (!apiKey) throw new BattleApiError("OpenSea metadata lookup is not configured. Add OPENSEA_API_KEY to the Cloudflare backend secrets.", { status: 503, code: "OPENSEA_NOT_CONFIGURED" });
   const url = `https://api.opensea.io/api/v2/chain/monad/contract/${CHOG_CONTRACT}/nfts/${encodeURIComponent(tokenId)}`;
@@ -167,20 +174,23 @@ export async function handleBattleRequest({ method, url, cookieHeader, env, body
 
   if (body.action === "start") {
     if (row) return { status: 200, body: { battle: publicBattle(row, invite, user) } };
-    if (!invite.pact_id || !invite.pact_tx_hash) {
+    const practiceMode = invite.game_mode === "PRACTICE";
+    if (!practiceMode && (!invite.pact_id || !invite.pact_tx_hash)) {
       throw new BattleApiError("Both players must sign and mint the soulbound Pact NFT before the match starts.", { status: 409, code: "PACT_NOT_MINTED" });
     }
     if (invite.status !== "READY" || !invite.challenger_ready || !invite.opponent_ready) {
       throw new BattleApiError("Both players must accept the terms and confirm readiness before the battle starts.", { status: 409, code: "PLAYERS_NOT_READY" });
     }
-    await verifyChogOwner(fetchImpl, env, invite.challenger_token_id, invite.challenger_wallet);
-    await verifyChogOwner(fetchImpl, env, invite.opponent_token_id, invite.opponent_wallet);
+    if (!practiceMode) {
+      await verifyChogOwner(fetchImpl, env, invite.challenger_token_id, invite.challenger_wallet);
+      await verifyChogOwner(fetchImpl, env, invite.opponent_token_id, invite.opponent_wallet);
+    }
     const [challengerDNA, opponentDNA] = await Promise.all([
       fetchCombatDNA(fetchImpl, env, invite.challenger_token_id),
       fetchCombatDNA(fetchImpl, env, invite.opponent_token_id),
     ]);
     const now = new Date().toISOString();
-    const log = [{ turn: 0, type: "system", text: "Battle started. Challenger takes the first turn." }];
+    const log = [{ turn: 0, type: "system", text: practiceMode ? "Prototype multiplayer practice started. No Pact NFT or official result will be recorded." : "Real-time battle started. Move, attack, and dash to win." }];
     await db.prepare(`INSERT OR IGNORE INTO chog_battles
       (invite_id, status, active_player_discord_id, turn_number, challenger_hp, opponent_hp,
        challenger_energy, opponent_energy, challenger_guard, opponent_guard, challenger_dna, opponent_dna,
