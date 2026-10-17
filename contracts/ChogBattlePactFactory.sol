@@ -258,7 +258,7 @@ contract ChogBattlePactFactory {
         string memory description = string.concat(
             "Chog Battle Arena soulbound agreement. Role: ", role,
             ". Opponent: ", _toHexAddress(rival),
-            ". Condition: ", _escapeJson(pact.condition),
+            ". Condition: ", pact.condition,
             ". Status: ", outcome,
             ". Terms hash: ", _toHexBytes32(pact.termsHash),
             pact.termsURI.length == 0 ? "" : string.concat(". Terms document: ", _escapeJson(pact.termsURI))
@@ -370,30 +370,28 @@ contract ChogBattlePactFactory {
     }
 
     function _base64(bytes memory data) private pure returns (string memory) {
-        bytes memory table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+        bytes memory alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
         if (data.length == 0) return "";
-        string memory result = new string(4 * ((data.length + 2) / 3));
-        assembly {
-            let tablePtr := add(table, 1)
-            let dataPtr := data
-            let endPtr := add(dataPtr, mload(data))
-            let resultPtr := add(result, 32)
-            for { } lt(dataPtr, endPtr) { } {
-                dataPtr := add(dataPtr, 3)
-                let input := mload(dataPtr)
-                mstore8(resultPtr, mload(add(tablePtr, and(shr(18, input), 0x3F))))
-                resultPtr := add(resultPtr, 1)
-                mstore8(resultPtr, mload(add(tablePtr, and(shr(12, input), 0x3F))))
-                resultPtr := add(resultPtr, 1)
-                mstore8(resultPtr, mload(add(tablePtr, and(shr(6, input), 0x3F))))
-                resultPtr := add(resultPtr, 1)
-                mstore8(resultPtr, mload(add(tablePtr, and(input, 0x3F))))
-                resultPtr := add(resultPtr, 1)
-            }
-            switch mod(mload(data), 3)
-            case 1 { mstore(sub(resultPtr, 2), shl(240, 0x3d3d)) }
-            case 2 { mstore(sub(resultPtr, 1), shl(248, 0x3d)) }
+        bytes memory output = new bytes(4 * ((data.length + 2) / 3));
+        uint256 i;
+        uint256 j;
+        while (i < data.length) {
+            uint256 a = uint8(data[i++]);
+            uint256 b = i < data.length ? uint8(data[i++]) : 0;
+            uint256 c = i < data.length ? uint8(data[i++]) : 0;
+            uint256 triple = (a << 16) | (b << 8) | c;
+            output[j++] = alphabet[(triple >> 18) & 0x3f];
+            output[j++] = alphabet[(triple >> 12) & 0x3f];
+            output[j++] = alphabet[(triple >> 6) & 0x3f];
+            output[j++] = alphabet[triple & 0x3f];
         }
-        return result;
+        uint256 remainder = data.length % 3;
+        if (remainder == 1) {
+            output[output.length - 1] = bytes1("=");
+            output[output.length - 2] = bytes1("=");
+        } else if (remainder == 2) {
+            output[output.length - 1] = bytes1("=");
+        }
+        return string(output);
     }
 }
