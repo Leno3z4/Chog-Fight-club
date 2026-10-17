@@ -117,6 +117,16 @@ function publicPact(row, address, env, isChallenger) {
     opponentSignature: row.opponent_pact_signature || null,
     typedData: jsonSafeTypedData(typedData),
     termsHash: typedData.message.termsHash,
+    agreement: {
+      inviteKey: typedData.message.inviteKey,
+      challenger: row.challenger_wallet.toLowerCase(),
+      opponent: row.opponent_wallet.toLowerCase(),
+      challengerChogId: String(row.challenger_token_id),
+      opponentChogId: String(row.opponent_token_id),
+      condition: row.condition_text,
+      termsURI: "",
+      expiresAt: Number(row.pact_expires_at),
+    },
   };
 }
 function makePublicClient(env) {
