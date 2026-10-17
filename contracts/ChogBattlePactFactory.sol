@@ -2,8 +2,8 @@
 pragma solidity ^0.8.24;
 
 /// @title Chog Battle Arena Pact Factory
-/// @notice Mints paired, soulbound receipts for an accepted challenge. Chog NFTs are never transferred.
-/// @dev The match resolver is immutable. Use a dedicated, tightly controlled resolver address.
+/// @notice Mints paired, soulbound agreement receipts after both players sign the same terms.
+/// @dev Chog NFTs are only checked for ownership and are never transferred or approved.
 contract ChogBattlePactFactory {
     error ZeroAddress();
     error InvalidOpponent();
@@ -11,9 +11,6 @@ contract ChogBattlePactFactory {
     error InvalidExpiry();
     error InviteAlreadyUsed();
     error PactNotFound();
-    error NotOpponent();
-    error PactExpired();
-    error PactNotAccepting();
     error NotParticipant();
     error NotResolver();
     error InvalidWinner();
@@ -22,35 +19,32 @@ contract ChogBattlePactFactory {
     error ConditionAlreadyFulfilled();
     error Soulbound();
     error ChogOwnershipNotVerified();
-    error InvalidTermsHash();
+    error InvalidSignature();
+    error PactNotActive();
 
-    event PactProposed(
+    event PactMinted(
         uint256 indexed pactId,
         bytes32 indexed inviteKey,
         address indexed challenger,
         address opponent,
-        uint256 challengerChogId,
-        bytes32 termsHash,
-        uint64 expiresAt
-    );
-    event PactAccepted(
-        uint256 indexed pactId,
         uint256 challengerReceiptId,
         uint256 opponentReceiptId,
-        address challenger,
-        address opponent
+        bytes32 termsHash
     );
     event MatchSettled(uint256 indexed pactId, address indexed winner, uint256 winnerReceiptId, uint256 loserReceiptId);
     event ConditionFulfilled(uint256 indexed pactId, address indexed winner, address indexed loser, uint256 loserReceiptId);
 
-    uint8 private constant PROPOSED = 0;
     uint8 private constant ACTIVE = 1;
     uint8 private constant SETTLED = 2;
     uint8 private constant FULFILLED = 3;
-    uint8 private constant CANCELLED = 4;
-
     string private constant COLLECTION_NAME = "Chog Battle Arena Pact";
     string private constant COLLECTION_SYMBOL = "CBAP";
+
+    bytes32 private constant DOMAIN_TYPEHASH = keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
+    bytes32 private constant AGREEMENT_TYPEHASH = keccak256("PactAgreement(bytes32 inviteKey,address challenger,address opponent,uint256 challengerChogId,uint256 opponentChogId,bytes32 termsHash,bytes32 termsURIHash,uint64 expiresAt)");
+    bytes32 private constant NAME_HASH = keccak256("Chog Battle Arena Pact");
+    bytes32 private constant VERSION_HASH = keccak256("1");
+    uint256 private constant SECP256K1_HALF_N = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
     address public immutable chogCollection;
     address public immutable matchResolver;
@@ -90,9 +84,7 @@ contract ChogBattlePactFactory {
     function symbol() external pure returns (string memory) { return COLLECTION_SYMBOL; }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return interfaceId == 0x01ffc9a7 // ERC165
-            || interfaceId == 0x80ac58cd // ERC721
-            || interfaceId == 0x5b5e139f; // ERC721Metadata
+        return interfaceId == 0x01ffc9a7 || interfaceId == 0x80ac58cd || interfaceId == 0x5b5e139f;
     }
 
     function balanceOf(address account) external view returns (uint256) {
@@ -107,75 +99,88 @@ contract ChogBattlePactFactory {
 
     function getApproved(uint256) external pure returns (address) { return address(0); }
     function isApprovedForAll(address, address) external pure returns (bool) { return false; }
-
     function approve(address, uint256) external pure { revert Soulbound(); }
     function setApprovalForAll(address, bool) external pure { revert Soulbound(); }
     function transferFrom(address, address, uint256) external pure { revert Soulbound(); }
     function safeTransferFrom(address, address, uint256) external pure { revert Soulbound(); }
     function safeTransferFrom(address, address, uint256, bytes calldata) external pure { revert Soulbound(); }
 
-    /// @notice Propose the exact condition. The NFT receipts are minted only when the opponent accepts.
-    /// @param inviteKey A unique hash of the Arena invitation ID, used to prevent duplicate minting.
-    /// @param opponent The wallet already linked to the challenged player's verified Discord account.
-    /// @param challengerChogId The challenger's Chog token ID; the contract verifies ownership.
-    /// @param condition The exact, public condition both players are agreeing to.
-    /// @param termsURI Optional public document URI; the condition itself is also stored on-chain.
-    /// @param expiresAt Unix timestamp by which the opponent must accept.
-    function createPact(
+    /// @notice EIP-712 digest both players sign after agreeing to the exact condition and Chog selections.
+    function agreementDigest(
         bytes32 inviteKey,
+        address challenger,
         address opponent,
         uint256 challengerChogId,
+        uint256 opponentChogId,
+        bytes32 termsHash,
+        bytes32 termsURIHash,
+        uint64 expiresAt
+    ) public view returns (bytes32) {
+        bytes32 domain = keccak256(abi.encode(
+            DOMAIN_TYPEHASH, NAME_HASH, VERSION_HASH, block.chainid, address(this)
+        ));
+        bytes32 agreement = keccak256(abi.encode(
+            AGREEMENT_TYPEHASH, inviteKey, challenger, opponent, challengerChogId,
+            opponentChogId, termsHash, termsURIHash, expiresAt
+        ));
+        return keccak256(abi.encodePacked("\x19\x01", domain, agreement));
+    }
+
+    /// @notice Mint both linked soulbound receipts once both wallets sign the same pact.
+    /// @dev The condition and optional terms URI are both included in the EIP-712 signatures.
+    function mintPact(
+        bytes32 inviteKey,
+        address challenger,
+        address opponent,
+        uint256 challengerChogId,
+        uint256 opponentChogId,
         string calldata condition,
         string calldata termsURI,
-        uint64 expiresAt
+        uint64 expiresAt,
+        bytes calldata challengerSignature,
+        bytes calldata opponentSignature
     ) external returns (uint256 pactId) {
         if (inviteKey == bytes32(0) || pactIdForInvite[inviteKey] != 0) revert InviteAlreadyUsed();
-        if (opponent == address(0) || opponent == msg.sender) revert InvalidOpponent();
+        if (challenger == address(0) || opponent == address(0)) revert ZeroAddress();
+        if (challenger == opponent) revert InvalidOpponent();
         bytes memory conditionBytes = bytes(condition);
         if (conditionBytes.length < 5 || conditionBytes.length > 500) revert InvalidCondition();
         if (expiresAt <= block.timestamp) revert InvalidExpiry();
-        if (_ownerOfChog(challengerChogId) != msg.sender) revert ChogOwnershipNotVerified();
+        bytes32 termsHash = keccak256(conditionBytes);
+        bytes32 uriHash = keccak256(bytes(termsURI));
+        bytes32 digest = agreementDigest(inviteKey, challenger, opponent, challengerChogId,
+            opponentChogId, termsHash, uriHash, expiresAt);
+        if (_recover(digest, challengerSignature) != challenger || _recover(digest, opponentSignature) != opponent) {
+            revert InvalidSignature();
+        }
+        if (_ownerOfChog(challengerChogId) != challenger || _ownerOfChog(opponentChogId) != opponent) {
+            revert ChogOwnershipNotVerified();
+        }
 
         pactId = nextPactId++;
-        bytes32 termsHash = keccak256(conditionBytes);
         Pact storage pact = pacts[pactId];
         pact.inviteKey = inviteKey;
-        pact.challenger = msg.sender;
+        pact.challenger = challenger;
         pact.opponent = opponent;
         pact.challengerChogId = challengerChogId;
+        pact.opponentChogId = opponentChogId;
         pact.condition = condition;
         pact.termsURI = termsURI;
         pact.termsHash = termsHash;
         pact.createdAt = uint64(block.timestamp);
         pact.expiresAt = expiresAt;
-        pact.status = PROPOSED;
+        pact.status = ACTIVE;
         pactIdForInvite[inviteKey] = pactId;
 
-        emit PactProposed(pactId, inviteKey, msg.sender, opponent, challengerChogId, termsHash, expiresAt);
-    }
-
-    /// @notice Opponent explicitly accepts the exact on-chain condition and selects their own Chog.
-    /// @dev Mints one linked, non-transferable receipt to each participant.
-    function acceptPact(uint256 pactId, uint256 opponentChogId) external {
-        Pact storage pact = pacts[pactId];
-        if (pact.challenger == address(0)) revert PactNotFound();
-        if (msg.sender != pact.opponent) revert NotOpponent();
-        if (pact.status != PROPOSED) revert PactNotAccepting();
-        if (block.timestamp > pact.expiresAt) revert PactExpired();
-        if (_ownerOfChog(opponentChogId) != msg.sender) revert ChogOwnershipNotVerified();
-
-        pact.opponentChogId = opponentChogId;
-        pact.status = ACTIVE;
         uint256 challengerReceiptId = nextTokenId++;
         uint256 opponentReceiptId = nextTokenId++;
         pact.challengerReceiptId = challengerReceiptId;
         pact.opponentReceiptId = opponentReceiptId;
         pactIdForReceipt[challengerReceiptId] = pactId;
         pactIdForReceipt[opponentReceiptId] = pactId;
-        _mintSoulbound(pact.challenger, challengerReceiptId);
-        _mintSoulbound(pact.opponent, opponentReceiptId);
-
-        emit PactAccepted(pactId, challengerReceiptId, opponentReceiptId, pact.challenger, pact.opponent);
+        _mintSoulbound(challenger, challengerReceiptId);
+        _mintSoulbound(opponent, opponentReceiptId);
+        emit PactMinted(pactId, inviteKey, challenger, opponent, challengerReceiptId, opponentReceiptId, termsHash);
     }
 
     /// @notice Record a validated match result once. Only the immutable resolver can settle matches.
@@ -197,21 +202,12 @@ contract ChogBattlePactFactory {
         Pact storage pact = pacts[pactId];
         if (pact.challenger == address(0)) revert PactNotFound();
         if (pact.status == FULFILLED) revert ConditionAlreadyFulfilled();
-        if (pact.status != SETTLED) revert PactNotAccepting();
+        if (pact.status != SETTLED) revert PactNotActive();
         if (msg.sender != pact.winner) revert NotWinner();
         pact.status = FULFILLED;
         address loser = pact.winner == pact.challenger ? pact.opponent : pact.challenger;
         uint256 loserReceipt = loser == pact.challenger ? pact.challengerReceiptId : pact.opponentReceiptId;
         emit ConditionFulfilled(pactId, pact.winner, loser, loserReceipt);
-    }
-
-    /// @notice A proposal can be cancelled only by its challenger and only before acceptance.
-    function cancelProposal(uint256 pactId) external {
-        Pact storage pact = pacts[pactId];
-        if (pact.challenger == address(0)) revert PactNotFound();
-        if (msg.sender != pact.challenger) revert NotParticipant();
-        if (pact.status != PROPOSED) revert PactNotAccepting();
-        pact.status = CANCELLED;
     }
 
     function getPact(uint256 pactId) external view returns (
@@ -247,9 +243,7 @@ contract ChogBattlePactFactory {
         uint256 ownChogId = isChallenger ? pact.challengerChogId : pact.opponentChogId;
         uint256 rivalChogId = isChallenger ? pact.opponentChogId : pact.challengerChogId;
         string memory outcome;
-        if (pact.status == PROPOSED) outcome = "Awaiting acceptance";
-        else if (pact.status == ACTIVE) outcome = "Accepted - awaiting battle";
-        else if (pact.status == CANCELLED) outcome = "Cancelled";
+        if (pact.status == ACTIVE) outcome = "Accepted - awaiting battle";
         else if (pact.status == FULFILLED) outcome = tokenOwner == pact.winner
             ? "Winner - condition fulfilled" : "Challenge lost - condition fulfilled";
         else if (pact.status == SETTLED) outcome = tokenOwner == pact.winner
@@ -261,7 +255,7 @@ contract ChogBattlePactFactory {
             ". Condition: ", pact.condition,
             ". Status: ", outcome,
             ". Terms hash: ", _toHexBytes32(pact.termsHash),
-            pact.termsURI.length == 0 ? "" : string.concat(". Terms document: ", _escapeJson(pact.termsURI))
+            pact.termsURI.length == 0 ? "" : string.concat(". Terms document: ", pact.termsURI)
         );
         string memory attributes = string.concat(
             '[{"trait_type":"Challenge ID","value":"', _toString(pactId),
@@ -293,6 +287,21 @@ contract ChogBattlePactFactory {
         );
         if (!ok || data.length < 32) return address(0);
         owner = abi.decode(data, (address));
+    }
+
+    function _recover(bytes32 digest, bytes calldata signature) private pure returns (address signer) {
+        if (signature.length != 65) revert InvalidSignature();
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        assembly {
+            r := calldataload(signature.offset)
+            s := calldataload(add(signature.offset, 32))
+            v := byte(0, calldataload(add(signature.offset, 64)))
+        }
+        if (uint256(s) > SECP256K1_HALF_N || (v != 27 && v != 28)) revert InvalidSignature();
+        signer = ecrecover(digest, v, r, s);
+        if (signer == address(0)) revert InvalidSignature();
     }
 
     function _escapeJson(string memory value) private pure returns (string memory) {
@@ -344,18 +353,15 @@ contract ChogBattlePactFactory {
     }
 
     function _toHexAddress(address account) private pure returns (string memory) {
-        return string.concat("0x", _toHexBytes20(bytes20(account)));
-    }
-
-    function _toHexBytes20(bytes20 value) private pure returns (string memory) {
         bytes16 alphabet = "0123456789abcdef";
+        bytes20 value = bytes20(account);
         bytes memory out = new bytes(40);
         for (uint256 i; i < 20; i++) {
             uint8 b = uint8(value[i]);
             out[i * 2] = alphabet[b >> 4];
             out[i * 2 + 1] = alphabet[b & 0x0f];
         }
-        return string(out);
+        return string.concat("0x", string(out));
     }
 
     function _toHexBytes32(bytes32 value) private pure returns (string memory) {
