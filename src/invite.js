@@ -71,8 +71,40 @@ function renderSummary(invite) {
   if (roomPath) roomPath.textContent = roomUrl;
   if (roomCode) roomCode.textContent = invite.id.slice(0, 8).toUpperCase();
   $("#invite-status-chip").textContent = statusText(invite.status);
-  $("#invite-condition").textContent = invite.condition;
-  $("#condition-hash").textContent = invite.termsHash || "—";
+  const conditionNode = $("#invite-condition");
+  if (conditionNode) conditionNode.textContent = invite.condition;
+  const conditionHashNode = $("#condition-hash");
+  if (conditionHashNode) conditionHashNode.textContent = invite.termsHash || "—";
+  const bilateralCard = $("#bilateral-terms-card");
+  if (bilateralCard) {
+    bilateralCard.hidden = !["TERMS_ACCEPTED", "READY"].includes(invite.status);
+    $("#challenger-demand-text").textContent = invite.challengerDemand || invite.challenger?.demand || "Waiting for the challenger to write a demand…";
+    $("#opponent-demand-text").textContent = invite.opponentDemand || invite.opponent?.demand || "Waiting for the opponent to write a demand…";
+    $("#challenger-demand-acceptance").textContent = invite.challenger?.termsAccepted ? "Accepted ✓" : "Not accepted";
+    $("#opponent-demand-acceptance").textContent = invite.opponent?.termsAccepted ? "Accepted ✓" : "Not accepted";
+    $("#challenger-demand-acceptance").classList.toggle("accepted", Boolean(invite.challenger?.termsAccepted));
+    $("#opponent-demand-acceptance").classList.toggle("accepted", Boolean(invite.opponent?.termsAccepted));
+    const ownDemand = invite.viewerRole === "challenger" ? invite.challengerDemand : invite.opponentDemand;
+    const ownDemandNode = $("#own-demand-text");
+    if (ownDemandNode && document.activeElement !== ownDemandNode) ownDemandNode.value = ownDemand || "";
+    updateBilateralControls();
+  }
+  const presenceNode = $("#room-presence-message");
+  if (presenceNode) {
+    presenceNode.textContent = invite.status === "PENDING_ACCEPTANCE"
+      ? `Waiting for @${invite.opponent?.username || "your rival"} to join. Keep this lobby open; you'll be notified when they accept the invitation.`
+      : invite.status === "TERMS_ACCEPTED"
+        ? "Your rival joined the lobby. Write your demand and agree on both demands before minting the Pact NFT."
+        : ["READY", "IN_BATTLE", "RESULT_PENDING", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(invite.status)
+          ? "Both players have joined. Finish the agreement, mint the Pact, and enter the real-time arena."
+          : "This room stays available while you wait for the other player.";
+  }
+  const waitingCopy = $("#room-waiting-copy");
+  if (waitingCopy) waitingCopy.textContent = invite.status === "PENDING_ACCEPTANCE"
+    ? "You're in the room early. The invite stays open until the other player joins."
+    : invite.status === "TERMS_ACCEPTED"
+      ? "Your opponent is here. Your two demands must be saved and accepted before the match starts."
+      : "Once the Pact is minted and both players are ready, you will enter the same live arena.";
   $("#challenger-name").textContent = invite.challenger.username || "Challenger";
   $("#challenger-chog").textContent = invite.challenger.tokenId ? `Chog #${invite.challenger.tokenId}` : "Chog not selected";
   $("#challenger-terms").textContent = `Terms accepted: ${invite.challenger.termsAccepted ? "Yes" : "No"}`;
@@ -96,11 +128,11 @@ function renderSummary(invite) {
       : `Challenge between ${invite.challenger.username || "the challenger"} and ${invite.opponent.username || "the opponent"}. Review the condition and status here.`;
 
   $("#accept-card").hidden = !(isRecipient && pending);
-  $("#ready-card").hidden = !["TERMS_ACCEPTED", "READY"].includes(invite.status);
+  $("#ready-card").hidden = invite.status !== "READY";
   $("#cancel-invite").hidden = !(invite.viewerRole === "challenger" && pending);
   $("#accept-invite").disabled = !state.selectedTokenId || !$("#accept-condition-check").checked || !state.wallet;
   $("#ready-status-chip").textContent = invite.status === "READY" ? "BOTH READY" : "WAITING";
-  $("#ready-button").disabled = invite.status === "READY" || Boolean(viewer(invite).ready);
+  $("#ready-button").disabled = invite.status !== "READY" || Boolean(viewer(invite).ready);
   $("#ready-button").textContent = viewer(invite).ready ? "You're ready ✓" : "I'm ready ↗";
   $("#ready-explanation").textContent = invite.status === "READY"
     ? "Both players have confirmed readiness. The shared lobby is synchronized; the live PvP match relay is not enabled yet."
@@ -289,6 +321,45 @@ async function postBattleAction(action, extra = {}) {
     if (state.battle) renderBattle(state.battle);
   }
 }
+function updateBilateralControls() {
+  const own = $("#own-demand-text");
+  const save = $("#save-demand-button");
+  const accept = $("#accept-bilateral-terms");
+  if (!own || !save || !accept || !state.invite) return;
+  const invite = state.invite;
+  const isChallenger = invite.viewerRole === "challenger";
+  const saved = isChallenger ? (invite.challengerDemand || "") : (invite.opponentDemand || "");
+  const otherDemand = isChallenger ? (invite.opponentDemand || "") : (invite.challengerDemand || "");
+  const ownAccepted = Boolean(isChallenger ? invite.challenger?.termsAccepted : invite.opponent?.termsAccepted);
+  const locked = Boolean(state.pact?.minted || invite.pactMinted || !["TERMS_ACCEPTED", "READY"].includes(invite.status));
+  save.disabled = locked || state.busy || own.value.trim().length < 5 || own.value.trim() === saved.trim();
+  accept.disabled = locked || state.busy || state.pactBusy || own.value.trim().length < 5
+    || own.value.trim() !== saved.trim() || otherDemand.trim().length < 5 || ownAccepted;
+  accept.textContent = ownAccepted ? "You accepted both demands ✓" : "I accept both demands ↗";
+}
+async function saveOwnDemand() {
+  const own = $("#own-demand-text");
+  const demand = own?.value?.trim() || "";
+  if (demand.length < 5) throw new Error("Write a demand of at least five characters.");
+  await postAction("saveDemand", { demand });
+  $("#demand-status").textContent = "Your demand is saved. Both players must accept the exact pair of demands.";
+  $("#demand-status").dataset.kind = "success";
+}
+async function acceptBilateralTerms() {
+  const invite = state.invite;
+  if (!invite) throw new Error("The lobby is still loading.");
+  const isChallenger = invite.viewerRole === "challenger";
+  const saved = isChallenger ? invite.challengerDemand : invite.opponentDemand;
+  const own = $("#own-demand-text").value.trim();
+  const other = isChallenger ? invite.opponentDemand : invite.challengerDemand;
+  if (own.length < 5 || own !== String(saved || "").trim()) throw new Error("Save your demand before accepting.");
+  if (String(other || "").trim().length < 5) throw new Error("Wait for the other player to write and save their demand.");
+  await postAction("acceptTerms");
+  $("#demand-status").textContent = state.invite?.status === "READY"
+    ? "Both players accepted both demands. The Pact NFT can now be signed and minted."
+    : "Your acceptance is recorded. Waiting for the other player to accept both demands.";
+  $("#demand-status").dataset.kind = "success";
+}
 function renderChogs() {
   const target = $("#lobby-chog-grid");
   $("#fighter-count").textContent = state.chogs.length ? `${state.chogs.length} CHOG(S)` : "NO CHOGS";
@@ -400,7 +471,7 @@ async function postAction(action, extra = {}) {
     if (payload.invite) renderSummary(payload.invite);
     if (payload.notice) showAlert(payload.notice, "success");
     if (action === "accept") {
-      showAlert("Challenge accepted. Both players have acknowledged the condition. Pact NFT minting and live PvP are not enabled yet.", "success");
+      showAlert("You joined the lobby. Write your demand there and accept both demands before minting the Pact NFT.", "success");
     }
     return payload;
   } catch (error) {
@@ -442,11 +513,20 @@ $("#combat-moves").addEventListener("click", (event) => {
   postBattleAction("move", { move: button.dataset.battleMove });
 });
 $("#accept-condition-check").addEventListener("change", updateAcceptButton);
+$("#save-demand-button")?.addEventListener("click", async () => {
+  if (state.busy) return;
+  try { await saveOwnDemand(); } catch (error) { showAlert(error?.message || "Could not save your demand."); }
+});
+$("#own-demand-text")?.addEventListener("input", updateBilateralControls);
+$("#accept-bilateral-terms")?.addEventListener("click", async () => {
+  if (state.busy) return;
+  try { await acceptBilateralTerms(); } catch (error) { showAlert(error?.message || "Could not accept the demands."); }
+});
 $("#accept-invite").addEventListener("click", async () => {
   if (state.busy) return;
   if (!state.wallet) return showAlert("Connect and verify the wallet belonging to your Discord account first.");
   if (!state.selectedTokenId) return showAlert("Choose one of your Chogs first.");
-  if (!$("#accept-condition-check").checked) return showAlert("Confirm that you accept the exact proposed condition.");
+  if (!$("#accept-condition-check").checked) return showAlert("Confirm that you want to join this challenge lobby.");
   $("#accept-invite").disabled = true;
   try {
     await postAction("accept", {
@@ -534,7 +614,7 @@ async function init() {
     const sessionResponse = await fetch("/api/discord/session", { credentials: "same-origin", headers: { accept: "application/json" } });
     const sessionPayload = await sessionResponse.json().catch(() => ({}));
     if (!sessionPayload?.authenticated) {
-      const returnTo = `/invite.html?id=${encodeURIComponent(state.id || "")}`;
+      const returnTo = `${isBattleLobbyPage ? "/battle-lobby.html" : "/invite.html"}?id=${encodeURIComponent(state.id || "")}`;
       window.location.replace("/?returnTo=" + encodeURIComponent(returnTo));
       return;
     }
