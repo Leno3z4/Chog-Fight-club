@@ -1,4 +1,5 @@
-import { createPublicClient, defineChain, http, keccak256, parseEventLogs, recoverTypedDataAddress, toBytes } from "viem";
+import { createPublicClient, createWalletClient, defineChain, http, keccak256, parseEventLogs, recoverTypedDataAddress, toBytes } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { readDiscordSession } from "./discordAuth.js";
 
 const CHOG_CONTRACT = "0xc96d31f8626c6d03fae5dcd3d61e3fb9f4a73763";
@@ -26,6 +27,21 @@ const PACT_ABI = [
     { indexed: false, name: "opponentReceiptId", type: "uint256" },
     { indexed: false, name: "termsHash", type: "bytes32" },
   ]},
+  { type: "event", name: "MatchSettled", anonymous: false, inputs: [
+    { indexed: true, name: "pactId", type: "uint256" },
+    { indexed: true, name: "winner", type: "address" },
+    { indexed: false, name: "winnerReceiptId", type: "uint256" },
+    { indexed: false, name: "loserReceiptId", type: "uint256" },
+  ]},
+  { type: "event", name: "ConditionFulfilled", anonymous: false, inputs: [
+    { indexed: true, name: "pactId", type: "uint256" },
+    { indexed: true, name: "winner", type: "address" },
+    { indexed: true, name: "loser", type: "address" },
+    { indexed: false, name: "loserReceiptId", type: "uint256" },
+  ]},
+  { type: "function", name: "settleMatch", stateMutability: "nonpayable", inputs: [
+    { name: "pactId", type: "uint256" }, { name: "winner", type: "address" }
+  ], outputs: [] },
 ];
 export class PactApiError extends Error {
   constructor(message, { status = 500, code = "PACT_ERROR" } = {}) {
@@ -117,6 +133,10 @@ function publicPact(row, address, env, isChallenger) {
     opponentSignature: row.opponent_pact_signature || null,
     typedData: jsonSafeTypedData(typedData),
     termsHash: typedData.message.termsHash,
+    settlementTxHash: /^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || "")) ? row.pact_settlement_tx_hash : null,
+    settledOnchain: /^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || "")),
+    fulfillmentTxHash: row.pact_fulfillment_tx_hash || null,
+    fulfilledOnchain: Boolean(row.pact_fulfillment_tx_hash),
     agreement: {
       inviteKey: typedData.message.inviteKey,
       challenger: row.challenger_wallet.toLowerCase(),
@@ -129,16 +149,50 @@ function publicPact(row, address, env, isChallenger) {
     },
   };
 }
-function makePublicClient(env) {
+function makeChain(env) {
   const id = chainId(env);
   const rpc = String(env?.MONAD_RPC_URL || DEFAULT_RPC);
-  const chain = defineChain({
+  return defineChain({
     id,
     name: id === 143 ? "Monad" : "Monad network",
     nativeCurrency: { name: "MON", symbol: "MON", decimals: 18 },
     rpcUrls: { default: { http: [rpc] } },
   });
-  return createPublicClient({ chain, transport: http(rpc) });
+}
+function makePublicClient(env) {
+  const rpc = String(env?.MONAD_RPC_URL || DEFAULT_RPC);
+  return createPublicClient({ chain: makeChain(env), transport: http(rpc) });
+}
+function resolverWallet(env) {
+  const privateKey = String(env?.PACT_RESOLVER_PRIVATE_KEY || "");
+  const expected = String(env?.PACT_RESOLVER_ADDRESS || "").toLowerCase();
+  if (!/^0x[0-9a-fA-F]{64}$/.test(privateKey) || !/^0x[0-9a-f]{40}$/.test(expected)) {
+    throw new PactApiError("Configure PACT_RESOLVER_ADDRESS and PACT_RESOLVER_PRIVATE_KEY as Cloudflare secrets before on-chain settlement.", { status: 503, code: "PACT_RESOLVER_NOT_CONFIGURED" });
+  }
+  const account = privateKeyToAccount(privateKey);
+  if (account.address.toLowerCase() !== expected) {
+    throw new PactApiError("The Pact resolver key does not match PACT_RESOLVER_ADDRESS.", { status: 503, code: "PACT_RESOLVER_KEY_MISMATCH" });
+  }
+  return account;
+}
+async function submitSettlement(env, pactId, winner) {
+  const address = factoryAddress(env);
+  if (!address) throw new PactApiError("Pact factory address is not configured.", { status: 503, code: "PACT_FACTORY_NOT_CONFIGURED" });
+  const account = resolverWallet(env);
+  if (!/^0x[0-9a-fA-F]{40}$/.test(winner)) throw new PactApiError("Winner wallet is invalid.", { status: 400, code: "WINNER_WALLET_INVALID" });
+  const rpc = String(env?.MONAD_RPC_URL || DEFAULT_RPC);
+  const client = createWalletClient({ account, chain: makeChain(env), transport: http(rpc) });
+  const hash = await client.writeContract({ address, abi: PACT_ABI, functionName: "settleMatch", args: [BigInt(pactId), winner] });
+  const receipt = await makePublicClient(env).getTransactionReceipt({ hash });
+  if (receipt.status !== "success" || receipt.to?.toLowerCase() !== address) {
+    throw new PactApiError("The resolver settlement transaction failed.", { status: 502, code: "PACT_SETTLEMENT_FAILED" });
+  }
+  const event = parseEventLogs({ abi: PACT_ABI, logs: receipt.logs, eventName: "MatchSettled", strict: false })
+    .find((item) => String(item.address || "").toLowerCase() === address
+      && String(item.args.pactId) === String(pactId)
+      && String(item.args.winner).toLowerCase() === winner.toLowerCase());
+  if (!event) throw new PactApiError("The resolver transaction did not emit the expected settlement event.", { status: 502, code: "PACT_SETTLEMENT_EVENT_MISSING" });
+  return hash;
 }
 
 export async function handlePactRequest({ method, url, cookieHeader, env, body = {} }) {
