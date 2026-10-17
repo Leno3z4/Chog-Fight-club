@@ -136,7 +136,7 @@ function renderSummary(invite) {
       : `Challenge between ${invite.challenger.username || "the challenger"} and ${invite.opponent.username || "the opponent"}. Review the condition and status here.`;
 
   $("#accept-card").hidden = !(isRecipient && pending);
-  $("#ready-card").hidden = invite.status !== "READY";
+  $("#ready-card").hidden = invite.status !== "READY" || !state.pact?.minted;
   $("#cancel-invite").hidden = !(invite.viewerRole === "challenger" && pending);
   $("#accept-invite").disabled = !state.selectedTokenId || !$("#accept-condition-check").checked || !state.wallet;
   $("#ready-status-chip").textContent = invite.challenger.ready && invite.opponent.ready ? "BOTH READY" : "READY CHECK";
@@ -397,6 +397,8 @@ function renderPact(pact) {
   if (!relevant) return;
   const configured = Boolean(pact?.configured);
   const minted = Boolean(pact?.minted);
+  const readyCard = $("#ready-card");
+  if (readyCard) readyCard.hidden = state.invite?.status !== "READY" || !minted;
   $("#pact-state-chip").textContent = minted ? `MINTED #${pact.pactId}` : configured ? "SIGNATURES REQUIRED" : "NOT CONFIGURED";
   $("#pact-sign-status").textContent = !configured
     ? (pact?.reason || "Pact factory address has not been configured.")
