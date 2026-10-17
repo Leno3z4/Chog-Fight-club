@@ -223,8 +223,8 @@ export class ArenaRoom {
     if (!state) {
       state = {
         inviteId: invite.id,
-        phase: isStarted ? battle.status : "LOBBY",
-        status: isStarted ? battle.status : "LOBBY",
+        phase: "LOBBY",
+        status: "LOBBY",
         inviteStatus: invite.status,
         startedAt: null,
         updatedAt: Date.now(),
@@ -300,7 +300,8 @@ export class ArenaRoom {
       inviteStatus: state.inviteStatus,
       updatedAt: state.updatedAt,
       startedAt: state.startedAt,
-      winnerDiscordId: state.winnerDiscordId || null,
+      winnerRole: state.winnerDiscordId === state.players.challenger?.discordId ? "challenger" : state.winnerDiscordId === state.players.opponent?.discordId ? "opponent" : null,
+      winnerUsername: state.winnerDiscordId === state.players.challenger?.discordId ? state.players.challenger?.username : state.winnerDiscordId === state.players.opponent?.discordId ? state.players.opponent?.username : null,
       players: {},
       log: (state.log || []).slice(-MAX_LOG),
     };
