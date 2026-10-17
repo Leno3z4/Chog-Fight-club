@@ -4,7 +4,7 @@ The contract is `contracts/ChogBattlePactFactory.sol`. It is a single factory/co
 
 ## Important: do not deploy to mainnet until the app's signature/mint integration is merged
 
-The factory requires both players to sign the same EIP-712 agreement. The feature branch now includes the two-wallet EIP-712 signing panel and on-chain mint receipt verification. Still do not deploy to mainnet until the branch passes CI, the D1 migrations are applied in a staging environment, and the full flow is tested with a test factory. Deploying before end-to-end testing risks minting receipts that the app cannot settle or track.
+The factory requires both players to sign the same EIP-712 agreement. The feature branch now includes two-wallet EIP-712 signing for the canonical combined string of both players' written demands, the mint panel, and on-chain mint receipt verification. Still do not deploy to mainnet until the branch passes CI, the D1 migrations are applied in a staging environment, and the full flow is tested with a test factory. Deploying before end-to-end testing risks minting receipts that the app cannot settle or track.
 
 ## Constructor arguments
 
@@ -27,7 +27,7 @@ The contract has no owner, no upgrade function, no arbitrary metadata editor, an
 
 ## On-chain lifecycle
 
-- Both players sign the same typed agreement, including invite key, wallets, both Chog IDs, condition hash, terms-URI hash and expiry.
+- Each player writes one harmless demand. Both accept the exact combined text before signing the same typed agreement, including invite key, wallets, both Chog IDs, combined-terms hash, terms-URI hash and expiry.
 - `mintPact` verifies both signatures and current Chog ownership, then mints one soulbound receipt to each player.
 - The immutable resolver records the validated winner once.
 - Only that winner can confirm fulfilment. The loser’s NFT metadata then changes from `Unfulfilled Challenge` to `Challenge lost - condition fulfilled`.
