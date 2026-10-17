@@ -8,11 +8,13 @@ The website and Discord sign-in run on **Vercel**. Cloudflare provides the D1-ba
 - Player profile and Chog roster selection.
 - Wallet-signature linking to the Discord session.
 - Username-based player search and persistent challenge invitations.
-- A shared battle-lobby URL both players use after accepting.
+- A shared lobby with server-authoritative turn-based combat, synchronized HP/energy/logs, and Strike, Guard, and Special moves.
+- Metadata-derived battle stats fetched server-side from OpenSea and current Chog ownership rechecked on Monad before the match starts.
+- A Pact NFT signing panel: both players sign the same EIP-712 agreement, then either can mint the paired soulbound receipts.
+- A Solidity factory that makes the condition visible in token metadata, blocks transfers and approvals, and supports resolver settlement plus winner-confirmed fulfilment.
 - Cloudflare D1 storage through the Pages Functions binding `CHOG_DB`.
-- A separate website-only stat preview while the combat engine remains under development.
 
-The unfinished battle engine and battle screen are intentionally not included on `main`. The lobby tracks acceptance and readiness but does not launch synchronized PvP combat. The Pact NFT contract, validated match settlement, and fulfillment flow are still future work.
+These changes are in the feature branch and draft PR, not `main` yet. The factory still requires a configured address and a tested end-to-end deployment before production use. The match resolver is immutable and must only submit a result after validating the server-authoritative match.
 
 ## Vercel: website and browser-facing API
 
