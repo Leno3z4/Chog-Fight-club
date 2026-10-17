@@ -29,7 +29,7 @@ jobs:
           python - <<'PY'
           import sqlite3
           db = sqlite3.connect(":memory:")
-          for path in ["migrations/0001_challenge_invites.sql", "migrations/0002_player_directory.sql", "migrations/0003_authoritative_battles.sql"]:
+          for path in ["migrations/0001_challenge_invites.sql", "migrations/0002_player_directory.sql", "migrations/0003_authoritative_battles.sql", "migrations/0004_pact_nft_signatures.sql"]:
               with open(path, encoding="utf-8") as migration:
                   db.executescript(migration.read())
           invites = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_challenge_invites'").fetchone()
@@ -38,6 +38,8 @@ jobs:
           assert players is not None, "D1 migration did not create chog_players"
           battles = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_battles'").fetchone()
           assert battles is not None, "Battle migration did not create chog_battles"
+          pact_columns = {row[1] for row in db.execute("PRAGMA table_info(chog_challenge_invites)")}
+          assert "challenger_pact_signature" in pact_columns and "pact_id" in pact_columns, "Pact migration columns missing"
           print("All D1 migrations are valid SQLite and create their tables")
           PY
       - name: Test Solidity contracts
