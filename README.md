@@ -1,6 +1,6 @@
 # Chog Battle Arena — website and challenge lobby
 
-The website and Discord sign-in run on **Vercel**. Cloudflare provides the D1-backed invitation API. The browser stays on the Vercel domain.
+The website and Discord sign-in run on **Vercel**. Cloudflare provides D1-backed APIs and a separate Durable Object Worker for the real-time battle room. The browser stays on the Vercel domain.
 
 ## What's included
 
@@ -8,7 +8,11 @@ The website and Discord sign-in run on **Vercel**. Cloudflare provides the D1-ba
 - Player profile and Chog roster selection.
 - Wallet-signature linking to the Discord session.
 - Username-based player search and persistent challenge invitations.
-- A shared lobby with server-authoritative turn-based combat, synchronized HP/energy/logs, and Strike, Guard, and Special moves.
+- A Play screen with **Single Player vs Bot** practice and **Multiplayer** invitations.
+- A persistent shared lobby with presence updates and browser notifications when the invited player joins.
+- Bilateral demands: each player writes a demand, both explicitly accept both demands, and any edit resets the prior acceptances.
+- A real-time arena with movement, attacks, special attacks, and dash. Multiplayer state is hosted by a Cloudflare Durable Object, not turn-based polling.
+- A separate prototype bot mode that does not need a Chog NFT and never mints a Pact.
 - Metadata-derived battle stats fetched server-side from OpenSea and current Chog ownership rechecked on Monad before the match starts.
 - A Pact NFT signing panel: both players sign the same EIP-712 agreement, then either can mint the paired soulbound receipts.
 - A Solidity factory that makes the condition visible in token metadata, blocks transfers and approvals, and supports resolver settlement plus winner-confirmed fulfilment.
@@ -32,7 +36,7 @@ The Discord OAuth Redirects list in the Developer Portal must include the exact 
 
 ## Cloudflare: D1 battle and Pact backend
 
-The Pages Functions API is only used behind Vercel's `/api/invites` proxy. In Cloudflare Pages, bind the D1 database as `CHOG_DB`, and set:
+The Pages Functions API is used behind Vercel's `/api` proxies. The separate real-time Worker is deployed from the `realtime/` directory. In Cloudflare Pages, bind the D1 database as `CHOG_DB`, and set:
 
 - `SESSION_SECRET` — exactly the same secret as Vercel, so the backend can validate the signed Discord session
 - `MONAD_RPC_URL=https://rpc.monad.xyz`
@@ -42,11 +46,19 @@ The Pages Functions API is only used behind Vercel's `/api/invites` proxy. In Cl
 - `PACT_RESOLVER_ADDRESS` — the resolver address passed to the factory constructor
 - `PACT_RESOLVER_PRIVATE_KEY` — Cloudflare secret only; this wallet needs MON for settlement gas
 
-After the feature branch is reviewed and merged, apply migrations `0001_challenge_invites.sql` through `0005_pact_settlement.sql` in numerical order in the D1 dashboard Console. Do not run the new migrations on production before the feature has been reviewed. Players who have signed in once appear in username search; if a player is not listed yet, invite their exact Discord username and they can claim it after signing in. Database binding ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
+After the feature branch is reviewed and merged, apply migrations `0001_challenge_invites.sql` through `0006_bilateral_demands.sql` in numerical order in the D1 dashboard Console. Do not run the new migrations on production before the feature has been reviewed. Players who have signed in once appear in username search; if a player is not listed yet, invite their exact Discord username and they can claim it after signing in. Database binding ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
 
 ### Cloudflare deployment settings
 
 This is a **Pages** project, not a Worker script. If the dashboard provides a build command and output directory, use `npm run build` and `dist`. Do not use `npx wrangler deploy`. If the project specifically requires a deploy command, use `npx wrangler pages deploy dist --project-name=chog-fight-club` after the build step.
+
+## Real-time Worker deployment
+
+Deploy `realtime/worker.js` as a separate Cloudflare Worker named `chog-battle-arena-realtime`. In Cloudflare's dashboard, use `realtime/wrangler.jsonc` as its configuration and bind the same D1 database as `CHOG_DB`. Add `SESSION_SECRET` as a Cloudflare secret with the exact same value used by Vercel and Pages. Set `ARENA_FRONTEND_ORIGIN` to your actual Vercel origin. The Worker URL is shown in its dashboard after deployment.
+
+In Vercel, add the public build-time variable `VITE_ARENA_REALTIME_URL` with that Worker base URL, for example `https://chog-battle-arena-realtime.<your-account>.workers.dev`, then redeploy Vercel. This value is a public service URL, not a secret.
+
+The real-time game cannot start officially until the Pact factory is deployed/configured and both players have signed and minted the Pact. Single Player practice is separate and does not touch the contract.
 
 ## Development and validation
 
