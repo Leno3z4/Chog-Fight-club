@@ -243,7 +243,7 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
     return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
   }
   if (method !== "POST") throw new PactApiError("Method not allowed.", { status: 405, code: "METHOD_NOT_ALLOWED" });
-  if (row.pact_id && !["settle", "recordFulfillment"].includes(body.action)) throw new PactApiError("The Pact NFT has already been minted for this challenge.", { status: 409, code: "PACT_ALREADY_MINTED" });
+  if (row.pact_id && !["confirmMint", "settle", "recordFulfillment"].includes(body.action)) throw new PactApiError("The Pact NFT has already been minted for this challenge.", { status: 409, code: "PACT_ALREADY_MINTED" });
 
   if (body.action === "sign") {
     if (row.status !== "READY" || !row.challenger_terms_accepted || !row.opponent_terms_accepted) {
@@ -283,11 +283,17 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
   }
 
   if (body.action === "confirmMint") {
+    const txHash = String(body.transactionHash || "");
+    if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) throw new PactApiError("A valid transaction hash is required.", { status: 400, code: "TX_HASH_INVALID" });
+    if (row.pact_id && row.pact_tx_hash?.toLowerCase() === txHash.toLowerCase()) {
+      return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
+    }
+    if (row.pact_id) {
+      throw new PactApiError("A different Pact mint is already recorded for this challenge.", { status: 409, code: "PACT_ALREADY_MINTED" });
+    }
     if (!row.challenger_pact_signature || !row.opponent_pact_signature) {
       throw new PactApiError("Both players must sign before the Pact NFT can be minted.", { status: 409, code: "PACT_SIGNATURES_MISSING" });
     }
-    const txHash = String(body.transactionHash || "");
-    if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) throw new PactApiError("A valid transaction hash is required.", { status: 400, code: "TX_HASH_INVALID" });
     const client = makePublicClient(env);
     let receipt;
     try { receipt = await client.getTransactionReceipt({ hash: txHash }); }
