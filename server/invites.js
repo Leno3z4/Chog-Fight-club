@@ -344,6 +344,10 @@ export async function handleInviteRequest({
   }
 
   if (body.action === "saveDemand") {
+    const expectedWallet = isChallenger ? row.challenger_wallet : row.opponent_wallet;
+    if (!expectedWallet || !user.walletAddress || expectedWallet.toLowerCase() !== user.walletAddress.toLowerCase()) {
+      throw new InviteApiError("Connect the wallet linked to this challenge before editing your demand.", { status: 403, code: "INVITE_WALLET_MISMATCH" });
+    }
     if (!["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id || row.pact_tx_hash) {
       throw new InviteApiError("Demands can only be edited in the lobby before the Pact NFT is minted.", { status: 409, code: "DEMAND_EDIT_LOCKED" });
     }
@@ -371,6 +375,10 @@ export async function handleInviteRequest({
   }
 
   if (body.action === "acceptTerms") {
+    const expectedWallet = isChallenger ? row.challenger_wallet : row.opponent_wallet;
+    if (!expectedWallet || !user.walletAddress || expectedWallet.toLowerCase() !== user.walletAddress.toLowerCase()) {
+      throw new InviteApiError("Connect the wallet linked to this challenge before accepting the demands.", { status: 403, code: "INVITE_WALLET_MISMATCH" });
+    }
     if (row.status !== "TERMS_ACCEPTED" && row.status !== "READY") {
       throw new InviteApiError("Join the lobby before accepting the final demands.", { status: 409, code: "LOBBY_NOT_JOINED" });
     }
