@@ -91,7 +91,9 @@ contract ChogBattlePactFactoryTest {
     }
 
     function testRejectsDuplicateInviteKey() public {
-        (,, bytes memory challengerSig, bytes memory opponentSig, uint64 expiry, bytes32 inviteKey) = _mintPact();
+        (, bytes memory challengerSig, bytes memory opponentSig, uint64 expiry, bytes32 inviteKey) = _mintPact();
+        vm.expectRevert(ChogBattlePactFactory.InviteAlreadyUsed.selector);
+        factory.mintPact(inviteKey, challenger, opponent, 101, 202, condition, termsURI, expiry, challengerSig, opponentSig);
     }
 
     function testCannotMintAfterExpiry() public {
