@@ -222,3 +222,29 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 .battle-room-location{border-color:rgba(255,213,68,.4);background:linear-gradient(140deg,rgba(139,107,255,.16),rgba(42,25,64,.92))}
 .battle-room-url{display:block;margin:13px 0 0;padding:10px 12px;border-radius:9px;background:#160e22;color:var(--club-yellow);font:10px 'DM Mono',monospace;overflow-wrap:anywhere}
 .battle-room-copy{margin-top:9px;padding:10px 13px;border:1px solid rgba(163,132,255,.35);border-radius:9px;background:#35204c;color:var(--club-cream);font-size:11px;font-weight:900}
+
+
+/* Server-authoritative shared combat */
+.combat-card { border-color: rgba(133, 103, 255, .45); }
+.combat-fighters { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:16px; align-items:center; margin:20px 0; }
+.combat-fighter { min-width:0; padding:16px; border:1px solid rgba(176,155,255,.2); border-radius:16px; background:rgba(14,8,28,.42); }
+.combat-fighter-head { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-bottom:10px; }
+.combat-fighter-head strong { overflow-wrap:anywhere; }
+.combat-fighter-head span { color:#ffd64b; font-weight:800; }
+.combat-hp-track { height:10px; overflow:hidden; border-radius:99px; background:#30213f; margin-bottom:10px; }
+.combat-hp-track span { display:block; width:100%; height:100%; border-radius:inherit; background:linear-gradient(90deg,#79e28c,#ffd64b); transition:width .25s ease; }
+.combat-fighter small { display:block; color:#c8b8e8; line-height:1.6; overflow-wrap:anywhere; }
+.combat-versus { color:#ffd64b; font-weight:900; }
+.combat-moves { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:18px 0; }
+.combat-moves button { display:flex; flex-direction:column; align-items:flex-start; gap:5px; padding:14px; border:1px solid rgba(150,117,255,.55); border-radius:12px; color:#fff3d5; background:#38205a; font-weight:800; cursor:pointer; }
+.combat-moves button:disabled { opacity:.45; cursor:not-allowed; }
+.combat-moves button small { color:#c8b8e8; font-weight:500; text-align:left; }
+.combat-log-title { margin:22px 0 10px; }
+.combat-log { display:flex; flex-direction:column; gap:8px; padding-left:22px; color:#d7c9ee; }
+.combat-log li { padding-left:4px; line-height:1.5; }
+.combat-card[hidden] { display:none !important; }
+@media (max-width:620px) {
+  .combat-fighters { grid-template-columns:1fr; }
+  .combat-versus { text-align:center; }
+  .combat-moves { grid-template-columns:1fr; }
+}
