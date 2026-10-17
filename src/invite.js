@@ -230,6 +230,7 @@ async function mintCurrentPact() {
   renderPact(state.pact);
   try {
     const transactionHash = await mintPactAgreement(state.wallet, state.pact);
+    state.pactBusy = false;
     await postPactAction("confirmMint", { transactionHash });
     await loadPact();
   } catch (error) {
