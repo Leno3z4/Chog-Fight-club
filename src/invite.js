@@ -17,6 +17,14 @@ const state = {
   battleBusy: false,
   pact: null,
   pactBusy: false,
+  realtimeSocket: null,
+  realtimeState: null,
+  realtimeTimer: null,
+  realtimeConnecting: false,
+  realtimeLastSync: 0,
+  realtimeConfigAlertShown: false,
+  keys: new Set(),
+  pendingAction: null,
 };
 const alertNode = $("#invite-page-alert");
 const isBattleLobbyPage = window.location.pathname.endsWith("/battle-lobby.html");
@@ -139,56 +147,246 @@ function renderSummary(invite) {
     : `Your readiness: ${viewer(invite).ready ? "confirmed" : "not confirmed"}. Opponent readiness: ${opponent(invite).ready ? "confirmed" : "waiting"}.`;
   updateTimeline(invite);
 }
-function renderBattle(battle) {
-  state.battle = battle;
+function renderBattle(room, viewerRole = state.invite?.viewerRole) {
+  if (!isBattleLobbyPage) return;
+  state.realtimeState = room || null;
   const card = $("#combat-card");
-  if (!card || !isBattleLobbyPage) return;
-  const relevant = ["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(battle?.inviteStatus)
-    || ["IN_BATTLE", "FINISHED"].includes(battle?.status);
+  if (!card) return;
+  const invite = state.invite;
+  const phase = room?.phase || "LOBBY";
+  const matchStatus = room?.status || "LOBBY";
+  const players = room?.players || {};
+  const relevant = Boolean(invite);
   card.hidden = !relevant;
   if (!relevant) return;
-  $("#combat-status").textContent = statusText(battle.status || battle.inviteStatus);
-  const start = $("#combat-start");
-  start.hidden = !(battle.inviteStatus === "READY" && battle.status === "WAITING_FOR_READY" && state.pact?.minted);
-  start.disabled = state.battleBusy;
-  const moves = $("#combat-moves");
-  moves.hidden = !(battle.status === "IN_BATTLE" && battle.yourTurn);
-  for (const button of moves.querySelectorAll("[data-battle-move]")) {
-    button.disabled = state.battleBusy || (button.dataset.battleMove === "special"
-      && Number((battle.viewerRole === "challenger" ? battle.challenger?.energy : battle.opponent?.energy) || 0) <= 0);
-  }
-  if (battle.status === "WAITING_FOR_READY") {
-    $("#combat-message").textContent = battle.inviteStatus === "READY"
-      ? (state.pact?.minted ? "The agreement NFT is minted. Start the battle when both players have arrived." : "Both players are ready. Sign and mint the agreement NFT before combat can begin.")
-      : "Both players must confirm readiness first.";
-  } else if (battle.status === "IN_BATTLE") {
-    $("#combat-message").textContent = battle.yourTurn
-      ? "Your turn. Choose a move. Your opponent will see the resolved state automatically."
-      : "Waiting for your opponent's move. The room will update automatically.";
-  } else if (battle.status === "FINISHED") {
-    $("#combat-message").textContent = battle.youWon ? "You won. The result is recorded; the Pact NFT and condition-fulfilment flow are the next integration." : "You lost this match. The result is recorded; the agreed condition remains to be fulfilled.";
+
+  const bothReady = Boolean(invite.challenger?.ready && invite.opponent?.ready);
+  const startButton = $("#combat-start");
+  startButton.hidden = !(invite.status === "READY" && bothReady && state.pact?.minted && phase !== "IN_BATTLE" && matchStatus !== "FINISHED");
+  startButton.disabled = state.battleBusy || state.realtimeConnecting;
+  startButton.textContent = state.battleBusy ? "Entering arena…" : "Enter live arena ↗";
+
+  if (matchStatus === "FINISHED") {
+    const won = room?.winnerDiscordId === state.session?.discordId;
+    $("#combat-status").textContent = won ? "VICTORY" : "MATCH OVER";
+    $("#combat-message").textContent = won
+      ? "You won. The winner can now settle the result and later confirm fulfilment of the agreement."
+      : "The match is over. The winner must settle the result before the condition can be marked fulfilled.";
+  } else if (phase === "IN_BATTLE") {
+    $("#combat-status").textContent = state.realtimeSocket?.readyState === WebSocket.OPEN ? "LIVE" : "RECONNECTING";
+    $("#combat-message").textContent = "Real-time combat is live. Move freely, time your attacks, and dash to avoid hits.";
+  } else if (invite.status === "PENDING_ACCEPTANCE") {
+    $("#combat-status").textContent = "WAITING FOR RIVAL";
+    $("#combat-message").textContent = `You are in the lobby. Waiting for @${invite.opponent?.username || "your rival"} to join.`;
+  } else if (invite.status === "TERMS_ACCEPTED") {
+    $("#combat-status").textContent = "AGREEMENT ROOM";
+    $("#combat-message").textContent = "Your rival joined. Write a demand each, then both accept the exact pair before minting the Pact.";
+  } else if (invite.status === "READY" && !state.pact?.minted) {
+    $("#combat-status").textContent = "PACT REQUIRED";
+    $("#combat-message").textContent = "Both demands are accepted. Sign and mint the soulbound Pact NFT before entering combat.";
+  } else if (invite.status === "READY" && !bothReady) {
+    $("#combat-status").textContent = "READY CHECK";
+    $("#combat-message").textContent = "The agreement is minted. Both players need to confirm readiness before entering the live arena.";
   } else {
+    $("#combat-status").textContent = "LOBBY";
     $("#combat-message").textContent = "Waiting for both players.";
   }
-  const renderFighter = (prefix, fighter) => {
-    const dna = fighter?.dna;
-    const maxHp = Math.max(1, Number(dna?.stats?.maxHp || fighter?.hp || 1));
-    const hp = Math.max(0, Number(fighter?.hp || 0));
-    const pct = Math.max(0, Math.min(100, Math.round(hp / maxHp * 100)));
-    $(`#combat-${prefix}-name`).textContent = fighter?.username || (prefix === "challenger" ? "Challenger" : "Opponent");
-    $(`#combat-${prefix}-hp-text`).textContent = `${hp} / ${maxHp} HP`;
-    $(`#combat-${prefix}-hp-bar`).style.width = `${pct}%`;
-    $(`#combat-${prefix}-dna`).textContent = dna
-      ? `${dna.name} · ${dna.tier} · ${dna.ability}`
-      : fighter?.tokenId ? `Chog #${fighter.tokenId}` : "Waiting for battle data";
-    $(`#combat-${prefix}-energy`).textContent = `Energy: ${fighter?.energy ?? "—"}${fighter?.guard ? " · Guard up" : ""}`;
+
+  const renderFighter = (role) => {
+    const fighter = players[role] || {};
+    const hp = Math.max(0, Number(fighter.hp || 0));
+    const maxHp = Math.max(1, Number(fighter.maxHp || 100));
+    const percent = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
+    $(`#combat-${role}-name`).textContent = fighter.username || (role === "challenger" ? invite.challenger?.username : invite.opponent?.username) || (role === "challenger" ? "Challenger" : "Opponent");
+    $(`#combat-${role}-hp-text`).textContent = fighter.hp == null ? "Waiting" : `${hp} / ${maxHp} HP`;
+    $(`#combat-${role}-hp-bar`).style.width = `${fighter.hp == null ? 0 : percent}%`;
+    $(`#combat-${role}-dna`).textContent = fighter.tier
+      ? `${fighter.tier} · ${fighter.ability || "Fighter"} · ATK ${fighter.attack || "—"}`
+      : "Fighter stats load when the match begins";
+    $(`#combat-${role}-energy`).textContent = fighter.connected
+      ? "Connected to room"
+      : (phase === "IN_BATTLE" ? "Reconnecting…" : "In lobby");
   };
-  renderFighter("challenger", battle.challenger);
-  renderFighter("opponent", battle.opponent);
-  const log = $("#combat-log");
-  log.innerHTML = (battle.log || []).slice(-24).map((entry) => `<li>${escapeHtml(entry.text || "Battle update")}</li>`).join("")
-    || "<li>Battle events will appear here.</li>";
+  renderFighter("challenger");
+  renderFighter("opponent");
+
+  const activity = $("#combat-log");
+  activity.innerHTML = (room?.log || []).slice(-18).map((entry) => `<li>${escapeHtml(entry.text || "Arena update")}</li>`).join("")
+    || "<li>You're in the lobby. The match activity will appear here.</li>";
+  drawRealtimeArena(room, viewerRole);
+
+  if (room) {
+    const invite = state.invite;
+    state.battle = {
+      status: matchStatus === "FINISHED" ? "FINISHED" : phase === "IN_BATTLE" ? "IN_BATTLE" : "WAITING_FOR_READY",
+      inviteStatus: invite.status,
+      youWon: room.winnerDiscordId === state.session?.discordId,
+      challenger: {
+        username: players.challenger?.username || invite.challenger?.username,
+        tokenId: invite.challenger?.tokenId,
+        hp: players.challenger?.hp,
+        dna: players.challenger ? { name: invite.challenger?.username, tier: players.challenger.tier, ability: players.challenger.ability, stats: { maxHp: players.challenger.maxHp } } : null,
+      },
+      opponent: {
+        username: players.opponent?.username || invite.opponent?.username,
+        tokenId: invite.opponent?.tokenId,
+        hp: players.opponent?.hp,
+        dna: players.opponent ? { name: invite.opponent?.username, tier: players.opponent.tier, ability: players.opponent.ability, stats: { maxHp: players.opponent.maxHp } } : null,
+      },
+      log: room.log || [],
+    };
+    if (state.pact) renderPact(state.pact);
+  }
 }
+function drawRealtimeArena(room, viewerRole) {
+  const canvas = $("#realtime-arena");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  ctx.clearRect(0, 0, width, height);
+  const gradient = ctx.createLinearGradient(0, 0, width, height);
+  gradient.addColorStop(0, "#160c2d");
+  gradient.addColorStop(1, "#091b2b");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = "rgba(179,156,255,.12)";
+  ctx.lineWidth = 1;
+  for (let x = 20; x < width; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+  }
+  for (let y = 20; y < height; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+  }
+  ctx.strokeStyle = "rgba(255,214,75,.55)";
+  ctx.lineWidth = 3;
+  ctx.strokeRect(18, 18, width - 36, height - 36);
+  ctx.setLineDash([8, 10]);
+  ctx.beginPath(); ctx.moveTo(width / 2, 30); ctx.lineTo(width / 2, height - 30); ctx.stroke();
+  ctx.setLineDash([]);
+  if (!room || room.phase !== "IN_BATTLE" || !room.players?.challenger?.hp && !room.players?.opponent?.hp) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffe58a";
+    ctx.font = "800 28px system-ui";
+    ctx.fillText(room?.status === "FINISHED" ? "MATCH COMPLETE" : "LOBBY", width / 2, height / 2 - 8);
+    ctx.fillStyle = "#d1c3ed";
+    ctx.font = "16px system-ui";
+    const sub = room?.status === "FINISHED" ? "Check the match result and Pact status below." : "The arena opens after both players accept the demands and mint the Pact.";
+    ctx.fillText(sub, width / 2, height / 2 + 24);
+    return;
+  }
+  for (const [role, color, accent] of [["challenger", "#a78bfa", "#e9ddff"], ["opponent", "#ff9c5c", "#ffdfc9"]]) {
+    const p = room.players[role];
+    if (!p || !Number.isFinite(Number(p.x)) || !Number.isFinite(Number(p.y))) continue;
+    const radius = 22;
+    ctx.save();
+    ctx.fillStyle = p.flashUntil > Date.now() ? "#fff2a8" : color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = p.flashUntil > Date.now() ? 24 : 12;
+    ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, Math.PI * 2); ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = "#130d22";
+    ctx.beginPath(); ctx.arc(p.x - 6, p.y - 3, 3.3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(p.x + 6, p.y - 3, 3.3, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.stroke();
+    ctx.restore();
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#fff";
+    ctx.font = "700 13px system-ui";
+    ctx.fillText(p.username || role, p.x, p.y - 34);
+    const hpWidth = 78;
+    ctx.fillStyle = "rgba(0,0,0,.5)";
+    ctx.fillRect(p.x - hpWidth / 2, p.y + 30, hpWidth, 7);
+    ctx.fillStyle = color;
+    ctx.fillRect(p.x - hpWidth / 2, p.y + 30, hpWidth * Math.max(0, Number(p.hp) / Math.max(1, Number(p.maxHp))), 7);
+    if (!p.connected) {
+      ctx.fillStyle = "#ffcf66";
+      ctx.font = "10px system-ui";
+      ctx.fillText("RECONNECTING", p.x, p.y + 52);
+    }
+  }
+  if (room.status === "FINISHED") {
+    ctx.fillStyle = "rgba(4,7,17,.78)";
+    ctx.fillRect(0, height / 2 - 38, width, 76);
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#ffe58a";
+    ctx.font = "900 30px system-ui";
+    const winnerRole = room.winnerDiscordId === state.invite?.challenger?.discordId ? "Challenger wins" : room.winnerDiscordId === state.invite?.opponent?.discordId ? "Opponent wins" : "Match complete";
+    ctx.fillText(winnerRole, width / 2, height / 2 + 10);
+  }
+}
+function paintInputFrame() {
+  const socket = state.realtimeSocket;
+  if (!socket || socket.readyState !== WebSocket.OPEN) return;
+  const room = state.realtimeState;
+  const inBattle = room?.phase === "IN_BATTLE" && room?.status === "IN_BATTLE";
+  if (!inBattle) {
+    if (Date.now() - state.realtimeLastSync >= 500) {
+      state.realtimeLastSync = Date.now();
+      socket.send(JSON.stringify({ type: "sync" }));
+    }
+    return;
+  }
+  let x = 0; let y = 0;
+  if (state.keys.has("a") || state.keys.has("arrowleft") || state.keys.has("left")) x -= 1;
+  if (state.keys.has("d") || state.keys.has("arrowright") || state.keys.has("right")) x += 1;
+  if (state.keys.has("w") || state.keys.has("arrowup") || state.keys.has("up")) y -= 1;
+  if (state.keys.has("s") || state.keys.has("arrowdown") || state.keys.has("down")) y += 1;
+  socket.send(JSON.stringify({ type: "input", x, y, action: state.pendingAction || undefined }));
+  state.pendingAction = null;
+}
+async function connectRealtime() {
+  if (!isBattleLobbyPage || !state.session || !state.id || state.realtimeConnecting
+    || (state.realtimeSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(state.realtimeSocket.readyState))) return;
+  const wsBase = String(import.meta.env.VITE_ARENA_REALTIME_URL || "").trim();
+  if (!wsBase) {
+    if (!state.realtimeConfigAlertShown) {
+      showAlert("Realtime service URL is not configured yet. Deploy the Cloudflare realtime service and set VITE_ARENA_REALTIME_URL on the Vercel frontend.");
+      state.realtimeConfigAlertShown = true;
+    }
+    renderBattle(state.realtimeState || { phase: "LOBBY", status: "LOBBY", players: {}, log: [] });
+    return;
+  }
+  state.realtimeConnecting = true;
+  try {
+    const ticketPayload = await requestJson(`/api/realtime-ticket?id=${encodeURIComponent(state.id)}`);
+    const websocketUrl = new URL("/room", wsBase.replace(/\/$/, "") + "/");
+    websocketUrl.protocol = websocketUrl.protocol === "https:" ? "wss:" : "ws:";
+    websocketUrl.searchParams.set("ticket", ticketPayload.ticket);
+    const socket = new WebSocket(websocketUrl.toString());
+    state.realtimeSocket = socket;
+    socket.addEventListener("open", () => {
+      state.realtimeConnecting = false;
+      state.realtimeConfigAlertShown = false;
+      clearAlert();
+      if (state.realtimeTimer) clearInterval(state.realtimeTimer);
+      state.realtimeTimer = setInterval(paintInputFrame, 50);
+      socket.send(JSON.stringify({ type: "sync" }));
+    });
+    socket.addEventListener("message", (event) => {
+      let payload;
+      try { payload = JSON.parse(event.data); } catch { return; }
+      if (payload.type === "state") renderBattle(payload.state, payload.viewerRole);
+    });
+    socket.addEventListener("error", () => {
+      if (!state.realtimeConfigAlertShown) {
+        showAlert("The realtime connection failed. Check the Cloudflare worker deployment and allowed frontend origin.");
+        state.realtimeConfigAlertShown = true;
+      }
+    });
+    socket.addEventListener("close", () => {
+      state.realtimeConnecting = false;
+      state.realtimeSocket = null;
+      if (state.realtimeTimer) clearInterval(state.realtimeTimer);
+      state.realtimeTimer = null;
+    });
+  } catch (error) {
+    state.realtimeConnecting = false;
+    if (!state.realtimeConfigAlertShown) showAlert(error?.message || "Could not connect to the realtime room.");
+    state.realtimeConfigAlertShown = true;
+  }
+}
+
 function renderPact(pact) {
   state.pact = pact;
   const card = $("#pact-card");
@@ -248,7 +446,7 @@ async function loadPact() {
   if (!["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(state.invite.status)) return;
   const payload = await requestJson(`/api/pacts?id=${encodeURIComponent(state.id)}`);
   renderPact(payload.pact);
-  if (state.battle) renderBattle(state.battle);
+  if (state.realtimeState) renderBattle(state.realtimeState);
 }
 async function postPactAction(action, extra = {}) {
   if (state.pactBusy) return;
@@ -299,28 +497,30 @@ async function mintCurrentPact() {
 }
 async function loadBattle() {
   if (!isBattleLobbyPage || !state.session || !state.id) return;
-  const payload = await requestJson(`/api/battle?id=${encodeURIComponent(state.id)}`);
-  renderBattle(payload.battle);
+  await connectRealtime();
 }
 async function postBattleAction(action, extra = {}) {
   if (state.battleBusy) return;
   state.battleBusy = true;
   clearAlert();
-  renderBattle(state.battle || { inviteStatus: state.invite?.status, status: "WAITING_FOR_READY" });
   try {
-    const payload = await requestJson("/api/battle", {
+    if (action !== "start") throw new Error("Unsupported battle action.");
+    if (!state.pact?.minted) throw new Error("Both players must mint the Pact NFT before combat can begin.");
+    if (!state.invite?.challenger?.ready || !state.invite?.opponent?.ready) throw new Error("Both players must confirm readiness first.");
+    await requestJson("/api/battle", {
       method: "POST",
-      body: JSON.stringify({ action, id: state.id, ...extra }),
+      body: JSON.stringify({ action: "start", id: state.id }),
     });
-    renderBattle(payload.battle);
-    if (payload.battle?.status === "FINISHED") await loadInvite();
+    await loadInvite();
+    await connectRealtime();
   } catch (error) {
-    showAlert(error?.message || "The battle action failed.");
+    showAlert(error?.message || "Could not enter the live arena.");
   } finally {
     state.battleBusy = false;
-    if (state.battle) renderBattle(state.battle);
+    renderBattle(state.realtimeState || { phase: "LOBBY", status: "LOBBY", players: {}, log: [] });
   }
 }
+
 function updateBilateralControls() {
   const own = $("#own-demand-text");
   const save = $("#save-demand-button");
@@ -416,9 +616,10 @@ async function loadInvite() {
     window.location.replace(`/battle-lobby.html?id=${encodeURIComponent(state.id)}`);
     return;
   }
-  if (isBattleLobbyPage && acceptedStatuses.includes(payload.invite.status)) {
-    await loadBattle();
-    await loadPact();
+  if (isBattleLobbyPage) {
+    await connectRealtime();
+    if (acceptedStatuses.includes(payload.invite.status)) await loadPact();
+    if (state.realtimeState) renderBattle(state.realtimeState);
   }
 }
 async function loadChogs() {
@@ -507,11 +708,7 @@ $("#pact-fulfill-button").addEventListener("click", async () => {
     if (state.pact) renderPact(state.pact);
   }
 });
-$("#combat-moves").addEventListener("click", (event) => {
-  const button = event.target.closest("[data-battle-move]");
-  if (!button || state.battleBusy) return;
-  postBattleAction("move", { move: button.dataset.battleMove });
-});
+
 $("#accept-condition-check").addEventListener("change", updateAcceptButton);
 $("#save-demand-button")?.addEventListener("click", async () => {
   if (state.busy) return;
