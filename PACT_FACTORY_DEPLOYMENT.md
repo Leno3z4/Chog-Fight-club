@@ -11,7 +11,7 @@ The factory requires both players to sign the same EIP-712 agreement. The featur
 Compile with Solidity **0.8.24**, optimizer enabled, 200 runs, and **via-IR enabled** (the factory uses IR compilation to avoid stack-depth limits).
 
 1. `chogCollection_`: `0xc96d31f8626c6d03fae5dcd3d61e3fb9f4a73763`
-2. `matchResolver_`: a dedicated resolver wallet address. This address is immutable and is the only address permitted to call `settleMatch`. Do not use an everyday wallet. The server must keep any resolver private key as a Cloudflare secret and submit results only after validating the server-authoritative match. The current battle API does not yet automatically submit settlement transactions; that is a remaining integration task.
+2. `matchResolver_`: a dedicated resolver wallet address. This address is immutable and is the only address permitted to call `settleMatch`. Do not use an everyday wallet. The server stores the resolver private key as the Cloudflare secret `PACT_RESOLVER_PRIVATE_KEY`; `PACT_RESOLVER_ADDRESS` must match the factory constructor. The winner can trigger settlement, but the backend uses the resolver key only after checking the authoritative battle row. The resolver wallet needs MON for gas.
 
 The contract has no owner, no upgrade function, no arbitrary metadata editor, and no way to transfer or approve a Pact NFT. It checks current ownership of each selected Chog when minting; it never moves or approves a Chog.
 
@@ -35,4 +35,4 @@ The contract has no owner, no upgrade function, no arbitrary metadata editor, an
 
 ## Current limitation
 
-The website now contains the EIP-712 signature and mint flow, plus server verification of the mint event. On-chain result settlement and winner-confirmed fulfilment still need their transaction handlers connected and tested end-to-end before production deployment.
+The website now contains the EIP-712 signature and mint flow, server verification of mint/settlement/fulfilment events, and winner-triggered settlement plus wallet-signed fulfilment. These still need end-to-end testing against a deployed factory before production deployment.
