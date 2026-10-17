@@ -806,6 +806,44 @@ $("#lobby-chog-grid").addEventListener("click", (event) => {
   renderChogs();
 });
 
+function isTextEntryTarget(target) {
+  return target instanceof HTMLElement && (
+    target.isContentEditable
+    || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName)
+  );
+}
+document.addEventListener("keydown", (event) => {
+  if (isTextEntryTarget(event.target)) return;
+  const key = event.key.toLowerCase();
+  const controlKeys = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "shift", "e"];
+  if (!controlKeys.includes(key)) return;
+  event.preventDefault();
+  const wasDown = state.keys.has(key);
+  state.keys.add(key);
+  if (wasDown || state.realtimeState?.phase !== "IN_BATTLE" || state.realtimeState?.status !== "IN_BATTLE") return;
+  if (key === " ") state.pendingAction = "attack";
+  if (key === "e") state.pendingAction = "special";
+  if (key === "shift") state.pendingAction = "dash";
+});
+document.addEventListener("keyup", (event) => state.keys.delete(event.key.toLowerCase()));
+window.addEventListener("blur", () => state.keys.clear());
+const realtimeCanvas = $("#realtime-arena");
+if (realtimeCanvas) realtimeCanvas.addEventListener("pointerdown", () => realtimeCanvas.focus());
+document.querySelectorAll("[data-arena-key]").forEach((button) => {
+  const key = button.dataset.arenaKey;
+  const press = (event) => { event.preventDefault(); state.keys.add(key); };
+  const release = (event) => { event.preventDefault(); state.keys.delete(key); };
+  button.addEventListener("pointerdown", press);
+  button.addEventListener("pointerup", release);
+  button.addEventListener("pointercancel", release);
+  button.addEventListener("pointerleave", release);
+});
+document.querySelectorAll("[data-arena-action]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (state.realtimeState?.phase !== "IN_BATTLE" || state.realtimeState?.status !== "IN_BATTLE") return;
+    state.pendingAction = button.dataset.arenaAction;
+  });
+});
 async function init() {
   try {
     const sessionResponse = await fetch("/api/discord/session", { credentials: "same-origin", headers: { accept: "application/json" } });
