@@ -78,5 +78,5 @@ After both deployments and variables are set:
 4. Connect the Monad wallet and sign the wallet-link message.
 5. Open **Invite to battle**, type at least two characters of the opponent's Discord username, and select them from the results. Create the invitation and verify it appears in the sent list. Open it as the intended Discord user to test acceptance.
 
-A player becomes searchable after they sign in to Chog Battle Arena once; their Discord identity is then synchronized into D1. Search matches the start of their Discord username or display name. Discord IDs stay internal for identity validation. After acceptance, both players use the same `/battle-lobby.html?id=...` room link. The shared lobby exists, but synchronized combat and Pact NFT minting are still separate tasks.
+Players become searchable after signing in once; search matches the start of their Discord username or display name. If a target has not joined yet, choose the exact-username invite fallback. The invite remains pending for that handle until the matching Discord account accepts, when its stable ID is bound internally. After acceptance, both players use the same `/battle-lobby.html?id=...` room link. The shared lobby exists, but synchronized combat and Pact NFT minting are still separate tasks.
 
