@@ -269,6 +269,7 @@ async function loadInvites(view) {
 
 const opponentSearch = $("#opponent-search");
 const opponentIdInput = $("#opponent-discord-id");
+const opponentUsernameTarget = $("#opponent-username-target");
 const opponentResults = $("#opponent-search-results");
 const opponentSelected = $("#opponent-selected");
 let playerSearchTimer = null;
@@ -276,10 +277,13 @@ let playerSearchSequence = 0;
 
 function chooseOpponent(player) {
   state.selectedOpponent = player;
-  opponentIdInput.value = player.discordId;
+  opponentIdInput.value = player.discordId || "";
+  opponentUsernameTarget.value = player.username;
   opponentSearch.value = `@${player.username}`;
   opponentResults.hidden = true;
-  opponentSelected.textContent = `Selected: ${player.displayName} (@${player.username})`;
+  opponentSelected.textContent = player.unregistered
+    ? `Invite @${player.username}. They can claim it after signing in with that exact Discord username.`
+    : `Selected: ${player.displayName} (@${player.username})`;
   opponentSelected.dataset.kind = "success";
 }
 
@@ -302,7 +306,11 @@ async function searchArenaPlayers(query, sequence) {
     if (!response.ok) throw new Error(payload.error || "Player search failed.");
     const players = Array.isArray(payload.players) ? payload.players : [];
     if (!players.length) {
-      opponentResults.innerHTML = '<div class="player-search-empty">No matching players yet. Ask them to open Chog Battle Arena once, then search again.</div>';
+      const handle = query.replace(/^@/, "").toLowerCase();
+      const validHandle = /^[a-z0-9][a-z0-9._]{0,30}[a-z0-9_]$/.test(handle);
+      opponentResults.innerHTML = '<div class="player-search-empty">No matching Arena account found.</div>' + (validHandle
+        ? `<button type="button" class="player-search-option player-search-invite-handle" data-invite-username="${escapeHtml(handle)}"><span class="player-search-avatar">@</span><span class="player-search-name"><strong>Invite @${escapeHtml(handle)}</strong><small>They can claim this invite after signing in with that username.</small></span><span class="player-search-select">Invite</span></button>`
+        : '<div class="player-search-empty">To invite someone who has not joined yet, enter their exact Discord username (not their display name).</div>');
       return;
     }
     opponentResults.innerHTML = players.map((player) => `
@@ -324,6 +332,7 @@ async function searchArenaPlayers(query, sequence) {
 opponentSearch.addEventListener("input", () => {
   state.selectedOpponent = null;
   opponentIdInput.value = "";
+  opponentUsernameTarget.value = "";
   opponentSelected.textContent = "Choose a player from the results.";
   opponentSelected.dataset.kind = "";
   if (playerSearchTimer) window.clearTimeout(playerSearchTimer);
@@ -333,6 +342,16 @@ opponentSearch.addEventListener("input", () => {
 });
 
 opponentResults.addEventListener("click", (event) => {
+  const inviteHandle = event.target.closest("[data-invite-username]");
+  if (inviteHandle) {
+    chooseOpponent({
+      discordId: "",
+      username: inviteHandle.dataset.inviteUsername,
+      displayName: `@${inviteHandle.dataset.inviteUsername}`,
+      unregistered: true,
+    });
+    return;
+  }
   const option = event.target.closest("[data-select-player]");
   if (!option) return;
   chooseOpponent({
@@ -358,7 +377,9 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
       throw new Error("Connect and sign your wallet-link message before creating a challenge.");
     }
     if (!state.selectedTokenId) throw new Error("Choose your main Chog in My Chogs first.");
-    if (!state.selectedOpponent || !opponentIdInput.value) throw new Error("Search for a player and select them from the results first.");
+    if (!state.selectedOpponent || !opponentUsernameTarget.value || (!opponentIdInput.value && !state.selectedOpponent.unregistered)) {
+      throw new Error("Search for a player and select them from the results first.");
+    }
     const response = await fetch("/api/invites", {
       method: "POST",
       credentials: "same-origin",
@@ -366,6 +387,7 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
       body: JSON.stringify({
         action: "create",
         opponentDiscordId: opponentIdInput.value,
+        opponentUsername: opponentUsernameTarget.value,
         challengerTokenId: String(state.selectedTokenId),
         condition: $("#invite-condition").value,
         agreeToCondition: $("#invite-condition-agree").checked,
@@ -389,6 +411,7 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
     loadInvites("outgoing");
     opponentSearch.value = "";
     opponentIdInput.value = "";
+    opponentUsernameTarget.value = "";
     opponentResults.hidden = true;
     state.selectedOpponent = null;
     opponentSelected.textContent = "Choose another player to send a challenge.";
