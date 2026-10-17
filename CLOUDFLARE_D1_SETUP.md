@@ -10,7 +10,7 @@ Your database details are:
 - Binding: `CHOG_DB`
 - Database ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`
 
-Open **Cloudflare Dashboard → Workers & Pages → D1 SQL Database → chog-fight-club → Console**. Copy all SQL from [`migrations/0001_challenge_invites.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/main/migrations/0001_challenge_invites.sql), paste it in Console, and click **Execute**.
+Open **Cloudflare Dashboard → Workers & Pages → D1 SQL Database → chog-fight-club → Console**. Run these migrations one at a time, in order. Copy all SQL from [`migrations/0001_challenge_invites.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/main/migrations/0001_challenge_invites.sql), paste it in Console, and click **Execute**. Then do the same with [`migrations/0002_player_directory.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/main/migrations/0002_player_directory.sql). The second migration enables username search.
 
 ## 2. Bind D1 to the Pages backend
 
@@ -76,7 +76,7 @@ After both deployments and variables are set:
 2. Click **Connect Discord**; the URL should remain on the Vercel domain until Discord's own authorization page opens.
 3. After authorization, Discord should return to the Vercel callback and send you to the profile.
 4. Connect the Monad wallet and sign the wallet-link message.
-5. Create an invitation and verify it appears in the sent list. Open it as the intended Discord user to test acceptance.
+5. Open **Invite to battle**, type at least two characters of the opponent's Discord username, and select them from the results. Create the invitation and verify it appears in the sent list. Open it as the intended Discord user to test acceptance.
 
-The invite API does not yet launch a synchronized PvP match or mint a Pact NFT. Those are separate remaining tasks.
+A player becomes searchable after they sign in to Chog Battle Arena once; their Discord identity is then synchronized into D1. Search matches the start of their Discord username or display name. Discord IDs stay internal for identity validation. After acceptance, both players use the same `/battle-lobby.html?id=...` room link. The shared lobby exists, but synchronized combat and Pact NFT minting are still separate tasks.
 
