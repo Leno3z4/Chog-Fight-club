@@ -131,6 +131,13 @@ export class ArenaRoom {
     }
     const battle = await this.env.CHOG_DB.prepare("SELECT * FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(claims.inviteId).first();
     const state = await this._refreshState(invite, battle);
+    // Keep one active socket per participant to avoid duplicate tabs sending competing controls.
+    for (const existing of this.ctx.getWebSockets(claims.role)) {
+      const previous = existing.deserializeAttachment();
+      if (previous?.discordId === claims.discordId) {
+        try { existing.close(4001, "A newer Arena connection replaced this session."); } catch { /* already closed */ }
+      }
+    }
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
@@ -151,6 +158,10 @@ export class ArenaRoom {
   async webSocketMessage(socket, rawMessage) {
     const attachment = socket.deserializeAttachment();
     if (!attachment?.inviteId || !attachment.role) return;
+    const now = Date.now();
+    if (attachment.lastMessageAt && now - attachment.lastMessageAt < 25) return;
+    attachment.lastMessageAt = now;
+    socket.serializeAttachment(attachment);
     const message = parseJSON(String(rawMessage), null);
     if (!message || typeof message !== "object") return;
     let state = await this._readState();
@@ -202,6 +213,7 @@ export class ArenaRoom {
     const state = await this._readState();
     if (!state?.players?.[attachment.role]) return;
     state.players[attachment.role].connected = false;
+    state.players[attachment.role].input = { x: 0, y: 0 };
     state.log.push({ text: `@${state.players[attachment.role].username} disconnected.`, at: Date.now() });
     this._trimLog(state);
     await this._persist(state, true);
