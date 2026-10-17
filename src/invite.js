@@ -353,6 +353,8 @@ async function connectAndLoadWallet() {
     $("#fighter-prompt").textContent = "Wallet linked to your Discord identity. Loading your Chogs…";
     await loadChogs();
     updateAcceptButton();
+    if (state.pact) renderPact(state.pact);
+    if (state.battle) renderBattle(state.battle);
     if (state.invite?.viewerRole === "opponent" && state.invite.status === "PENDING_ACCEPTANCE") $("#accept-card").hidden = false;
   } catch (error) {
     if (error?.code === 4001) showAlert("Wallet signature cancelled. You have not accepted the challenge.");
@@ -507,6 +509,8 @@ async function init() {
           state.wallet = linkedWallet;
           $("#link-wallet").textContent = `${state.wallet.slice(0,6)}…${state.wallet.slice(-4)} ✓`;
           await loadChogs();
+          if (state.pact) renderPact(state.pact);
+          if (state.battle) renderBattle(state.battle);
         } else {
           state.wallet = null;
           $("#link-wallet").textContent = "Connect and verify wallet ↗";
