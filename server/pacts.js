@@ -270,8 +270,14 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
       throw new PactApiError("This signature came from a different wallet.", { status: 403, code: "PACT_SIGNER_MISMATCH" });
     }
     const column = isChallenger ? "challenger_pact_signature" : "opponent_pact_signature";
-    await db.prepare(`UPDATE chog_challenge_invites SET ${column} = ?1, updated_at = ?2 WHERE id = ?3 AND pact_id IS NULL`)
-      .bind(body.signature, new Date().toISOString(), id).run();
+    const saved = await db.prepare(`UPDATE chog_challenge_invites SET ${column} = ?1, updated_at = ?2
+      WHERE id = ?3 AND pact_id IS NULL AND pact_tx_hash IS NULL AND status = 'READY'
+        AND challenger_terms_accepted = 1 AND opponent_terms_accepted = 1
+        AND terms_hash = ?4`)
+      .bind(body.signature, new Date().toISOString(), id, row.terms_hash).run();
+    if (!saved.meta || saved.meta.changes !== 1) {
+      throw new PactApiError("The agreement changed while you were signing. Refresh the lobby and review the current demands.", { status: 409, code: "PACT_TERMS_CHANGED" });
+    }
     row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
     return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
   }
