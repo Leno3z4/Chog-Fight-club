@@ -74,15 +74,15 @@ class MockD1 {
   }
   async all(sql, v) {
     const normalized = sql.replace(/\s+/g, " ").trim();
-    const match = normalized.match(/^SELECT \* FROM chog_challenge_invites WHERE (opponent_discord_id|challenger_discord_id) = \?1 ORDER BY created_at DESC LIMIT 50$/);
-    if (!match) throw new Error("MockD1.all received unexpected SQL: " + normalized);
-    return {
-      results: [...this.rows.values()]
-        .filter((row) => row[match[1]] === v[0])
-        .sort((a, b) => b.created_at.localeCompare(a.created_at))
-        .slice(0, 50)
-        .map(clone),
-    };
+    let rows;
+    if (normalized.startsWith("SELECT * FROM chog_challenge_invites WHERE opponent_discord_id = ?1 OR opponent_discord_id = ?2")) {
+      rows = [...this.rows.values()].filter((row) => row.opponent_discord_id === v[0] || row.opponent_discord_id === v[1]);
+    } else if (normalized.startsWith("SELECT * FROM chog_challenge_invites WHERE challenger_discord_id = ?1")) {
+      rows = [...this.rows.values()].filter((row) => row.challenger_discord_id === v[0]);
+    } else {
+      throw new Error("MockD1.all received unexpected SQL: " + normalized);
+    }
+    return { results: rows.sort((a,b)=>b.created_at.localeCompare(a.created_at)).slice(0,50).map(clone) };
   }
   async run(sql, v) {
     const normalized = sql.replace(/\s+/g, " ").trim();
@@ -114,19 +114,19 @@ class MockD1 {
     throw new Error("MockD1.run received unexpected SQL: " + normalized);
   }
   async updateReturning(sql, v) {
-    if (sql.includes("opponent_username = ?1")) {
-      const row = this.rows.get(v[4]);
-      if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[5]) return null;
+    if (sql.includes("opponent_terms_accepted = 1")) {
+      const row = this.rows.get(v[5]);
+      if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[6]) return null;
       Object.assign(row, {
-        opponent_username: v[0], opponent_wallet: v[1], opponent_token_id: v[2],
-        opponent_terms_accepted: 1, opponent_terms_accepted_at: v[3], status: "TERMS_ACCEPTED", updated_at: v[3],
+        opponent_discord_id: v[0], opponent_username: v[1], opponent_wallet: v[2], opponent_token_id: v[3],
+        opponent_terms_accepted: 1, opponent_terms_accepted_at: v[4], status: "TERMS_ACCEPTED", updated_at: v[4],
       });
       return clone(row);
     }
     if (sql.includes("SET status = 'DECLINED'")) {
-      const row = this.rows.get(v[1]);
-      if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[2]) return null;
-      row.status = "DECLINED"; row.updated_at = v[0];
+      const row = this.rows.get(v[2]);
+      if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[3]) return null;
+      row.opponent_discord_id = v[0]; row.status = "DECLINED"; row.updated_at = v[1];
       return clone(row);
     }
     if (sql.includes("SET status = 'CANCELLED'")) {
