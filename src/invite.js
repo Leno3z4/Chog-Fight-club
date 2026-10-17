@@ -132,7 +132,7 @@ function renderSummary(invite) {
   $("#invite-intro").textContent = isBattleLobbyPage && acceptedStatuses.includes(invite.status)
     ? `This is the shared room for ${invite.challenger.username || "the challenger"} and ${invite.opponent.username || "the opponent"}. Both players return here to confirm readiness and find the next match step.`
     : isRecipient && pending
-      ? `${invite.challenger.username || "A player"} challenged you. Review the condition, pick one of your Chogs, and decide whether to accept.`
+      ? `${invite.challenger.username || "A player"} challenged you. Join the lobby and choose a Chog; you will both write and accept the final demands there.`
       : `Challenge between ${invite.challenger.username || "the challenger"} and ${invite.opponent.username || "the opponent"}. Review the condition and status here.`;
 
   $("#accept-card").hidden = !(isRecipient && pending);
