@@ -453,6 +453,29 @@ document.addEventListener("click", async (event) => {
   }
 });
 
+const notificationButton = $("#enable-notifications");
+if (notificationButton) {
+  if (!("Notification" in window)) {
+    notificationButton.hidden = true;
+  } else if (Notification.permission === "granted") {
+    notificationButton.textContent = "Notifications enabled ✓";
+    notificationButton.disabled = true;
+  }
+  notificationButton.addEventListener("click", async () => {
+    if (!("Notification" in window)) return;
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        notificationButton.textContent = "Notifications enabled ✓";
+        notificationButton.disabled = true;
+      } else {
+        notificationButton.textContent = "In-app alerts only";
+      }
+    } catch {
+      notificationButton.textContent = "In-app alerts only";
+    }
+  });
+}
 const joinNotice = $("#lobby-join-notice");
 const notifiedJoinIds = new Set();
 function showLobbyJoinNotice(invite) {
