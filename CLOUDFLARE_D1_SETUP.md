@@ -44,6 +44,8 @@ In **Pages → Settings → Variables and Secrets**, set:
 - `OPENSEA_API_KEY` — server-side secret used to read Chog metadata for combat stats
 - `PACT_FACTORY_ADDRESS` — set only after the factory is deployed and the website integration has been tested
 - `PACT_CHAIN_ID=143` — Monad mainnet chain ID
+- `PACT_RESOLVER_ADDRESS` — dedicated wallet passed as the factory's immutable resolver
+- `PACT_RESOLVER_PRIVATE_KEY` — the resolver's private key, stored as a Cloudflare secret only; fund this wallet with enough MON for settlement transactions
 
 The matching session secret is required because Vercel signs the Discord session and Cloudflare validates that same signed session before allowing invitation access. Do not share or commit the secret.
 
