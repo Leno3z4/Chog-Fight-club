@@ -142,9 +142,19 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
   if (!user.walletAddress) throw new InviteApiError("Link your wallet before creating an invitation.", { status: 409, code: "WALLET_NOT_LINKED" });
   const opponentDiscordId = String(body.opponentDiscordId ?? "").trim();
   if (!validDiscordId(opponentDiscordId)) {
-    throw new InviteApiError("Enter the opponent's numeric Discord user ID. The recipient must sign in with that exact Discord account.", { status: 400, code: "OPPONENT_DISCORD_ID_INVALID" });
+    throw new InviteApiError("Choose a player from the username search results.", { status: 400, code: "OPPONENT_DISCORD_ID_INVALID" });
   }
   if (opponentDiscordId === user.discordId) throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
+
+  const opponent = await db.prepare(
+    "SELECT discord_id, username, display_name FROM chog_players WHERE discord_id = ?1 LIMIT 1"
+  ).bind(opponentDiscordId).first();
+  if (!opponent) {
+    throw new InviteApiError(
+      "That player is not in the Arena directory yet. Ask them to sign in to Chog Battle Arena once, then search their username again.",
+      { status: 404, code: "PLAYER_NOT_REGISTERED" },
+    );
+  }
 
   const tokenId = String(body.challengerTokenId ?? "");
   const condition = cleanCondition(body.condition);
@@ -169,7 +179,7 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     challenger_wallet: user.walletAddress.toLowerCase(),
     challenger_token_id: tokenId,
     opponent_discord_id: opponentDiscordId,
-    opponent_username: null,
+    opponent_username: String(opponent.display_name || opponent.username || "Discord player"),
     opponent_wallet: null,
     opponent_token_id: null,
     condition_text: condition,
