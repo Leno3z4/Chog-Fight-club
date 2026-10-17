@@ -139,11 +139,11 @@ function renderSummary(invite) {
   $("#ready-card").hidden = invite.status !== "READY";
   $("#cancel-invite").hidden = !(invite.viewerRole === "challenger" && pending);
   $("#accept-invite").disabled = !state.selectedTokenId || !$("#accept-condition-check").checked || !state.wallet;
-  $("#ready-status-chip").textContent = invite.status === "READY" ? "BOTH READY" : "WAITING";
+  $("#ready-status-chip").textContent = invite.challenger.ready && invite.opponent.ready ? "BOTH READY" : "READY CHECK";
   $("#ready-button").disabled = invite.status !== "READY" || Boolean(viewer(invite).ready);
   $("#ready-button").textContent = viewer(invite).ready ? "You're ready ✓" : "I'm ready ↗";
-  $("#ready-explanation").textContent = invite.status === "READY"
-    ? "Both players have confirmed readiness. The shared lobby is synchronized; the live PvP match relay is not enabled yet."
+  $("#ready-explanation").textContent = invite.challenger.ready && invite.opponent.ready
+    ? "Both players are ready. Enter the live arena when your opponent is there."
     : `Your readiness: ${viewer(invite).ready ? "confirmed" : "not confirmed"}. Opponent readiness: ${opponent(invite).ready ? "confirmed" : "waiting"}.`;
   updateTimeline(invite);
 }
