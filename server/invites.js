@@ -367,6 +367,7 @@ export async function handleInviteRequest({
         challenger_terms_accepted_at = ?3, opponent_terms_accepted_at = NULL,
         challenger_ready = 0, opponent_ready = 0, status = 'TERMS_ACCEPTED', updated_at = ?3
         WHERE id = ?4 AND status IN ('TERMS_ACCEPTED','READY') AND pact_id IS NULL
+          AND challenger_pact_signature IS NULL AND opponent_pact_signature IS NULL
         RETURNING *`,
       values: [demand, demandHash, now, id],
       conflictCode: "DEMAND_SAVE_CONFLICT",
