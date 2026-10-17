@@ -441,6 +441,7 @@ function renderPact(pact) {
   } else if (pact.fulfilledOnchain) {
     $("#pact-sign-status").textContent = "Condition fulfilled on-chain. Both soulbound receipts now show the final outcome.";
   }
+  updateBilateralControls();
   const tx = $("#pact-tx-status");
   tx.hidden = !minted;
   tx.textContent = minted
@@ -537,7 +538,9 @@ function updateBilateralControls() {
   const saved = isChallenger ? (invite.challengerDemand || "") : (invite.opponentDemand || "");
   const otherDemand = isChallenger ? (invite.opponentDemand || "") : (invite.challengerDemand || "");
   const ownAccepted = Boolean(isChallenger ? invite.challenger?.termsAccepted : invite.opponent?.termsAccepted);
-  const locked = Boolean(state.pact?.minted || invite.pactMinted || !["TERMS_ACCEPTED", "READY"].includes(invite.status));
+  const signaturesStarted = Boolean(state.pact?.challengerSigned || state.pact?.opponentSigned);
+  const locked = Boolean(state.pact?.minted || signaturesStarted || invite.pactMinted || !["TERMS_ACCEPTED", "READY"].includes(invite.status));
+  own.disabled = locked;
   save.disabled = locked || state.busy || own.value.trim().length < 5 || own.value.trim() === saved.trim();
   accept.disabled = locked || state.busy || state.pactBusy || own.value.trim().length < 5
     || own.value.trim() !== saved.trim() || otherDemand.trim().length < 5 || ownAccepted;
