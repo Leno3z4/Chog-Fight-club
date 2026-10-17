@@ -221,6 +221,8 @@ export async function finishDiscordOAuth({ requestUrl, cookieHeader, env, secure
     discordId: String(user.id),
     isAdmin,
     username: String(user.global_name || user.username || "Discord member"),
+    displayName: String(user.global_name || user.username || "Discord member"),
+    discordUsername: String(user.username || "discord-user"),
     discriminator: String(user.discriminator || ""),
     avatar: user.avatar ? `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png?size=128` : null,
     guildId: settings.guildId,
@@ -255,6 +257,8 @@ export async function readDiscordSession({ cookieHeader, env }) {
     user: {
       discordId: session.discordId,
       username: session.username,
+      displayName: session.displayName || session.username,
+      discordUsername: session.discordUsername || session.username,
       discriminator: session.discriminator,
       avatar: session.avatar,
       roleId: session.roleId,
