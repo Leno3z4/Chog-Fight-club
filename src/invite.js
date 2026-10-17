@@ -14,6 +14,8 @@ const state = {
   busy: false,
 };
 const alertNode = $("#invite-page-alert");
+const isBattleLobbyPage = window.location.pathname.endsWith("/battle-lobby.html");
+const acceptedStatuses = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -58,6 +60,11 @@ function updateTimeline(invite) {
 function renderSummary(invite) {
   state.invite = invite;
   $("#invite-short-id").textContent = invite.id.slice(0, 8).toUpperCase();
+  const roomUrl = new URL(`/battle-lobby.html?id=${encodeURIComponent(invite.id)}`, window.location.origin).toString();
+  const roomPath = $("#battle-room-url");
+  const roomCode = $("#battle-room-id");
+  if (roomPath) roomPath.textContent = roomUrl;
+  if (roomCode) roomCode.textContent = invite.id.slice(0, 8).toUpperCase();
   $("#invite-status-chip").textContent = statusText(invite.status);
   $("#invite-condition").textContent = invite.condition;
   $("#condition-hash").textContent = invite.termsHash || "—";
@@ -72,10 +79,16 @@ function renderSummary(invite) {
 
   const isRecipient = invite.viewerRole === "opponent";
   const pending = invite.status === "PENDING_ACCEPTANCE";
-  $("#invite-headline").innerHTML = isRecipient && pending ? "YOUR RIVAL<br /><span>HAS CALLED.</span>" : "THE CHALLENGE<br /><span>IS ON.</span>";
-  $("#invite-intro").textContent = isRecipient && pending
-    ? `${invite.challenger.username || "A holder"} challenged you. Review the condition, pick one of your Chogs, and decide whether to accept.`
-    : `Challenge between ${invite.challenger.username || "the challenger"} and ${invite.opponent.username || "the opponent"}. The invite stays in this lobby while you check the next step.`;
+  $("#invite-headline").innerHTML = isBattleLobbyPage
+    ? "BATTLE<br /><span>LOBBY.</span>"
+    : isRecipient && pending
+      ? "YOUR RIVAL<br /><span>HAS CALLED.</span>"
+      : "THE CHALLENGE<br /><span>IS ON.</span>";
+  $("#invite-intro").textContent = isBattleLobbyPage && acceptedStatuses.includes(invite.status)
+    ? `This is the shared room for ${invite.challenger.username || "the challenger"} and ${invite.opponent.username || "the opponent"}. Both players return here to confirm readiness and find the next match step.`
+    : isRecipient && pending
+      ? `${invite.challenger.username || "A player"} challenged you. Review the condition, pick one of your Chogs, and decide whether to accept.`
+      : `Challenge between ${invite.challenger.username || "the challenger"} and ${invite.opponent.username || "the opponent"}. Review the condition and status here.`;
 
   $("#accept-card").hidden = !(isRecipient && pending);
   $("#ready-card").hidden = !["TERMS_ACCEPTED", "READY"].includes(invite.status);
@@ -141,6 +154,10 @@ async function loadInvite() {
   }
   const payload = await requestJson(`/api/invites?id=${encodeURIComponent(state.id)}`);
   renderSummary(payload.invite);
+  if (acceptedStatuses.includes(payload.invite.status) && !isBattleLobbyPage) {
+    window.location.replace(`/battle-lobby.html?id=${encodeURIComponent(state.id)}`);
+    return;
+  }
 }
 async function loadChogs() {
   if (!state.wallet) return;
@@ -214,6 +231,7 @@ $("#accept-invite").addEventListener("click", async () => {
       opponentTokenId: String(state.selectedTokenId),
       agreeToCondition: true,
     });
+    window.location.replace(`/battle-lobby.html?id=${encodeURIComponent(state.id)}`);
   } catch {
     // postAction already renders a visible error.
   } finally {
@@ -259,6 +277,18 @@ $("#ready-button").addEventListener("click", async () => {
     else $("#ready-button").disabled = false;
   }
 });
+const copyRoomButton = $("#copy-battle-room");
+if (copyRoomButton) {
+  copyRoomButton.addEventListener("click", async () => {
+    const roomUrl = new URL(`/battle-lobby.html?id=${encodeURIComponent(state.id || "")}`, window.location.origin).toString();
+    try {
+      await navigator.clipboard.writeText(roomUrl);
+      copyRoomButton.textContent = "Copied room link";
+    } catch {
+      showAlert("Copy was blocked. Copy the room link shown above.");
+    }
+  });
+}
 $("#refresh-invite").addEventListener("click", async () => {
   try {
     await loadInvite();
@@ -289,6 +319,7 @@ async function init() {
     state.session = sessionPayload.user;
     state.wallet = null;
     await loadInvite();
+    await fetch("/api/players", { method: "POST", credentials: "same-origin", headers: { accept: "application/json" } }).catch(() => {});
     if (state.wallet && window.ethereum?.request) {
       try {
         const [accounts, chainId] = await Promise.all([
