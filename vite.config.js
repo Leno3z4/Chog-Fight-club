@@ -18,6 +18,7 @@ import {
 import { handleInviteRequest, InviteApiError } from "./server/invites.js";
 import { handleBattleRequest, BattleApiError } from "./server/battle.js";
 import { handlePactRequest, PactApiError } from "./server/pacts.js";
+import { handleRealtimeTicketRequest, RealtimeTicketError } from "./server/realtimeTicket.js";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -29,7 +30,7 @@ export default defineConfig(({ mode }) => {
         server.middlewares.use(async (req, res, next) => {
           const requestUrl = new URL(req.url ?? "/", "http://localhost");
           const pathname = requestUrl.pathname;
-          if (!pathname.startsWith("/api/discord/") && !pathname.startsWith("/api/wallet/") && pathname !== "/api/invites" && pathname !== "/api/battle" && pathname !== "/api/pacts") return next();
+          if (!pathname.startsWith("/api/discord/") && !pathname.startsWith("/api/wallet/") && pathname !== "/api/invites" && pathname !== "/api/battle" && pathname !== "/api/pacts" && pathname !== "/api/realtime-ticket") return next();
 
           const origin = env.DISCORD_APP_ORIGIN || "http://localhost:5173";
           const secure = origin.startsWith("https://");
@@ -140,6 +141,15 @@ export default defineConfig(({ mode }) => {
               });
               return sendJson(result.status, result.body, { "Cache-Control": "private, no-store" });
             }
+            if (pathname === "/api/realtime-ticket" && req.method === "GET") {
+              const result = await handleRealtimeTicketRequest({
+                method: req.method,
+                url: new URL(requestUrl.pathname + requestUrl.search, origin).toString(),
+                cookieHeader: req.headers.cookie || "",
+                env,
+              });
+              return sendJson(result.status, result.body, { "Cache-Control": "private, no-store" });
+            }
             return sendJson(405, { error: "Method not allowed." }, {
               Allow: pathname.endsWith("/logout") || pathname.endsWith("/verify") || pathname.endsWith("/challenge") ? "POST" : "GET, POST",
             });
@@ -149,7 +159,7 @@ export default defineConfig(({ mode }) => {
               target.searchParams.set("error", error?.code || "DISCORD_CONFIG_MISSING");
               return redirect({ status: 302, location: target.toString() });
             }
-            const status = error instanceof InviteApiError || error instanceof BattleApiError || error instanceof PactApiError || error instanceof DiscordAuthError ? error.status : 500;
+            const status = error instanceof InviteApiError || error instanceof BattleApiError || error instanceof PactApiError || error instanceof RealtimeTicketError || error instanceof DiscordAuthError ? error.status : 500;
             console.error("Local auth/invite handler failed", error?.code || error?.name || "Error");
             return sendJson(status, {
               error: error instanceof Error ? error.message : "Authentication could not be completed.",
