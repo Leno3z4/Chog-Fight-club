@@ -35,7 +35,7 @@ The Pages Functions API is only used behind Vercel's `/api/invites` proxy. In Cl
 - `SESSION_SECRET` — exactly the same secret as Vercel, so the backend can validate the signed Discord session
 - `MONAD_RPC_URL=https://rpc.monad.xyz`
 
-Run `migrations/0001_challenge_invites.sql` and then `migrations/0002_player_directory.sql` in the D1 dashboard's Console. Players become discoverable by username after signing in once. Database binding ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
+Run `migrations/0001_challenge_invites.sql` and then `migrations/0002_player_directory.sql` in the D1 dashboard's Console. Players who have signed in once appear in username search; if a player is not listed yet, invite their exact Discord username and they can claim it after signing in. Database binding ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
 
 ### Cloudflare deployment settings
 
