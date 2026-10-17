@@ -52,12 +52,9 @@ export default {
     if (!env.ARENA_ROOMS) return json({ error: "Realtime room binding is not configured." }, 503);
     const id = env.ARENA_ROOMS.idFromName(claims.inviteId);
     const stub = env.ARENA_ROOMS.get(id);
-    const internalClaims = base64UrlEncode(JSON.stringify(claims));
-    const internal = new Request("https://arena-room.internal/connect", {
-      method: "GET",
-      headers: { Upgrade: "websocket", "x-arena-claims": internalClaims },
-    });
-    return stub.fetch(internal);
+    // Forward the original WebSocket request so the platform preserves its 101 upgrade.
+    // The Durable Object verifies the signed ticket again before accepting the socket.
+    return stub.fetch(request);
   },
 };
 
@@ -114,13 +111,11 @@ export class ArenaRoom {
 
   async fetch(request) {
     const url = new URL(request.url);
-    if (url.pathname !== "/connect" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
+    if (url.pathname !== "/room" || request.headers.get("Upgrade")?.toLowerCase() !== "websocket") {
       return json({ error: "Not found." }, 404);
     }
-    let claims;
-    try { claims = JSON.parse(base64UrlToText(request.headers.get("x-arena-claims") || "")); }
-    catch { return json({ error: "Invalid internal room claims." }, 401); }
-    if (!claims || claims.inviteId !== String(this.ctx.id.name || claims.inviteId) || claims.expiresAt <= Date.now()) {
+    const claims = await verifyTicket(url.searchParams.get("ticket"), String(this.env.SESSION_SECRET || ""));
+    if (!claims || claims.inviteId !== String(this.ctx.id.name || claims.inviteId)) {
       return json({ error: "Room ticket is invalid or expired." }, 401);
     }
     const invite = await this.env.CHOG_DB.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(claims.inviteId).first();
