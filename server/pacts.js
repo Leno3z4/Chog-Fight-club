@@ -173,6 +173,9 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
       throw new PactApiError("Both players must confirm readiness before signing the Pact NFT.", { status: 409, code: "PLAYERS_NOT_READY" });
     }
     if (!row.pact_expires_at) throw new PactApiError("Refresh the lobby to initialize the shared signing deadline.", { status: 409, code: "PACT_EXPIRY_MISSING" });
+    if (Number(row.pact_expires_at) <= Math.floor(Date.now() / 1000)) {
+      throw new PactApiError("This agreement signing window expired. Cancel the challenge and create a fresh one.", { status: 409, code: "PACT_EXPIRED" });
+    }
     const typedData = typedDataFor(row, env, address);
     let recovered;
     try {
