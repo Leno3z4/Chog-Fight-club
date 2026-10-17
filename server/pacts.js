@@ -135,6 +135,7 @@ function publicPact(row, address, env, isChallenger) {
     termsHash: typedData.message.termsHash,
     settlementTxHash: /^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || "")) ? row.pact_settlement_tx_hash : null,
     settledOnchain: /^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || "")),
+    settlementPending: row.pact_settlement_tx_hash === "SUBMITTING",
     fulfillmentTxHash: row.pact_fulfillment_tx_hash || null,
     fulfilledOnchain: Boolean(row.pact_fulfillment_tx_hash),
     agreement: {
@@ -220,7 +221,7 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
     return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
   }
   if (method !== "POST") throw new PactApiError("Method not allowed.", { status: 405, code: "METHOD_NOT_ALLOWED" });
-  if (row.pact_id) throw new PactApiError("The Pact NFT has already been minted for this challenge.", { status: 409, code: "PACT_ALREADY_MINTED" });
+  if (row.pact_id && !["settle", "recordFulfillment"].includes(body.action)) throw new PactApiError("The Pact NFT has already been minted for this challenge.", { status: 409, code: "PACT_ALREADY_MINTED" });
 
   if (body.action === "sign") {
     if (row.status !== "READY" || !row.challenger_ready || !row.opponent_ready) {
@@ -286,5 +287,69 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
     row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
     return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
   }
+  if (body.action === "settle") {
+    if (!row.pact_id || !row.pact_tx_hash) throw new PactApiError("Mint the Pact NFT before settling a match.", { status: 409, code: "PACT_NOT_MINTED" });
+    const battle = await db.prepare("SELECT status, winner_discord_id FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first();
+    if (battle?.status !== "FINISHED" || !battle.winner_discord_id) throw new PactApiError("The server has not recorded a finished match yet.", { status: 409, code: "MATCH_NOT_FINISHED" });
+    if (battle.winner_discord_id !== user.discordId) throw new PactApiError("Only the recorded winner can trigger on-chain settlement.", { status: 403, code: "NOT_MATCH_WINNER" });
+    if (/^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || ""))) {
+      return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
+    }
+    if (row.pact_settlement_tx_hash === "SUBMITTING") {
+      throw new PactApiError("Settlement is already being submitted. Refresh shortly.", { status: 409, code: "SETTLEMENT_IN_PROGRESS" });
+    }
+    const reserved = await db.prepare("UPDATE chog_challenge_invites SET pact_settlement_tx_hash = 'SUBMITTING' WHERE id = ?1 AND pact_settlement_tx_hash IS NULL AND pact_id = ?2")
+      .bind(id, row.pact_id).run();
+    if (!reserved.meta || reserved.meta.changes !== 1) {
+      throw new PactApiError("Another settlement request is already in progress. Refresh shortly.", { status: 409, code: "SETTLEMENT_IN_PROGRESS" });
+    }
+    const winnerWallet = battle.winner_discord_id === row.challenger_discord_id ? row.challenger_wallet : row.opponent_wallet;
+    try {
+      const txHash = await submitSettlement(env, row.pact_id, winnerWallet);
+      const now = new Date().toISOString();
+      await db.prepare("UPDATE chog_challenge_invites SET pact_settlement_tx_hash = ?1, pact_settled_at = ?2, status = 'CONDITION_PENDING', updated_at = ?2 WHERE id = ?3 AND pact_settlement_tx_hash = 'SUBMITTING'")
+        .bind(txHash, now, id).run();
+    } catch (error) {
+      await db.prepare("UPDATE chog_challenge_invites SET pact_settlement_tx_hash = NULL WHERE id = ?1 AND pact_settlement_tx_hash = 'SUBMITTING'")
+        .bind(id).run();
+      throw error;
+    }
+    row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
+    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
+  }
+
+  if (body.action === "recordFulfillment") {
+    if (!row.pact_id || !row.pact_settlement_tx_hash || !/^0x[0-9a-fA-F]{64}$/.test(row.pact_settlement_tx_hash)) {
+      throw new PactApiError("The match result must be settled on-chain first.", { status: 409, code: "PACT_NOT_SETTLED" });
+    }
+    if (row.pact_fulfillment_tx_hash) return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
+    const battle = await db.prepare("SELECT status, winner_discord_id FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first();
+    if (battle?.status !== "FINISHED" || battle.winner_discord_id !== user.discordId) {
+      throw new PactApiError("Only the recorded winner can confirm fulfilment.", { status: 403, code: "NOT_MATCH_WINNER" });
+    }
+    const txHash = String(body.transactionHash || "");
+    if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) throw new PactApiError("A valid transaction hash is required.", { status: 400, code: "TX_HASH_INVALID" });
+    const client = makePublicClient(env);
+    let receipt;
+    try { receipt = await client.getTransactionReceipt({ hash: txHash }); }
+    catch { throw new PactApiError("The fulfilment transaction is not confirmed yet.", { status: 409, code: "TX_NOT_CONFIRMED" }); }
+    const winnerWallet = battle.winner_discord_id === row.challenger_discord_id ? row.challenger_wallet : row.opponent_wallet;
+    const loserWallet = battle.winner_discord_id === row.challenger_discord_id ? row.opponent_wallet : row.challenger_wallet;
+    if (receipt.status !== "success" || receipt.to?.toLowerCase() !== address || receipt.from.toLowerCase() !== winnerWallet.toLowerCase()) {
+      throw new PactApiError("That transaction was not a valid fulfilment confirmation from the winner.", { status: 400, code: "FULFILLMENT_TX_INVALID" });
+    }
+    const event = parseEventLogs({ abi: PACT_ABI, logs: receipt.logs, eventName: "ConditionFulfilled", strict: false })
+      .find((item) => String(item.address || "").toLowerCase() === address
+        && String(item.args.pactId) === String(row.pact_id)
+        && String(item.args.winner).toLowerCase() === winnerWallet.toLowerCase()
+        && String(item.args.loser).toLowerCase() === loserWallet.toLowerCase());
+    if (!event) throw new PactApiError("The transaction did not emit the expected fulfilment event.", { status: 400, code: "FULFILLMENT_EVENT_MISMATCH" });
+    const now = new Date().toISOString();
+    await db.prepare("UPDATE chog_challenge_invites SET pact_fulfillment_tx_hash = ?1, pact_fulfilled_at = ?2, status = 'CONDITION_FULFILLED', updated_at = ?2 WHERE id = ?3 AND pact_fulfillment_tx_hash IS NULL")
+      .bind(txHash, now, id).run();
+    row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
+    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
+  }
+
   throw new PactApiError("Choose a supported Pact action.", { status: 400, code: "PACT_ACTION_INVALID" });
 }
