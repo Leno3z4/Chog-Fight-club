@@ -24,7 +24,7 @@
           <div class="lobby-card-heading"><div><h2>This is your battle room.</h2><p class="lobby-note">Both players use this same link after accepting. Keep it open to see the confirmed condition, fighters, and readiness status.</p></div><span class="invite-state">ROOM <code id="battle-room-id">—</code></span></div>
           <code id="battle-room-url" class="battle-room-url">Loading battle room link…</code>
           <button id="copy-battle-room" type="button" class="battle-room-copy">Copy battle room link</button>
-          <p class="lobby-note">The shared lobby is ready; synchronized combat will be activated when the multiplayer battle engine is integrated.</p>
+          <p class="lobby-note">Both players use this room. Combat actions are resolved by the server and synchronized here.</p>
         </article>
 
 
@@ -32,7 +32,7 @@
           <div class="lobby-card-heading"><div><span class="club-eyebrow">THE CHALLENGE</span><h2>Terms on the table.</h2></div><span id="invite-status-chip" class="invite-state">LOADING</span></div>
           <blockquote id="invite-condition" class="condition-quote">Fetching the proposed condition…</blockquote>
           <div class="condition-meta"><span>PUBLIC TERMS HASH</span><code id="condition-hash">—</code></div>
-          <p class="lobby-note">Read the exact condition. It cannot be edited after acceptance. Conditions must be voluntary, harmless, and non-invasive. On-chain Pact NFTs are not enabled yet; this lobby records the invitation and consent in the configured database only.</p>
+          <p class="lobby-note">Read the exact condition. It cannot be edited after acceptance. Conditions must be voluntary, harmless, and non-invasive. The agreement NFT is a separate soulbound receipt. It does not transfer or control either Chog.</p>
         </article>
 
         <article class="lobby-card">
@@ -50,11 +50,39 @@
           <div class="lobby-actions"><button id="accept-invite" class="discord-button" type="button" disabled>Accept challenge <b>↗</b></button><button id="decline-invite" class="outline-button" type="button">Decline</button></div>
         </article>
 
+        
+        <article class="lobby-card combat-card" id="combat-card" hidden>
+          <div class="lobby-card-heading"><div><h2>The Arena</h2><p class="lobby-note">Turn-based combat. The server validates each move and synchronizes the result.</p></div><span id="combat-status" class="invite-state">WAITING</span></div>
+          <p id="combat-message" class="lobby-note">Both players must confirm readiness first.</p>
+          <button id="combat-start" class="discord-button" type="button" hidden>Start battle ↗</button>
+          <div class="combat-fighters">
+            <div class="combat-fighter">
+              <div class="combat-fighter-head"><strong id="combat-challenger-name">Challenger</strong><span id="combat-challenger-hp-text">— HP</span></div>
+              <div class="combat-hp-track"><span id="combat-challenger-hp-bar"></span></div>
+              <small id="combat-challenger-dna">Waiting for battle data</small>
+              <small id="combat-challenger-energy">Energy: —</small>
+            </div>
+            <div class="combat-versus">VS</div>
+            <div class="combat-fighter">
+              <div class="combat-fighter-head"><strong id="combat-opponent-name">Opponent</strong><span id="combat-opponent-hp-text">— HP</span></div>
+              <div class="combat-hp-track"><span id="combat-opponent-hp-bar"></span></div>
+              <small id="combat-opponent-dna">Waiting for battle data</small>
+              <small id="combat-opponent-energy">Energy: —</small>
+            </div>
+          </div>
+          <div id="combat-moves" class="combat-moves" hidden>
+            <button type="button" data-battle-move="strike">Strike <small>Reliable damage</small></button>
+            <button type="button" data-battle-move="guard">Guard <small>Reduce the next hit</small></button>
+            <button type="button" data-battle-move="special">Special <small>High damage · costs 1 energy</small></button>
+          </div>
+          <h3 class="combat-log-title">Battle log</h3>
+          <ol id="combat-log" class="combat-log"><li>Battle events will appear here.</li></ol>
+        </article>
         <article class="lobby-card" id="ready-card" hidden>
           <div class="lobby-card-heading"><div><span class="club-eyebrow">PRE-FIGHT CHECK</span><h2>Ready when you are.</h2></div><span id="ready-status-chip" class="invite-state">WAITING</span></div>
           <p id="ready-explanation" class="lobby-note">Both players must confirm they are ready. This lobby state is persistent.</p>
           <button id="ready-button" class="discord-button" type="button">I'm ready <b>↗</b></button>
-          <p class="lobby-note">The shared readiness flow is implemented, but the server-authoritative multiplayer combat relay and Pact NFT minting are not enabled yet. We will not falsely send you into a single-player arena and call it PvP.</p>
+          <p class="lobby-note">When both players are ready, either player can start the shared match.</p>
         </article>
       </div>
 
