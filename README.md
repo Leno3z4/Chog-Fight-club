@@ -30,14 +30,19 @@ Vercel automatically deploys functions under `/api`. Set these production enviro
 
 The Discord OAuth Redirects list in the Developer Portal must include the exact Vercel callback URL above. Do not use the Cloudflare Pages URL as the Discord callback. Never expose secrets with a `VITE_*` prefix.
 
-## Cloudflare: D1 invitation backend
+## Cloudflare: D1 battle and Pact backend
 
 The Pages Functions API is only used behind Vercel's `/api/invites` proxy. In Cloudflare Pages, bind the D1 database as `CHOG_DB`, and set:
 
 - `SESSION_SECRET` — exactly the same secret as Vercel, so the backend can validate the signed Discord session
 - `MONAD_RPC_URL=https://rpc.monad.xyz`
+- `OPENSEA_API_KEY` — server-side secret for reading Chog metadata
+- `PACT_FACTORY_ADDRESS` — deployed factory address
+- `PACT_CHAIN_ID=143`
+- `PACT_RESOLVER_ADDRESS` — the resolver address passed to the factory constructor
+- `PACT_RESOLVER_PRIVATE_KEY` — Cloudflare secret only; this wallet needs MON for settlement gas
 
-Run `migrations/0001_challenge_invites.sql` and then `migrations/0002_player_directory.sql` in the D1 dashboard's Console. Players who have signed in once appear in username search; if a player is not listed yet, invite their exact Discord username and they can claim it after signing in. Database binding ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
+After the feature branch is reviewed and merged, apply migrations `0001_challenge_invites.sql` through `0005_pact_settlement.sql` in numerical order in the D1 dashboard Console. Do not run the new migrations on production before the feature has been reviewed. Players who have signed in once appear in username search; if a player is not listed yet, invite their exact Discord username and they can claim it after signing in. Database binding ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
 
 ### Cloudflare deployment settings
 
