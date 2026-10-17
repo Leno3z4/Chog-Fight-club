@@ -2,6 +2,7 @@ import "./auth.css";
 import { buildRosterPreview } from "./nft/rosterPreview.js";
 import { getOwnedChogs } from "./nft/chogNft.js";
 import { connectAndLinkWallet } from "./walletLink.js";
+import { mintPactAgreement, signPactAgreement } from "./pact.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -14,6 +15,8 @@ const state = {
   busy: false,
   battle: null,
   battleBusy: false,
+  pact: null,
+  pactBusy: false,
 };
 const alertNode = $("#invite-page-alert");
 const isBattleLobbyPage = window.location.pathname.endsWith("/battle-lobby.html");
@@ -114,7 +117,7 @@ function renderBattle(battle) {
   if (!relevant) return;
   $("#combat-status").textContent = statusText(battle.status || battle.inviteStatus);
   const start = $("#combat-start");
-  start.hidden = !(battle.inviteStatus === "READY" && battle.status === "WAITING_FOR_READY");
+  start.hidden = !(battle.inviteStatus === "READY" && battle.status === "WAITING_FOR_READY" && state.pact?.minted);
   start.disabled = state.battleBusy;
   const moves = $("#combat-moves");
   moves.hidden = !(battle.status === "IN_BATTLE" && battle.yourTurn);
@@ -124,7 +127,7 @@ function renderBattle(battle) {
   }
   if (battle.status === "WAITING_FOR_READY") {
     $("#combat-message").textContent = battle.inviteStatus === "READY"
-      ? "Both fighters are ready. Start the battle when both players have arrived in this room."
+      ? (state.pact?.minted ? "The agreement NFT is minted. Start the battle when both players have arrived." : "Both players are ready. Sign and mint the agreement NFT before combat can begin.")
       : "Both players must confirm readiness first.";
   } else if (battle.status === "IN_BATTLE") {
     $("#combat-message").textContent = battle.yourTurn
@@ -153,6 +156,88 @@ function renderBattle(battle) {
   const log = $("#combat-log");
   log.innerHTML = (battle.log || []).slice(-24).map((entry) => `<li>${escapeHtml(entry.text || "Battle update")}</li>`).join("")
     || "<li>Battle events will appear here.</li>";
+}
+function renderPact(pact) {
+  state.pact = pact;
+  const card = $("#pact-card");
+  if (!card || !isBattleLobbyPage) return;
+  const status = state.invite?.status;
+  const relevant = ["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
+  card.hidden = !relevant;
+  if (!relevant) return;
+  const configured = Boolean(pact?.configured);
+  const minted = Boolean(pact?.minted);
+  $("#pact-state-chip").textContent = minted ? `MINTED #${pact.pactId}` : configured ? "SIGNATURES REQUIRED" : "NOT CONFIGURED";
+  $("#pact-sign-status").textContent = !configured
+    ? (pact?.reason || "Pact factory address has not been configured.")
+    : minted
+      ? `Pact #${pact.pactId} is minted. Receipt #${pact.challengerReceiptId} belongs to the challenger and #${pact.opponentReceiptId} belongs to the opponent.`
+      : pact.yourSignatureStored
+        ? (pact.challengerSigned && pact.opponentSigned ? "Both players signed. Either player can mint the paired soulbound receipts." : "Your signature is saved. Waiting for the other player to sign.")
+        : (pact.challengerSigned || pact.opponentSigned ? "One player has signed. Sign the exact same agreement to continue." : "Both players must sign the same public condition and Chog selections.");
+  const signButton = $("#pact-sign-button");
+  signButton.hidden = !configured || minted || Boolean(pact.yourSignatureStored);
+  signButton.disabled = state.pactBusy || !state.wallet || state.invite?.status !== "READY";
+  signButton.textContent = state.pactBusy ? "Working…" : "Sign agreement ↗";
+  const mintButton = $("#pact-mint-button");
+  mintButton.hidden = !configured || minted || !(pact.challengerSigned && pact.opponentSigned);
+  mintButton.disabled = state.pactBusy || !state.wallet || state.invite?.status !== "READY";
+  const tx = $("#pact-tx-status");
+  tx.hidden = !minted;
+  tx.textContent = minted ? `Transaction: ${pact.transactionHash || "confirmed"}` : "";
+}
+async function loadPact() {
+  if (!isBattleLobbyPage || !state.session || !state.id || !state.invite) return;
+  if (!["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(state.invite.status)) return;
+  const payload = await requestJson(`/api/pacts?id=${encodeURIComponent(state.id)}`);
+  renderPact(payload.pact);
+  if (state.battle) renderBattle(state.battle);
+}
+async function postPactAction(action, extra = {}) {
+  if (state.pactBusy) return;
+  state.pactBusy = true;
+  clearAlert();
+  if (state.pact) renderPact(state.pact);
+  try {
+    const payload = await requestJson("/api/pacts", {
+      method: "POST",
+      body: JSON.stringify({ action, id: state.id, ...extra }),
+    });
+    renderPact(payload.pact);
+    if (payload.pact?.minted) showAlert("The paired soulbound Pact NFTs are confirmed on-chain.", "success");
+    return payload.pact;
+  } catch (error) {
+    showAlert(error?.message || "The Pact NFT action failed.");
+    throw error;
+  } finally {
+    state.pactBusy = false;
+    if (state.pact) renderPact(state.pact);
+  }
+}
+async function signCurrentPact() {
+  if (!state.wallet || !state.session?.walletAddress || state.wallet.toLowerCase() !== state.session.walletAddress.toLowerCase()) {
+    throw new Error("Connect and verify the wallet linked to your Discord account first.");
+  }
+  const pact = state.pact;
+  const signature = await signPactAgreement(state.wallet, pact);
+  await postPactAction("sign", { signature });
+}
+async function mintCurrentPact() {
+  if (!state.wallet || !state.pact?.challengerSignature || !state.pact?.opponentSignature) {
+    throw new Error("Both players must sign before minting.");
+  }
+  state.pactBusy = true;
+  renderPact(state.pact);
+  try {
+    const transactionHash = await mintPactAgreement(state.wallet, state.pact);
+    await postPactAction("confirmMint", { transactionHash });
+    await loadPact();
+  } catch (error) {
+    showAlert(error?.message || "Could not mint the Pact NFTs.");
+  } finally {
+    state.pactBusy = false;
+    if (state.pact) renderPact(state.pact);
+  }
 }
 async function loadBattle() {
   if (!isBattleLobbyPage || !state.session || !state.id) return;
@@ -234,7 +319,10 @@ async function loadInvite() {
     window.location.replace(`/battle-lobby.html?id=${encodeURIComponent(state.id)}`);
     return;
   }
-  if (isBattleLobbyPage && acceptedStatuses.includes(payload.invite.status)) await loadBattle();
+  if (isBattleLobbyPage && acceptedStatuses.includes(payload.invite.status)) {
+    await loadBattle();
+    await loadPact();
+  }
 }
 async function loadChogs() {
   if (!state.wallet) return;
@@ -297,6 +385,10 @@ async function postAction(action, extra = {}) {
 
 $("#link-wallet").addEventListener("click", connectAndLoadWallet);
 $("#combat-start").addEventListener("click", () => postBattleAction("start"));
+$("#pact-sign-button").addEventListener("click", async () => {
+  try { await signCurrentPact(); } catch (error) { showAlert(error?.message || "Could not sign the agreement."); }
+});
+$("#pact-mint-button").addEventListener("click", mintCurrentPact);
 $("#combat-moves").addEventListener("click", (event) => {
   const button = event.target.closest("[data-battle-move]");
   if (!button || state.battleBusy) return;
@@ -403,7 +495,7 @@ async function init() {
     state.wallet = null;
     await loadInvite();
     await fetch("/api/players", { method: "POST", credentials: "same-origin", headers: { accept: "application/json" } }).catch(() => {});
-    if (state.wallet && window.ethereum?.request) {
+    if (window.ethereum?.request) {
       try {
         const [accounts, chainId] = await Promise.all([
           window.ethereum.request({ method: "eth_accounts" }),
