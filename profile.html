@@ -48,7 +48,7 @@
        <section class="dashboard-panel" id="panel-invites">
         <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE DESK</span><h2>Call them out.</h2><p>Choose your main Chog, write the proposed condition, and send your rival a persistent invitation link.</p></div><div class="banner-mark orange-mark">VS<br /><b>?</b></div></div>
         <form id="create-invite-form" class="invite-form">
-          <div class="invite-form-heading"><h3>Challenge a player</h3><p>Search by Discord username and select the right person. Choose your Chog and set the condition before sending the invite.</p></div>
+          <div class="invite-form-heading"><h3>Challenge a player</h3><p>Choose your Chog and write your demand. Your rival will join the lobby and write theirs before either of you accepts the final agreement.</p></div>
           <label class="field-label" for="opponent-search">Player username</label>
           <input id="opponent-search" name="opponentSearch" autocomplete="off" spellcheck="false" placeholder="Search Discord username…" aria-autocomplete="list" aria-controls="opponent-search-results" required />
           <input type="hidden" id="opponent-discord-id" name="opponentDiscordId" />
@@ -57,9 +57,9 @@
           <p id="opponent-selected" class="selected-player-note" aria-live="polite">Choose a player from the results.</p>
           <small class="field-help">Search existing Arena players, or invite an exact Discord username that has not joined yet.</small>
           <div class="selected-main-row"><div><strong id="selected-main-name">No main Chog selected</strong><small id="selected-main-details">Select a Chog in My Chogs first.</small></div><button type="button" class="outline-button" id="go-to-chogs">Choose Chog</button></div>
-          <label class="field-label" for="invite-condition">Proposed condition</label>
+          <label class="field-label" for="invite-condition">Your demand</label>
           <textarea id="invite-condition" name="condition" minlength="5" maxlength="500" rows="3" placeholder="Example: Post a harmless, silly community message and leave it up for 24 hours." required></textarea>
-          <label class="terms-check"><input id="invite-condition-agree" type="checkbox" required /><span>I agree to this condition, and understand the written terms may be publicly recorded if the separate Pact NFT feature is enabled. Conditions must be voluntary, harmless, and non-invasive.</span></label>
+          <label class="terms-check"><input id="invite-condition-agree" type="checkbox" required /><span>This is my demand. If we both accept the final agreement, both demands may be recorded publicly on a soulbound Pact NFT. Conditions must be voluntary, harmless, and non-invasive.</span></label>
           <button id="create-invite-button" type="submit" class="discord-button invite-submit">Create invitation link <b>↗</b></button>
           <p id="create-invite-status" class="auth-status" role="status" aria-live="polite"></p>
           <div id="created-invite-result" class="created-invite-result" hidden></div>
