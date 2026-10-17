@@ -39,6 +39,7 @@ const PACT_ABI = [
     { indexed: true, name: "loser", type: "address" },
     { indexed: false, name: "loserReceiptId", type: "uint256" },
   ]},
+  { type: "function", name: "matchResolver", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "address" }] },
   { type: "function", name: "settleMatch", stateMutability: "nonpayable", inputs: [
     { name: "pactId", type: "uint256" }, { name: "winner", type: "address" }
   ], outputs: [] },
@@ -182,9 +183,14 @@ async function submitSettlement(env, pactId, winner) {
   const account = resolverWallet(env);
   if (!/^0x[0-9a-fA-F]{40}$/.test(winner)) throw new PactApiError("Winner wallet is invalid.", { status: 400, code: "WINNER_WALLET_INVALID" });
   const rpc = String(env?.MONAD_RPC_URL || DEFAULT_RPC);
+  const publicClient = makePublicClient(env);
+  const onchainResolver = await publicClient.readContract({ address, abi: PACT_ABI, functionName: "matchResolver" });
+  if (String(onchainResolver).toLowerCase() !== account.address.toLowerCase()) {
+    throw new PactApiError("The configured resolver wallet does not match the factory's immutable resolver.", { status: 503, code: "PACT_RESOLVER_MISMATCH" });
+  }
   const client = createWalletClient({ account, chain: makeChain(env), transport: http(rpc) });
   const hash = await client.writeContract({ address, abi: PACT_ABI, functionName: "settleMatch", args: [BigInt(pactId), winner] });
-  const receipt = await makePublicClient(env).getTransactionReceipt({ hash });
+  const receipt = await publicClient.getTransactionReceipt({ hash });
   if (receipt.status !== "success" || receipt.to?.toLowerCase() !== address) {
     throw new PactApiError("The resolver settlement transaction failed.", { status: 502, code: "PACT_SETTLEMENT_FAILED" });
   }
