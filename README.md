@@ -14,7 +14,7 @@ The website and Discord sign-in run on **Vercel**. Cloudflare provides the D1-ba
 - A Solidity factory that makes the condition visible in token metadata, blocks transfers and approvals, and supports resolver settlement plus winner-confirmed fulfilment.
 - Cloudflare D1 storage through the Pages Functions binding `CHOG_DB`.
 
-These changes are in the feature branch and draft PR, not `main` yet. The factory still requires a configured address and a tested end-to-end deployment before production use. The match resolver is immutable and must only submit a result after validating the server-authoritative match.
+These changes are in the feature branch and draft PR, not `main` yet. The factory still requires `PACT_FACTORY_ADDRESS`, `PACT_RESOLVER_ADDRESS`, and the `PACT_RESOLVER_PRIVATE_KEY` Cloudflare secret, plus an end-to-end test before production use. The match resolver is immutable and must only submit a result after validating the server-authoritative match.
 
 ## Vercel: website and browser-facing API
 
