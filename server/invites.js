@@ -42,6 +42,10 @@ function isUsernameInviteFor(row, user) {
   const target = usernameInviteTarget(row);
   return Boolean(target && normalizeDiscordUsername(user?.discordUsername) === target);
 }
+function validPrototypeFighter(value) {
+  const id = String(value ?? "");
+  return ["prototype:ember", "prototype:tide", "prototype:volt"].includes(id) ? id : "";
+}
 function validTokenId(value) {
   return (typeof value === "string" || typeof value === "number") && /^\d{1,78}$/.test(String(value));
 }
@@ -185,12 +189,21 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     opponentName = `@${requestedUsername}`;
   }
 
-  const tokenId = String(body.challengerTokenId ?? "");
+  const practiceMode = body.gameMode === "PRACTICE";
+  if (practiceMode && !user.isAdmin) {
+    throw new InviteApiError("Prototype multiplayer is available only to the Arena owner for testing.", { status: 403, code: "PRACTICE_MODE_FORBIDDEN" });
+  }
+  const tokenId = practiceMode
+    ? validPrototypeFighter(body.challengerTokenId)
+    : String(body.challengerTokenId ?? "");
+  if (!tokenId) {
+    throw new InviteApiError(practiceMode ? "Choose Ember, Tide, or Volt for the prototype fighter." : "Choose a valid Chog token.", { status: 400, code: "CHALLENGER_FIGHTER_INVALID" });
+  }
   const condition = cleanCondition(body.condition);
   if (body.agreeToCondition !== true) {
     throw new InviteApiError("Confirm that the condition is voluntary, harmless, and will be shown publicly if a Pact NFT is minted.", { status: 400, code: "TERMS_NOT_ACKNOWLEDGED" });
   }
-  await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
+  if (!practiceMode) await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
 
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const recent = await db.prepare(
@@ -203,6 +216,7 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
   const now = new Date();
   const invite = {
     id: crypto.randomUUID(),
+    game_mode: practiceMode ? "PRACTICE" : "OFFICIAL",
     challenger_discord_id: user.discordId,
     challenger_username: user.username,
     challenger_wallet: user.walletAddress.toLowerCase(),
@@ -231,14 +245,14 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
       id, challenger_discord_id, challenger_username, challenger_wallet, challenger_token_id,
       opponent_discord_id, opponent_username, opponent_wallet, opponent_token_id, condition_text,
       terms_hash, challenger_terms_accepted, challenger_terms_accepted_at, opponent_terms_accepted,
-      opponent_terms_accepted_at, challenger_ready, opponent_ready, status, created_at, updated_at, expires_at
-    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)`
+      opponent_terms_accepted_at, challenger_ready, opponent_ready, status, created_at, updated_at, expires_at, game_mode
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)`
   ).bind(
     invite.id, invite.challenger_discord_id, invite.challenger_username, invite.challenger_wallet,
     invite.challenger_token_id, invite.opponent_discord_id, invite.opponent_username, invite.opponent_wallet,
     invite.opponent_token_id, invite.condition_text, invite.terms_hash, invite.challenger_terms_accepted,
     invite.challenger_terms_accepted_at, invite.opponent_terms_accepted, invite.opponent_terms_accepted_at,
-    invite.challenger_ready, invite.opponent_ready, invite.status, invite.created_at, invite.updated_at, invite.expires_at,
+    invite.challenger_ready, invite.opponent_ready, invite.status, invite.created_at, invite.updated_at, invite.expires_at, invite.game_mode,
   ).run();
 
   return {
@@ -307,8 +321,10 @@ export async function handleInviteRequest({
     if (!user.walletAddress) throw new InviteApiError("Link your wallet before accepting the challenge.", { status: 409, code: "WALLET_NOT_LINKED" });
     if (body.agreeToCondition !== true) throw new InviteApiError("Read and explicitly accept the proposed condition before accepting.", { status: 400, code: "TERMS_NOT_ACKNOWLEDGED" });
 
-    const tokenId = String(body.opponentTokenId ?? "");
-    await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
+    const practiceMode = row.game_mode === "PRACTICE";
+    const tokenId = practiceMode ? validPrototypeFighter(body.opponentTokenId) : String(body.opponentTokenId ?? "");
+    if (!tokenId) throw new InviteApiError(practiceMode ? "Choose Ember, Tide, or Volt for your prototype fighter." : "Choose a valid Chog token.", { status: 400, code: "OPPONENT_FIGHTER_INVALID" });
+    if (!practiceMode) await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
     const now = new Date().toISOString();
     const updated = await conditionalUpdate({
       env,
