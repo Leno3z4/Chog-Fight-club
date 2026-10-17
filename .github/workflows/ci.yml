@@ -18,6 +18,8 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
+      - name: Set up Foundry
+        uses: foundry-rs/foundry-toolchain@v1
       - name: Test website services
         run: npm test
       - name: Syntax-check Vercel API routes
@@ -27,14 +29,18 @@ jobs:
           python - <<'PY'
           import sqlite3
           db = sqlite3.connect(":memory:")
-          for path in ["migrations/0001_challenge_invites.sql", "migrations/0002_player_directory.sql"]:
+          for path in ["migrations/0001_challenge_invites.sql", "migrations/0002_player_directory.sql", "migrations/0003_authoritative_battles.sql"]:
               with open(path, encoding="utf-8") as migration:
                   db.executescript(migration.read())
           invites = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_challenge_invites'").fetchone()
           players = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_players'").fetchone()
           assert invites is not None, "D1 migration did not create chog_challenge_invites"
           assert players is not None, "D1 migration did not create chog_players"
-          print("Both D1 migrations are valid SQLite and create their tables")
+          battles = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_battles'").fetchone()
+          assert battles is not None, "Battle migration did not create chog_battles"
+          print("All D1 migrations are valid SQLite and create their tables")
           PY
+      - name: Test Solidity contracts
+        run: forge test -vvv
       - name: Build website
         run: npm run build
