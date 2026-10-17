@@ -12,7 +12,7 @@ const titles = {
   outgoing: ["Sent invites", "CHALLENGE TRACKER"],
   history: ["Battle history", "YOUR RECORD"],
 };
-const state = { session: null, account: null, chogs: [], loading: false, selectedTokenId: null };
+const state = { session: null, account: null, chogs: [], loading: false, selectedTokenId: null, selectedOpponent: null };
 const walletButton = $("#connect-wallet");
 const refreshButton = $("#refresh-chogs");
 const grid = $("#chog-grid");
@@ -245,8 +245,9 @@ async function loadInvites(view) {
     target.innerHTML = invites.map((invite) => {
       const incoming = view === "incoming";
       const other = incoming ? invite.challenger : invite.opponent;
-      const url = `/invite.html?id=${encodeURIComponent(invite.id)}`;
       const status = invite.status;
+      const accepted = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
+      const url = `${accepted ? "/battle-lobby.html" : "/invite.html"}?id=${encodeURIComponent(invite.id)}`;
       const canRespond = incoming && status === "PENDING_ACCEPTANCE";
       const canCancel = !incoming && status === "PENDING_ACCEPTANCE";
       return `<article class="invite-list-item">
@@ -256,7 +257,7 @@ async function loadInvites(view) {
           <div class="invite-list-meta"><span class="invite-state">${escapeHtml(status.replaceAll("_"," "))}</span><span class="invite-state">Expires ${escapeHtml(invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : "No expiry")}</span></div>
         </div>
         <div class="invite-item-actions">
-          <a class="invite-open-button" href="${url}">${canRespond ? "Review challenge" : "Open lobby"}</a>
+          <a class="invite-open-button" href="${url}">${canRespond ? "Review challenge" : accepted ? "Open battle lobby" : "Open invitation"}</a>
           ${canCancel ? `<button class="copy-invite-link" data-cancel-invite="${escapeHtml(invite.id)}" type="button">Cancel</button><button class="copy-invite-link" data-copy-invite="${escapeHtml(invite.id)}" type="button">Copy invite link</button>` : ""}
         </div>
       </article>`;
@@ -265,6 +266,82 @@ async function loadInvites(view) {
     target.innerHTML = `<div class="roster-empty">${escapeHtml(error?.message || "Could not load invitations.")}</div>`;
   }
 }
+
+const opponentSearch = $("#opponent-search");
+const opponentIdInput = $("#opponent-discord-id");
+const opponentResults = $("#opponent-search-results");
+const opponentSelected = $("#opponent-selected");
+let playerSearchTimer = null;
+let playerSearchSequence = 0;
+
+function chooseOpponent(player) {
+  state.selectedOpponent = player;
+  opponentIdInput.value = player.discordId;
+  opponentSearch.value = `@${player.username}`;
+  opponentResults.hidden = true;
+  opponentSelected.textContent = `Selected: ${player.displayName} (@${player.username})`;
+  opponentSelected.dataset.kind = "success";
+}
+
+async function searchArenaPlayers(query, sequence) {
+  if (!opponentResults) return;
+  if (query.length < 2) {
+    opponentResults.hidden = true;
+    opponentResults.innerHTML = "";
+    return;
+  }
+  opponentResults.hidden = false;
+  opponentResults.innerHTML = '<div class="player-search-empty">Searching players…</div>';
+  try {
+    const response = await fetch(`/api/players?q=${encodeURIComponent(query)}`, {
+      credentials: "same-origin",
+      headers: { accept: "application/json" },
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (sequence !== playerSearchSequence) return;
+    if (!response.ok) throw new Error(payload.error || "Player search failed.");
+    const players = Array.isArray(payload.players) ? payload.players : [];
+    if (!players.length) {
+      opponentResults.innerHTML = '<div class="player-search-empty">No matching players yet. Ask them to open Chog Battle Arena once, then search again.</div>';
+      return;
+    }
+    opponentResults.innerHTML = players.map((player) => `
+      <button type="button" role="option" class="player-search-option" data-select-player="true"
+        data-player-id="${escapeHtml(player.discordId)}"
+        data-player-username="${escapeHtml(player.username)}"
+        data-player-display="${escapeHtml(player.displayName)}"
+        data-player-avatar="${escapeHtml(player.avatar || "")}">
+        <span class="player-search-avatar">${player.avatar ? `<img src="${escapeHtml(player.avatar)}" alt="" />` : escapeHtml((player.displayName || player.username || "P").slice(0,1).toUpperCase())}</span>
+        <span class="player-search-name"><strong>${escapeHtml(player.displayName || player.username)}</strong><small>@${escapeHtml(player.username)}</small></span>
+        <span class="player-search-select">Select</span>
+      </button>`).join("");
+  } catch (error) {
+    if (sequence !== playerSearchSequence) return;
+    opponentResults.innerHTML = `<div class="player-search-empty">${escapeHtml(error?.message || "Player search failed.")}</div>`;
+  }
+}
+
+opponentSearch.addEventListener("input", () => {
+  state.selectedOpponent = null;
+  opponentIdInput.value = "";
+  opponentSelected.textContent = "Choose a player from the results.";
+  opponentSelected.dataset.kind = "";
+  if (playerSearchTimer) window.clearTimeout(playerSearchTimer);
+  const query = opponentSearch.value.trim().replace(/^@/, "");
+  const sequence = ++playerSearchSequence;
+  playerSearchTimer = window.setTimeout(() => searchArenaPlayers(query, sequence), 250);
+});
+
+opponentResults.addEventListener("click", (event) => {
+  const option = event.target.closest("[data-select-player]");
+  if (!option) return;
+  chooseOpponent({
+    discordId: option.dataset.playerId,
+    username: option.dataset.playerUsername,
+    displayName: option.dataset.playerDisplay,
+    avatar: option.dataset.playerAvatar || null,
+  });
+});
 
 $("#go-to-chogs").addEventListener("click", () => setPanel("chogs"));
 $("#create-invite-form").addEventListener("submit", async (event) => {
@@ -281,13 +358,14 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
       throw new Error("Connect and sign your wallet-link message before creating a challenge.");
     }
     if (!state.selectedTokenId) throw new Error("Choose your main Chog in My Chogs first.");
+    if (!state.selectedOpponent || !opponentIdInput.value) throw new Error("Search for a player and select them from the results first.");
     const response = await fetch("/api/invites", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", accept: "application/json" },
       body: JSON.stringify({
         action: "create",
-        opponentDiscordId: $("#opponent-discord-id").value.trim(),
+        opponentDiscordId: opponentIdInput.value,
         challengerTokenId: String(state.selectedTokenId),
         condition: $("#invite-condition").value,
         agreeToCondition: $("#invite-condition-agree").checked,
@@ -295,7 +373,7 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok || !payload.inviteUrl) throw new Error(payload.error || "Invitation could not be created.");
-    status.textContent = "Invitation saved. Send this link to the intended Discord user.";
+    status.textContent = `Invitation saved for @${state.selectedOpponent?.username || "your opponent"}.`;
     status.dataset.kind = "success";
     resultNode.innerHTML = `<strong>Challenge created · ${escapeHtml(payload.invite.status.replaceAll("_"," "))}</strong><a href="${escapeHtml(payload.inviteUrl)}">${escapeHtml(payload.inviteUrl)}</a><br /><button type="button" class="copy-invite-link" id="copy-created-invite">Copy invitation link</button> <a class="copy-invite-link" href="/invite.html?id=${encodeURIComponent(payload.invite.id)}">Open lobby</a>`;
     resultNode.hidden = false;
@@ -309,6 +387,11 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
       }
     });
     loadInvites("outgoing");
+    opponentSearch.value = "";
+    opponentIdInput.value = "";
+    opponentResults.hidden = true;
+    state.selectedOpponent = null;
+    opponentSelected.textContent = "Choose another player to send a challenge.";
   } catch (error) {
     status.textContent = error?.message || "Invitation could not be created.";
     status.dataset.kind = "error";
@@ -349,6 +432,7 @@ document.addEventListener("click", async (event) => {
 
 requireDiscordSession().then(async (ok) => {
   if (!ok) return;
+  await fetch("/api/players", { method: "POST", credentials: "same-origin", headers: { accept: "application/json" } }).catch(() => {});
   const linked = state.session?.walletAddress;
   let walletReady = false;
   if (linked && window.ethereum?.request) {
