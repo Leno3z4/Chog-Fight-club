@@ -10,7 +10,8 @@
     "test:opensea": "node --test server/openSeaChogs.test.js",
     "test:discord": "node --test server/discordAuth.test.js",
     "test:invites": "node --test server/invites.test.js",
-    "test": "npm run test:opensea && npm run test:discord && npm run test:invites"
+    "test": "npm run test:opensea && npm run test:discord && npm run test:invites && npm run test:players",
+    "test:players": "node --test server/players.test.js"
   },
   "dependencies": {
     "viem": "^2.37.3"
