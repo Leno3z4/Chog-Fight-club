@@ -202,3 +202,23 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 .invite-body .profile-footer{margin-top:36px}
 @media(max-width:900px){.lobby-grid{grid-template-columns:1fr}.lobby-aside{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:600px){.invite-page-shell{padding:0 15px}.invite-page-header{height:70px}.invite-page-header .club-logo{font-size:16px}.lobby-card{padding:17px}.lobby-aside{grid-template-columns:1fr}.lobby-chog-grid{grid-template-columns:1fr}.lobby-chog-art{height:170px}.invite-page-hero{padding-top:33px}.lobby-card h2{font-size:24px}.invite-page-hero h1{font-size:clamp(47px,13vw,70px)}}
+
+
+/* Username-based player picker */
+.player-search-results{margin-top:7px;border:1px solid rgba(163,132,255,.35);border-radius:12px;background:#1b1029;overflow:hidden;max-height:300px;overflow-y:auto}
+.player-search-results[hidden]{display:none}
+.player-search-option{display:flex;align-items:center;gap:11px;width:100%;padding:11px 13px;border:0;border-bottom:1px solid rgba(163,132,255,.15);text-align:left;background:transparent;color:var(--club-cream);cursor:pointer}
+.player-search-option:last-child{border-bottom:0}
+.player-search-option:hover,.player-search-option:focus-visible{background:rgba(139,107,255,.17);outline:none}
+.player-search-avatar{width:37px;height:37px;flex:0 0 37px;border-radius:50%;display:grid;place-items:center;overflow:hidden;background:#503375;color:#fff1d8;font:400 17px 'Lilita One',sans-serif}
+.player-search-avatar img{width:100%;height:100%;object-fit:cover}
+.player-search-name{display:grid;gap:3px;min-width:0}
+.player-search-name strong{font-size:12px;overflow-wrap:anywhere}
+.player-search-name small{color:var(--club-muted);font-size:10px}
+.player-search-select{margin-left:auto;color:var(--club-yellow);font-size:10px;font-weight:900}
+.player-search-empty{padding:14px;color:var(--club-muted);font-size:11px;line-height:1.55}
+.selected-player-note{margin:8px 0 0;color:var(--club-muted);font-size:11px;line-height:1.5}
+.selected-player-note[data-kind="success"]{color:#b7ff93}
+.battle-room-location{border-color:rgba(255,213,68,.4);background:linear-gradient(140deg,rgba(139,107,255,.16),rgba(42,25,64,.92))}
+.battle-room-url{display:block;margin:13px 0 0;padding:10px 12px;border-radius:9px;background:#160e22;color:var(--club-yellow);font:10px 'DM Mono',monospace;overflow-wrap:anywhere}
+.battle-room-copy{margin-top:9px;padding:10px 13px;border:1px solid rgba(163,132,255,.35);border-radius:9px;background:#35204c;color:var(--club-cream);font-size:11px;font-weight:900}
