@@ -167,7 +167,7 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
   startButton.textContent = state.battleBusy ? "Entering arena…" : "Enter live arena ↗";
 
   if (matchStatus === "FINISHED") {
-    const won = room?.winnerDiscordId === state.session?.discordId;
+    const won = room?.winnerRole === invite.viewerRole;
     $("#combat-status").textContent = won ? "VICTORY" : "MATCH OVER";
     $("#combat-message").textContent = won
       ? "You won. The winner can now settle the result and later confirm fulfilment of the agreement."
@@ -220,7 +220,7 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
     state.battle = {
       status: matchStatus === "FINISHED" ? "FINISHED" : phase === "IN_BATTLE" ? "IN_BATTLE" : "WAITING_FOR_READY",
       inviteStatus: invite.status,
-      youWon: room.winnerDiscordId === state.session?.discordId,
+      youWon: room.winnerRole === invite.viewerRole,
       challenger: {
         username: players.challenger?.username || invite.challenger?.username,
         tokenId: invite.challenger?.tokenId,
@@ -311,8 +311,8 @@ function drawRealtimeArena(room, viewerRole) {
     ctx.textAlign = "center";
     ctx.fillStyle = "#ffe58a";
     ctx.font = "900 30px system-ui";
-    const winnerRole = room.winnerDiscordId === state.invite?.challenger?.discordId ? "Challenger wins" : room.winnerDiscordId === state.invite?.opponent?.discordId ? "Opponent wins" : "Match complete";
-    ctx.fillText(winnerRole, width / 2, height / 2 + 10);
+    const winnerLabel = room.winnerRole === "challenger" ? "Challenger wins" : room.winnerRole === "opponent" ? "Opponent wins" : "Match complete";
+    ctx.fillText(winnerLabel, width / 2, height / 2 + 10);
   }
 }
 function paintInputFrame() {
