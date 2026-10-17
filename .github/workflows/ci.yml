@@ -27,11 +27,14 @@ jobs:
           python - <<'PY'
           import sqlite3
           db = sqlite3.connect(":memory:")
-          with open("migrations/0001_challenge_invites.sql", encoding="utf-8") as migration:
-              db.executescript(migration.read())
-          found = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_challenge_invites'").fetchone()
-          assert found is not None, "D1 migration did not create the invitations table"
-          print("D1 migration is valid SQLite and creates chog_challenge_invites")
+          for path in ["migrations/0001_challenge_invites.sql", "migrations/0002_player_directory.sql"]:
+              with open(path, encoding="utf-8") as migration:
+                  db.executescript(migration.read())
+          invites = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_challenge_invites'").fetchone()
+          players = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_players'").fetchone()
+          assert invites is not None, "D1 migration did not create chog_challenge_invites"
+          assert players is not None, "D1 migration did not create chog_players"
+          print("Both D1 migrations are valid SQLite and create their tables")
           PY
       - name: Build website
         run: npm run build
