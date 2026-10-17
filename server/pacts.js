@@ -124,30 +124,36 @@ async function getParticipant({ db, id, user }) {
 }
 function publicPact(row, address, env, isChallenger) {
   const configured = Boolean(address);
-  if (!configured) return { configured: false, minted: false, reason: "PACT_FACTORY_ADDRESS is not configured on the Cloudflare backend." };
-  const typedData = typedDataFor(row, env, address);
+  const termsReady = String(row.condition_text || "").trim().length >= 5
+    && String(row.opponent_demand_text || "").trim().length >= 5;
+  if (!configured) return {
+    configured: false, minted: false, termsReady,
+    reason: "Pact factory address is not configured on the Cloudflare backend.",
+  };
+  const typedData = termsReady ? typedDataFor(row, env, address) : null;
   return {
     configured: true,
+    termsReady,
     minted: Boolean(row.pact_id && row.pact_tx_hash),
     pactId: row.pact_id == null ? null : String(row.pact_id),
     transactionHash: row.pact_tx_hash || null,
     contractAddress: row.pact_contract_address || address,
     challengerReceiptId: row.challenger_receipt_id || null,
     opponentReceiptId: row.opponent_receipt_id || null,
-    expiresAt: Number(row.pact_expires_at),
+    expiresAt: row.pact_expires_at == null ? null : Number(row.pact_expires_at),
     challengerSigned: Boolean(row.challenger_pact_signature),
     opponentSigned: Boolean(row.opponent_pact_signature),
     yourSignatureStored: Boolean(isChallenger ? row.challenger_pact_signature : row.opponent_pact_signature),
     challengerSignature: row.challenger_pact_signature || null,
     opponentSignature: row.opponent_pact_signature || null,
-    typedData: jsonSafeTypedData(typedData),
-    termsHash: typedData.message.termsHash,
+    typedData: typedData ? jsonSafeTypedData(typedData) : null,
+    termsHash: typedData?.message?.termsHash || null,
     settlementTxHash: /^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || "")) ? row.pact_settlement_tx_hash : null,
     settledOnchain: /^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || "")),
     settlementPending: row.pact_settlement_tx_hash === "SUBMITTING",
     fulfillmentTxHash: row.pact_fulfillment_tx_hash || null,
     fulfilledOnchain: Boolean(row.pact_fulfillment_tx_hash),
-    agreement: {
+    agreement: typedData ? {
       inviteKey: typedData.message.inviteKey,
       challenger: row.challenger_wallet.toLowerCase(),
       opponent: row.opponent_wallet.toLowerCase(),
@@ -158,7 +164,7 @@ function publicPact(row, address, env, isChallenger) {
       opponentDemand: row.opponent_demand_text || "",
       termsURI: "",
       expiresAt: Number(row.pact_expires_at),
-    },
+    } : null,
   };
 }
 function makeChain(env) {
