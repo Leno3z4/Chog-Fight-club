@@ -112,7 +112,6 @@ function publicBattle(row, invite, user) {
     viewerRole: isChallenger ? "challenger" : "opponent",
     status: row.status,
     turnNumber: row.turn_number,
-    activePlayerDiscordId: row.active_player_discord_id,
     yourTurn: row.status === "IN_BATTLE" && row.active_player_discord_id === user.discordId,
     challenger: {
       username: invite.challenger_username,
@@ -168,6 +167,9 @@ export async function handleBattleRequest({ method, url, cookieHeader, env, body
 
   if (body.action === "start") {
     if (row) return { status: 200, body: { battle: publicBattle(row, invite, user) } };
+    if (!invite.pact_id || !invite.pact_tx_hash) {
+      throw new BattleApiError("Both players must sign and mint the soulbound Pact NFT before the match starts.", { status: 409, code: "PACT_NOT_MINTED" });
+    }
     if (invite.status !== "READY" || !invite.challenger_ready || !invite.opponent_ready) {
       throw new BattleApiError("Both players must accept the terms and confirm readiness before the battle starts.", { status: 409, code: "PLAYERS_NOT_READY" });
     }
