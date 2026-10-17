@@ -161,8 +161,9 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
   if (!relevant) return;
 
   const bothReady = Boolean(invite.challenger?.ready && invite.opponent?.ready);
+  const bothConnected = Boolean(players.challenger?.connected && players.opponent?.connected);
   const startButton = $("#combat-start");
-  startButton.hidden = !(invite.status === "READY" && bothReady && state.pact?.minted && phase !== "IN_BATTLE" && matchStatus !== "FINISHED");
+  startButton.hidden = !(invite.status === "READY" && bothReady && bothConnected && state.pact?.minted && phase !== "IN_BATTLE" && matchStatus !== "FINISHED");
   startButton.disabled = state.battleBusy || state.realtimeConnecting;
   startButton.textContent = state.battleBusy ? "Entering arena…" : "Enter live arena ↗";
 
@@ -187,6 +188,9 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
   } else if (invite.status === "READY" && !bothReady) {
     $("#combat-status").textContent = "READY CHECK";
     $("#combat-message").textContent = "The agreement is minted. Both players need to confirm readiness before entering the live arena.";
+  } else if (invite.status === "READY" && bothReady && state.pact?.minted && !bothConnected) {
+    $("#combat-status").textContent = "WAITING FOR RIVAL";
+    $("#combat-message").textContent = "Both players are ready, but one is not connected to the room yet. Keep this lobby open until both are online.";
   } else {
     $("#combat-status").textContent = "LOBBY";
     $("#combat-message").textContent = "Waiting for both players.";
