@@ -234,7 +234,7 @@ async function loadInvite() {
     window.location.replace(`/battle-lobby.html?id=${encodeURIComponent(state.id)}`);
     return;
   }
-  if (isBattleLobbyPage) await loadBattle();
+  if (isBattleLobbyPage && acceptedStatuses.includes(payload.invite.status)) await loadBattle();
 }
 async function loadChogs() {
   if (!state.wallet) return;
