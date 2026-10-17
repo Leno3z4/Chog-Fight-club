@@ -1,0 +1,25 @@
+{
+  "$schema": "https://developers.cloudflare.com/workers/wrangler/config-schema.json",
+  "name": "chog-battle-arena-realtime",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-17",
+  "workers_dev": true,
+  "durable_objects": {
+    "bindings": [
+      { "name": "ARENA_ROOMS", "class_name": "ArenaRoom" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["ArenaRoom"] }
+  ],
+  "d1_databases": [
+    {
+      "binding": "CHOG_DB",
+      "database_name": "chog-fight-club",
+      "database_id": "8b61a704-51a0-40c0-a6dd-0f46bb81589e"
+    }
+  ],
+  "vars": {
+    "ARENA_FRONTEND_ORIGIN": "https://chog-fight-club.vercel.app"
+  }
+}
