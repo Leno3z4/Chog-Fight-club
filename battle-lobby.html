@@ -51,6 +51,16 @@
         </article>
 
         
+        <article class="lobby-card pact-card" id="pact-card" hidden>
+          <div class="lobby-card-heading"><div><h2>Agreement NFT</h2><p class="lobby-note">Both players sign the exact terms. The factory mints one linked, non-transferable Pact NFT to each wallet.</p></div><span id="pact-state-chip" class="invite-state">NOT MINTED</span></div>
+          <p id="pact-sign-status" class="lobby-note">Waiting for both players to sign the agreement.</p>
+          <div class="lobby-actions">
+            <button id="pact-sign-button" class="discord-button" type="button">Sign agreement ↗</button>
+            <button id="pact-mint-button" class="outline-button" type="button" hidden>Mint Pact NFTs ↗</button>
+          </div>
+          <p id="pact-tx-status" class="lobby-note" hidden></p>
+        </article>
+
         <article class="lobby-card combat-card" id="combat-card" hidden>
           <div class="lobby-card-heading"><div><h2>The Arena</h2><p class="lobby-note">Turn-based combat. The server validates each move and synchronizes the result.</p></div><span id="combat-status" class="invite-state">WAITING</span></div>
           <p id="combat-message" class="lobby-note">Both players must confirm readiness first.</p>
