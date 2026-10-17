@@ -148,7 +148,7 @@ contract ChogBattlePactFactory {
         if (challenger == address(0) || opponent == address(0)) revert ZeroAddress();
         if (challenger == opponent) revert InvalidOpponent();
         bytes memory conditionBytes = bytes(condition);
-        if (conditionBytes.length < 5 || conditionBytes.length > 500) revert InvalidCondition();
+        if (conditionBytes.length < 5 || conditionBytes.length > 1200) revert InvalidCondition();
         if (expiresAt <= block.timestamp) revert InvalidExpiry();
         bytes32 termsHash = keccak256(conditionBytes);
         bytes32 uriHash = keccak256(bytes(termsURI));
