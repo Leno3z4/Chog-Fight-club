@@ -48,7 +48,7 @@ The contract owner should not have an unrestricted "set winner", "edit terms", o
 
 ## Result integrity
 
-The current Phaser match is a local client prototype. Browser-only results can be edited by a player and must **not** be accepted as proof for a real Pact NFT outcome. Before real challenges mint outcome metadata, add an authoritative match resolver (server-side simulation/replay validation or another verifiable result mechanism), replay protection, match timeouts, and one-time settlement.
+The real-time multiplayer room is hosted by a Cloudflare Durable Object, which owns movement, cooldowns, damage, match state, and the winner recorded to D1. Browser input is not trusted as a result by itself. The configured resolver submits the on-chain result from the server-recorded match. This remains a trusted-server design—not a cryptographic proof of fair play—so before meaningful wagers, the resolver path needs an independent security review, replay protection, monitoring, a defined disconnect/timeout outcome, and a dispute process. Never describe the result as trustless.
 
 ## Conditions and safety
 
