@@ -194,7 +194,8 @@ export async function handleBattleRequest({ method, url, cookieHeader, env, body
     return { status: 200, body: { battle: publicBattle(row, invite, user) } };
   }
 
-  if (body.action !== "move") throw new BattleApiError("Choose a supported battle action.", { status: 400, code: "BATTLE_ACTION_INVALID" });
+  if (body.action === "move") throw new BattleApiError("Turn-based moves are disabled. The match uses the real-time arena connection.", { status: 410, code: "REALTIME_COMBAT_ONLY" });
+  throw new BattleApiError("Choose a supported battle action.", { status: 400, code: "BATTLE_ACTION_INVALID" });
   if (!row || row.status !== "IN_BATTLE") throw new BattleApiError("The battle has not started or has already ended.", { status: 409, code: "BATTLE_NOT_ACTIVE" });
   if (row.active_player_discord_id !== user.discordId) throw new BattleApiError("It is your opponent's turn. The lobby will update automatically.", { status: 409, code: "NOT_YOUR_TURN" });
   const move = String(body.move || "");
