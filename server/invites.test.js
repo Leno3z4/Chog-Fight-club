@@ -345,3 +345,58 @@ test("returns an explicit configuration error if Cloudflare D1 binding is absent
     (error) => error instanceof InviteApiError && error.code === "D1_NOT_CONFIGURED" && error.status === 503
   );
 });
+
+
+test("unregistered username invite can only be claimed by the matching Discord account", async () => {
+  const db = new MockD1();
+  env.CHOG_DB = db;
+  const challengerCookie = await makeLinkedSession({ discordId: challengerId, username: "challenger", walletAccount: account });
+  const created = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: challengerCookie,
+    env,
+    origin,
+    fetchImpl: rpcFetch(),
+    body: {
+      action: "create",
+      opponentDiscordId: "",
+      opponentUsername: "new_rival",
+      challengerTokenId: "561",
+      condition: "Post a harmless silly message for one day.",
+      agreeToCondition: true,
+    },
+  });
+  assert.equal(created.status, 201);
+  assert.equal(created.body.invite.opponent.username, "@new_rival");
+  assert.equal(created.body.invite.status, "PENDING_ACCEPTANCE");
+  const row = db.rows.get(created.body.invite.id);
+  assert.equal(row.opponent_discord_id, "username:new_rival");
+
+  const wrongCookie = await makeLinkedSession({ discordId: "345678901234567890", username: "wrong_rival", walletAccount: opponentAccount });
+  await assert.rejects(
+    handleInviteRequest({
+      method: "GET",
+      url: `/api/invites?id=${row.id}`,
+      cookieHeader: wrongCookie,
+      env,
+      origin,
+    }),
+    (error) => error instanceof InviteApiError && error.code === "INVITE_FORBIDDEN",
+  );
+
+  const intendedCookie = await makeLinkedSession({ discordId: opponentId, username: "new_rival", walletAccount: opponentAccount });
+  const accepted = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: intendedCookie,
+    env,
+    origin,
+    fetchImpl: rpcFetch({ owned: opponentAccount.address.toLowerCase() }),
+    body: { action: "accept", id: row.id, opponentTokenId: "973", agreeToCondition: true },
+  });
+  assert.equal(accepted.status, 200);
+  assert.equal(accepted.body.invite.status, "TERMS_ACCEPTED");
+  assert.equal(accepted.body.invite.opponent.discordId, opponentId);
+  assert.equal(db.rows.get(row.id).opponent_discord_id, opponentId);
+});
