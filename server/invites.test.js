@@ -145,9 +145,9 @@ class MockD1 {
       row.updated_at = v[1];
       return clone(row);
     }
-    if (sql.includes("SET condition_text = ?1")) {
+    if (sql.includes("terms_hash = ?2") && sql.includes("challenger_ready = 0") && sql.includes("opponent_terms_accepted = 0")) {
       const row = this.rows.get(v[3]);
-      if (!row || !["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id) return null;
+      if (!row || !["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id || row.pact_tx_hash) return null;
       const column = sql.includes("opponent_demand_text = ?1") ? "opponent_demand_text" : "condition_text";
       row[column] = v[0]; row.terms_hash = v[1];
       row.challenger_terms_accepted = 0; row.opponent_terms_accepted = 0;
@@ -360,6 +360,92 @@ test("both linked players can record readiness; the second sets status READY", a
   assert.equal(challengerReady.body.invite.challenger.ready, true);
 });
 
+test("both players must write separate demands and accept the combined terms", async () => {
+  const db = new MockD1();
+  const now = new Date().toISOString();
+  const row = makeRow({
+    status: "TERMS_ACCEPTED",
+    opponent_username: "Opponent",
+    opponent_wallet: opponentAccount.address.toLowerCase(),
+    opponent_token_id: "973",
+    opponent_demand_text: "",
+    challenger_terms_accepted: 0,
+    challenger_terms_accepted_at: null,
+    opponent_terms_accepted: 0,
+    opponent_terms_accepted_at: null,
+  });
+  db.rows.set(row.id, row);
+  env.CHOG_DB = db;
+  const challengerCookie = await makeLinkedSession({ discordId: challengerId, username: "ChallengeMaker", walletAccount: account });
+  const opponentCookie = await makeLinkedSession({ discordId: opponentId, username: "Opponent", walletAccount: opponentAccount });
+
+  const savedChallengerDemand = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
+    body: { action: "saveDemand", id: row.id, demand: "Post a harmless silly message for one day." },
+  });
+  assert.equal(savedChallengerDemand.status, 200);
+  assert.equal(savedChallengerDemand.body.invite.challengerDemand, "Post a harmless silly message for one day.");
+  assert.equal(savedChallengerDemand.body.invite.opponentDemand, "");
+
+  await assert.rejects(
+    handleInviteRequest({
+      method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
+      body: { action: "acceptTerms", id: row.id },
+    }),
+    (error) => error instanceof InviteApiError && error.code === "CONDITION_LENGTH"
+  );
+
+  const savedOpponentDemand = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: opponentCookie, env, origin,
+    body: { action: "saveDemand", id: row.id, demand: "Share a harmless drawing of your Chog." },
+  });
+  assert.equal(savedOpponentDemand.body.invite.opponentDemand, "Share a harmless drawing of your Chog.");
+  assert.equal(savedOpponentDemand.body.invite.challenger.termsAccepted, false);
+  assert.equal(savedOpponentDemand.body.invite.opponent.termsAccepted, false);
+
+  const challengerAccepted = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
+    body: { action: "acceptTerms", id: row.id },
+  });
+  assert.equal(challengerAccepted.body.invite.status, "TERMS_ACCEPTED");
+  assert.equal(challengerAccepted.body.invite.challenger.termsAccepted, true);
+  assert.equal(challengerAccepted.body.invite.opponent.termsAccepted, false);
+
+  const opponentAccepted = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: opponentCookie, env, origin,
+    body: { action: "acceptTerms", id: row.id },
+  });
+  assert.equal(opponentAccepted.body.invite.status, "READY");
+  assert.equal(opponentAccepted.body.invite.challenger.termsAccepted, true);
+  assert.equal(opponentAccepted.body.invite.opponent.termsAccepted, true);
+  assert.match(opponentAccepted.body.invite.termsHash, /^[0-9a-f]{64}$/);
+});
+
+test("editing either demand resets both previous acceptances", async () => {
+  const db = new MockD1();
+  const now = new Date().toISOString();
+  const row = makeRow({
+    status: "READY",
+    opponent_username: "Opponent",
+    opponent_wallet: opponentAccount.address.toLowerCase(),
+    opponent_token_id: "973",
+    opponent_demand_text: "Share a harmless drawing of your Chog.",
+    challenger_terms_accepted: 1,
+    challenger_terms_accepted_at: now,
+    opponent_terms_accepted: 1,
+    opponent_terms_accepted_at: now,
+  });
+  db.rows.set(row.id, row);
+  env.CHOG_DB = db;
+  const challengerCookie = await makeLinkedSession({ discordId: challengerId, username: "ChallengeMaker", walletAccount: account });
+  const changed = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
+    body: { action: "saveDemand", id: row.id, demand: "Post a different harmless silly message." },
+  });
+  assert.equal(changed.body.invite.status, "TERMS_ACCEPTED");
+  assert.equal(changed.body.invite.challenger.termsAccepted, false);
+  assert.equal(changed.body.invite.opponent.termsAccepted, false);
+});
 test("returns an explicit configuration error if Cloudflare D1 binding is absent", async () => {
   const cookieHeader = await makeLinkedSession();
   delete env.CHOG_DB;
