@@ -4,7 +4,7 @@ import { readDiscordSession } from "./discordAuth.js";
 
 const CHOG_CONTRACT = "0xc96d31f8626c6d03fae5dcd3d61e3fb9f4a73763";
 const DEFAULT_RPC = "https://rpc.monad.xyz";
-const ACCEPTED_FOR_PACT = ["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
+const ACCEPTED_FOR_PACT = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
 const PACT_TYPES = {
   PactAgreement: [
     { name: "inviteKey", type: "bytes32" },
@@ -117,8 +117,8 @@ async function getParticipant({ db, id, user }) {
   if (!user.walletAddress || !wallet || user.walletAddress.toLowerCase() !== wallet.toLowerCase()) {
     throw new PactApiError("Connect the wallet linked to this challenge.", { status: 403, code: "PACT_WALLET_MISMATCH" });
   }
-  if (!row.opponent_terms_accepted || !row.opponent_token_id || !ACCEPTED_FOR_PACT.includes(row.status)) {
-    throw new PactApiError("Both players must accept the same terms and select their Chogs first.", { status: 409, code: "PACT_NOT_READY" });
+  if (!row.opponent_wallet || !row.opponent_token_id || !ACCEPTED_FOR_PACT.includes(row.status)) {
+    throw new PactApiError("Join the lobby and select both Chogs before loading the Pact agreement.", { status: 409, code: "PACT_NOT_READY" });
   }
   return { row, isChallenger };
 }
