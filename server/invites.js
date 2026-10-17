@@ -16,7 +16,7 @@ export class InviteApiError extends Error {
 function getDb(env) {
   if (!env?.CHOG_DB || typeof env.CHOG_DB.prepare !== "function") {
     throw new InviteApiError(
-      "Cloudflare D1 is not configured. Create the D1 database, bind it to this Pages project as CHOG_DB, and apply migrations/0001_challenge_invites.sql.",
+      "Cloudflare D1 is not configured. Create the D1 database, bind it to this Pages project as CHOG_DB, and apply migrations/0001_challenge_invites.sql plus migrations/0002_player_directory.sql.",
       { status: 503, code: "D1_NOT_CONFIGURED" }
     );
   }
