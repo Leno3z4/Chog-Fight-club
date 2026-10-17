@@ -70,10 +70,18 @@ function chainId(env) {
 function pactDomain(env, address) {
   return { name: "Chog Battle Arena Pact", version: "1", chainId: chainId(env), verifyingContract: address };
 }
+function pactTerms(row) {
+  const challengerDemand = String(row.condition_text || "").trim();
+  const opponentDemand = String(row.opponent_demand_text || "").trim();
+  if (challengerDemand.length < 5 || opponentDemand.length < 5) {
+    throw new PactApiError("Both players must save their own demand before signing the Pact.", { status: 409, code: "BILATERAL_TERMS_INCOMPLETE" });
+  }
+  return `Challenger demand: ${challengerDemand}\nOpponent demand: ${opponentDemand}`;
+}
 function typedDataFor(row, env, address) {
   const expiry = Number(row.pact_expires_at);
   const inviteKey = keccak256(toBytes(row.id));
-  const termsHash = keccak256(toBytes(row.condition_text));
+  const termsHash = keccak256(toBytes(pactTerms(row)));
   const termsURI = "";
   return {
     domain: pactDomain(env, address),
@@ -145,7 +153,9 @@ function publicPact(row, address, env, isChallenger) {
       opponent: row.opponent_wallet.toLowerCase(),
       challengerChogId: String(row.challenger_token_id),
       opponentChogId: String(row.opponent_token_id),
-      condition: row.condition_text,
+      condition: pactTerms(row),
+      challengerDemand: row.condition_text,
+      opponentDemand: row.opponent_demand_text || "",
       termsURI: "",
       expiresAt: Number(row.pact_expires_at),
     },
@@ -230,8 +240,8 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
   if (row.pact_id && !["settle", "recordFulfillment"].includes(body.action)) throw new PactApiError("The Pact NFT has already been minted for this challenge.", { status: 409, code: "PACT_ALREADY_MINTED" });
 
   if (body.action === "sign") {
-    if (row.status !== "READY" || !row.challenger_ready || !row.opponent_ready) {
-      throw new PactApiError("Both players must confirm readiness before signing the Pact NFT.", { status: 409, code: "PLAYERS_NOT_READY" });
+    if (row.status !== "READY" || !row.challenger_terms_accepted || !row.opponent_terms_accepted) {
+      throw new PactApiError("Both players must accept the written demands before signing the Pact NFT.", { status: 409, code: "TERMS_NOT_ACCEPTED" });
     }
     if (!row.pact_expires_at) throw new PactApiError("Refresh the lobby to initialize the shared signing deadline.", { status: 409, code: "PACT_EXPIRY_MISSING" });
     if (Number(row.pact_expires_at) <= Math.floor(Date.now() / 1000)) {
@@ -274,7 +284,7 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
       throw new PactApiError("That transaction did not successfully call the configured Pact factory.", { status: 400, code: "PACT_TX_INVALID" });
     }
     const inviteKey = keccak256(toBytes(row.id));
-    const expectedTermsHash = keccak256(toBytes(row.condition_text));
+    const expectedTermsHash = keccak256(toBytes(pactTerms(row)));
     const events = parseEventLogs({ abi: PACT_ABI, logs: receipt.logs, eventName: "PactMinted", strict: false })
       .filter((event) => String(event.address || "").toLowerCase() === address);
     const event = events.find((item) =>
