@@ -502,12 +502,17 @@ async function pollLobbyJoins(initial = false) {
     if (!response.ok) return;
     const rows = Array.isArray(payload.invites) ? payload.invites : [];
     let changed = false;
+    let notifiedThisPoll = false;
     for (const invite of rows) {
       const joined = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(invite.status);
       const previous = window.sessionStorage.getItem(`chog-invite-status-${invite.id}`);
       if (joined && !notifiedJoinIds.has(invite.id)) {
         const alreadySeen = window.sessionStorage.getItem(`chog-join-seen-${invite.id}`) === "1";
-        if (!alreadySeen && (initial || previous === "PENDING_ACCEPTANCE")) showLobbyJoinNotice(invite);
+        if (!notifiedThisPoll && !alreadySeen && (initial || previous === "PENDING_ACCEPTANCE")
+          && ["TERMS_ACCEPTED", "READY", "IN_BATTLE"].includes(invite.status)) {
+          showLobbyJoinNotice(invite);
+          notifiedThisPoll = true;
+        }
         notifiedJoinIds.add(invite.id);
       }
       if (previous && previous !== invite.status) changed = true;
