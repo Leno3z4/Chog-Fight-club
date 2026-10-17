@@ -248,3 +248,117 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
   .combat-versus { text-align:center; }
   .combat-moves { grid-template-columns:1fr; }
 }
+
+
+
+/* Game mode picker */
+.mode-shell,.solo-shell{width:min(1240px,calc(100% - 40px));margin:0 auto;padding:26px 0 60px}
+.mode-header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:22px;border-bottom:1px solid rgba(163,132,255,.22)}
+.mode-hero{padding:54px 0 30px;max-width:760px}
+.mode-hero h1,.solo-heading h1{margin:8px 0 16px;font:400 clamp(42px,7vw,76px)/.94 'Lilita One',sans-serif;letter-spacing:.015em}
+.mode-hero h1 span,.solo-heading h1 span{color:var(--club-yellow)}
+.mode-hero>p:last-child,.solo-heading p:last-child{max-width:660px;color:var(--club-muted);font-size:17px;line-height:1.6}
+.mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:20px}
+.mode-card{position:relative;display:flex;min-height:385px;flex-direction:column;align-items:flex-start;padding:28px;border:1px solid var(--club-line);border-radius:24px;background:linear-gradient(150deg,rgba(139,107,255,.13),rgba(42,25,64,.92) 55%,rgba(16,19,40,.9));overflow:hidden}
+.mode-card:after{content:"";position:absolute;width:220px;height:220px;right:-76px;top:50px;border:1px solid rgba(255,213,68,.12);border-radius:50%;box-shadow:0 0 0 26px rgba(255,213,68,.025),0 0 0 52px rgba(255,213,68,.02);pointer-events:none}
+.mode-multi{background:linear-gradient(150deg,rgba(255,121,8,.15),rgba(42,25,64,.92) 54%,rgba(16,19,40,.9))}
+.mode-number{color:var(--club-yellow);font:16px 'DM Mono',monospace}
+.mode-glyph{display:grid;place-items:center;width:64px;height:64px;margin-top:18px;border:1px solid rgba(255,213,68,.4);border-radius:18px;background:rgba(255,213,68,.08);font-size:30px;color:var(--club-yellow)}
+.mode-card h2{margin:20px 0 8px;font:400 32px 'Lilita One',sans-serif}
+.mode-card p{max-width:500px;margin:0;color:var(--club-muted);line-height:1.65}
+.mode-tags{display:flex;flex-wrap:wrap;gap:7px;margin:20px 0 24px}
+.mode-tags span,.practice-pill{padding:6px 9px;border:1px solid rgba(163,132,255,.35);border-radius:99px;color:#dfd0f7;font:10px 'DM Mono',monospace;letter-spacing:.04em}
+.mode-card .discord-button{margin-top:auto}
+.mode-card .discord-button,.solo-shell .discord-button{max-width:100%;width:100%;justify-content:space-between}
+.outline-button{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 15px;border:1px solid var(--club-line);border-radius:11px;color:var(--club-cream);background:rgba(22,14,34,.45);font-weight:800}
+.outline-button:hover{border-color:var(--club-yellow)}
+.practice-pill{color:var(--club-yellow);border-color:rgba(255,213,68,.3)}
+.solo-heading{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:32px 0 22px}
+.solo-heading>div{max-width:740px}
+.solo-heading h1{font-size:clamp(38px,6vw,64px)}
+.solo-layout{display:grid;grid-template-columns:minmax(260px,340px) minmax(0,1fr);gap:20px;align-items:start}
+.solo-selection,.solo-arena-panel{min-width:0;padding:20px;border:1px solid var(--club-line);border-radius:20px;background:rgba(42,25,64,.86)}
+.solo-selection h2{margin:0 0 8px;font:400 24px 'Lilita One',sans-serif}
+.solo-selection>p{line-height:1.55}
+.prototype-roster{display:grid;gap:8px;margin:16px 0}
+.prototype-card{display:flex;align-items:center;gap:10px;width:100%;padding:12px;border:1px solid rgba(163,132,255,.28);border-radius:12px;background:rgba(16,11,29,.45);color:var(--club-cream);text-align:left}
+.prototype-card.selected,.prototype-card:hover{border-color:var(--club-yellow);background:rgba(255,213,68,.07)}
+.prototype-card>span:nth-child(2){display:flex;flex:1;flex-direction:column;gap:3px}
+.prototype-card strong{font-size:14px}
+.prototype-card small{color:var(--club-muted);font-size:12px}
+.prototype-card>b{font:10px 'DM Mono',monospace;color:var(--club-yellow)}
+.prototype-swatch{width:34px;height:34px;flex:0 0 34px;border-radius:50%;border:2px solid rgba(255,255,255,.45);background:linear-gradient(135deg,#ffb35b,#ff6537);box-shadow:0 0 16px rgba(255,138,53,.32)}
+.prototype-swatch.tide{background:linear-gradient(135deg,#8be0ff,#317de3);box-shadow:0 0 16px rgba(73,185,255,.25)}
+.prototype-swatch.volt{background:linear-gradient(135deg,#fff59b,#c8a51d);box-shadow:0 0 16px rgba(232,216,79,.24)}
+.prototype-swatch.owned{background:linear-gradient(135deg,#c8b7ff,#7053e4)}
+.solo-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:18px 0}
+.solo-stats>div{display:flex;flex-direction:column;gap:3px;padding:9px 5px;border:1px solid rgba(163,132,255,.22);border-radius:10px;background:rgba(8,8,20,.25);text-align:center}
+.solo-stats span{font:10px 'DM Mono',monospace;color:var(--club-muted)}
+.solo-stats strong{font-size:17px}
+.solo-stats>p{grid-column:1/-1;margin:4px 0 0;color:var(--club-yellow);font-size:12px}
+.solo-controls-list{margin:18px 0;padding:14px;border-radius:12px;background:rgba(12,10,24,.36)}
+.solo-controls-list>strong{display:block;margin-bottom:8px}
+.solo-controls-list p{display:flex;justify-content:space-between;gap:12px;margin:7px 0;color:var(--club-muted);font-size:13px}
+kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px;padding:3px 6px;border:1px solid rgba(193,171,233,.33);border-bottom-width:2px;border-radius:5px;color:#fff0d2;background:rgba(0,0,0,.2);font:11px 'DM Mono',monospace}
+.solo-arena-header{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:12px}
+.solo-arena-header>div{display:flex;flex-direction:column;gap:4px}
+.solo-arena-header strong{font-size:15px}
+.solo-arena-header small{color:var(--club-muted)}
+#realtime-arena,#solo-arena{display:block;width:100%;height:auto;aspect-ratio:16/9;max-height:620px;border:1px solid rgba(163,132,255,.3);border-radius:14px;outline:none;background:#100b20;touch-action:none}
+#realtime-arena:focus,#solo-arena:focus{border-color:rgba(255,213,68,.6)}
+.solo-health{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
+.solo-health>div>span{display:flex;justify-content:space-between;gap:8px;margin-bottom:7px}
+.solo-health strong{font-size:13px}
+.solo-health b{font:11px 'DM Mono',monospace;color:var(--club-yellow)}
+.solo-health .combat-hp-track{height:11px}
+.solo-health .combat-hp-track i{display:block;width:100%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#79e28c,#ffd64b);transition:width .2s}
+.arena-controls-note{margin:8px 0 12px;color:var(--club-muted);font-size:12px}
+.arena-controls-note kbd{margin-right:3px}
+.arena-mobile-controls{display:none;align-items:center;justify-content:space-between;gap:18px;margin:16px 0}
+.arena-pad{display:flex;flex-direction:column;align-items:center;gap:5px}
+.arena-pad>div{display:flex;gap:5px}
+.arena-pad button,.arena-actions button{min-width:42px;min-height:42px;border:1px solid rgba(163,132,255,.42);border-radius:10px;background:#2e1d49;color:var(--club-cream);font-weight:900;touch-action:none;user-select:none}
+.arena-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}
+.arena-actions button{padding:0 10px;border-color:rgba(255,213,68,.45);color:var(--club-yellow)}
+/* Bilateral written agreement */
+.demand-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0}
+.demand-slot{min-width:0;padding:14px;border:1px solid rgba(163,132,255,.24);border-radius:14px;background:rgba(8,8,20,.24)}
+.demand-label{font:10px 'DM Mono',monospace;letter-spacing:.04em;color:var(--club-yellow)}
+.demand-slot .condition-quote{min-height:65px;margin:12px 0;font-size:15px}
+.demand-acceptance{display:inline-flex;padding:5px 8px;border:1px solid rgba(255,255,255,.16);border-radius:99px;color:var(--club-muted);font:10px 'DM Mono',monospace}
+.demand-acceptance.accepted{color:#9deba8;border-color:rgba(100,210,129,.3)}
+#own-demand-text{display:block;width:100%;resize:vertical;margin-top:8px;padding:13px;border:1px solid rgba(163,132,255,.38);border-radius:11px;background:rgba(13,8,24,.6);color:var(--club-cream);font:600 14px/1.55 'Nunito',sans-serif}
+#own-demand-text:focus{outline:1px solid var(--club-yellow);border-color:var(--club-yellow)}
+.lobby-actions{display:flex;flex-wrap:wrap;gap:10px}
+.lobby-actions button:disabled{opacity:.42;cursor:not-allowed}
+.bilateral-terms-card[hidden],.combat-card[hidden],.pact-card[hidden]{display:none!important}
+/* Profile: prompt the challenger when the invited player joins */
+.lobby-join-notice{position:sticky;top:12px;z-index:50;display:flex;align-items:center;gap:16px;margin:12px 0 20px;padding:14px 16px;border:1px solid rgba(255,213,68,.5);border-radius:14px;background:linear-gradient(110deg,rgba(54,34,86,.98),rgba(36,25,54,.98));box-shadow:0 14px 40px rgba(0,0,0,.28)}
+.lobby-join-notice[hidden]{display:none}
+.lobby-join-notice>div{display:flex;flex:1;flex-direction:column;gap:3px}
+.lobby-join-notice strong{font-size:14px}
+.lobby-join-notice span{color:var(--club-muted);font-size:12px;line-height:1.45}
+.lobby-join-notice .discord-button{width:auto;min-width:140px;justify-content:center}
+.lobby-join-notice>button{width:30px;height:30px;border:0;border-radius:8px;background:transparent;color:var(--club-muted);font-size:23px}
+@media(max-width:900px){
+  .solo-layout{grid-template-columns:1fr}
+  .solo-selection{order:2}
+  .solo-arena-panel{order:1}
+}
+@media(max-width:650px){
+  .mode-shell,.solo-shell{width:min(100% - 24px,1240px);padding-top:16px}
+  .mode-header{flex-wrap:wrap}
+  .mode-hero{padding:38px 0 22px}
+  .mode-grid{grid-template-columns:1fr}
+  .mode-card{min-height:335px;padding:22px}
+  .solo-heading{align-items:flex-start;flex-direction:column;padding:24px 0 16px}
+  .solo-arena-panel,.solo-selection{padding:12px}
+  .solo-health{gap:8px}
+  .solo-health strong{font-size:11px}
+  .arena-mobile-controls{display:flex}
+  .arena-controls-note{display:none}
+  .demand-pair{grid-template-columns:1fr}
+  .demand-slot .condition-quote{min-height:0}
+  .lobby-join-notice{align-items:flex-start;flex-wrap:wrap;padding:12px}
+  .lobby-join-notice .discord-button{flex:1}
+}
