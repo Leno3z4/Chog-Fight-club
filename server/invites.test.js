@@ -114,12 +114,12 @@ class MockD1 {
     throw new Error("MockD1.run received unexpected SQL: " + normalized);
   }
   async updateReturning(sql, v) {
-    if (sql.includes("opponent_terms_accepted = 1")) {
+    if (sql.includes("opponent_terms_accepted = 0") && sql.includes("opponent_discord_id = ?1")) {
       const row = this.rows.get(v[5]);
       if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[6]) return null;
       Object.assign(row, {
         opponent_discord_id: v[0], opponent_username: v[1], opponent_wallet: v[2], opponent_token_id: v[3],
-        opponent_terms_accepted: 1, opponent_terms_accepted_at: v[4], status: "TERMS_ACCEPTED", updated_at: v[4],
+        opponent_terms_accepted: 0, opponent_terms_accepted_at: null, status: "TERMS_ACCEPTED", updated_at: v[4],
       });
       return clone(row);
     }
@@ -137,12 +137,33 @@ class MockD1 {
     }
     if (sql.includes("challenger_ready = CASE")) {
       const row = this.rows.get(v[2]);
-      if (!row || !["TERMS_ACCEPTED", "READY"].includes(row.status)
+      if (!row || row.status !== "READY" || !row.challenger_terms_accepted || !row.opponent_terms_accepted
         || ![row.challenger_discord_id, row.opponent_discord_id].includes(v[0])) return null;
       if (row.challenger_discord_id === v[0]) row.challenger_ready = 1;
       if (row.opponent_discord_id === v[0]) row.opponent_ready = 1;
-      if (row.challenger_ready && row.opponent_ready) row.status = "READY";
+      row.status = "READY";
       row.updated_at = v[1];
+      return clone(row);
+    }
+    if (sql.includes("SET condition_text = ?1")) {
+      const row = this.rows.get(v[3]);
+      if (!row || !["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id) return null;
+      const column = sql.includes("opponent_demand_text = ?1") ? "opponent_demand_text" : "condition_text";
+      row[column] = v[0]; row.terms_hash = v[1];
+      row.challenger_terms_accepted = 0; row.opponent_terms_accepted = 0;
+      row.challenger_terms_accepted_at = v[2]; row.opponent_terms_accepted_at = null;
+      row.challenger_ready = 0; row.opponent_ready = 0; row.status = "TERMS_ACCEPTED"; row.updated_at = v[2];
+      return clone(row);
+    }
+    if (sql.includes("SET challenger_terms_accepted = 1") || sql.includes("SET opponent_terms_accepted = 1")) {
+      const row = this.rows.get(v[2]);
+      if (!row || !["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id) return null;
+      const own = sql.includes("SET challenger_terms_accepted = 1") ? "challenger" : "opponent";
+      row[own + "_terms_accepted"] = 1;
+      row[own + "_terms_accepted_at"] = v[0];
+      row.terms_hash = v[1];
+      row.status = row.challenger_terms_accepted && row.opponent_terms_accepted ? "READY" : "TERMS_ACCEPTED";
+      row.updated_at = v[0];
       return clone(row);
     }
     throw new Error("MockD1.updateReturning received unexpected SQL: " + sql);
@@ -205,7 +226,7 @@ function makeRow(overrides = {}) {
     opponent_token_id: null,
     condition_text: "Post a harmless silly message for one day.",
     terms_hash: "a".repeat(64),
-    challenger_terms_accepted: 1,
+    challenger_terms_accepted: 0,
     challenger_terms_accepted_at: now,
     opponent_terms_accepted: 0,
     opponent_terms_accepted_at: null,
@@ -287,7 +308,8 @@ test("the challenged Discord account can accept with its own verified Chog", asy
   assert.equal(result.body.invite.viewerRole, "opponent");
   assert.equal(result.body.invite.opponent.wallet, opponentAccount.address.toLowerCase());
   assert.equal(result.body.invite.opponent.tokenId, "973");
-  assert.equal(env.CHOG_DB.rows.get(row.id).opponent_terms_accepted, 1);
+  assert.equal(env.CHOG_DB.rows.get(row.id).opponent_terms_accepted, 0);
+  assert.equal(env.CHOG_DB.rows.get(row.id).status, "TERMS_ACCEPTED");
 });
 
 test("a different holder cannot read an invitation addressed to someone else", async () => {
@@ -308,7 +330,8 @@ test("a different holder cannot read an invitation addressed to someone else", a
 test("both linked players can record readiness; the second sets status READY", async () => {
   const db = new MockD1();
   const row = makeRow({
-    status: "TERMS_ACCEPTED",
+    status: "READY",
+    challenger_terms_accepted: 1,
     opponent_username: "Opponent",
     opponent_wallet: opponentAccount.address.toLowerCase(),
     opponent_token_id: "973",
@@ -324,9 +347,9 @@ test("both linked players can record readiness; the second sets status READY", a
     method: "POST", url: "/api/invites", cookieHeader: opponentCookie, env, origin,
     body: { action: "ready", id: row.id },
   });
-  assert.equal(opponentReady.body.invite.status, "TERMS_ACCEPTED");
+  assert.equal(opponentReady.body.invite.status, "READY");
   assert.equal(opponentReady.body.invite.opponent.ready, true);
-  assert.equal(opponentReady.body.multiplayerAvailable, false);
+  assert.equal(opponentReady.body.multiplayerAvailable, true);
 
   const challengerReady = await handleInviteRequest({
     method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
