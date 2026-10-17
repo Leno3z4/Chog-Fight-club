@@ -2,7 +2,7 @@ import "./auth.css";
 import { buildRosterPreview } from "./nft/rosterPreview.js";
 import { getOwnedChogs } from "./nft/chogNft.js";
 import { connectAndLinkWallet } from "./walletLink.js";
-import { mintPactAgreement, signPactAgreement } from "./pact.js";
+import { confirmPactFulfillment, mintPactAgreement, signPactAgreement } from "./pact.js";
 
 const $ = (selector) => document.querySelector(selector);
 const state = {
@@ -182,9 +182,34 @@ function renderPact(pact) {
   const mintButton = $("#pact-mint-button");
   mintButton.hidden = !configured || minted || !(pact.challengerSigned && pact.opponentSigned);
   mintButton.disabled = state.pactBusy || !state.wallet || state.invite?.status !== "READY";
+  const battleFinished = state.battle?.status === "FINISHED";
+  const isWinner = Boolean(state.battle?.youWon);
+  const settleButton = $("#pact-settle-button");
+  settleButton.hidden = !(battleFinished && isWinner && minted && !pact.settledOnchain && !pact.settlementPending);
+  settleButton.disabled = state.pactBusy;
+  const fulfillButton = $("#pact-fulfill-button");
+  fulfillButton.hidden = !(battleFinished && isWinner && pact.settledOnchain && !pact.fulfilledOnchain);
+  fulfillButton.disabled = state.pactBusy;
+  if (!configured) {
+    $("#pact-sign-status").textContent = pact?.reason || "Pact factory address has not been configured.";
+  } else if (minted && pact.settlementPending) {
+    $("#pact-sign-status").textContent = "The match result is being submitted on-chain. Refresh shortly.";
+  } else if (minted && battleFinished && !pact.settledOnchain) {
+    $("#pact-sign-status").textContent = isWinner
+      ? "You won. Settle the verified match result on-chain before the condition can be marked fulfilled."
+      : "The match is finished. Waiting for the winner to settle the result on-chain.";
+  } else if (pact.settledOnchain && !pact.fulfilledOnchain) {
+    $("#pact-sign-status").textContent = isWinner
+      ? "The result is settled. Once the agreed condition is completed, confirm fulfilment here; the loser's NFT metadata will update."
+      : "The result is settled. Your Pact receipt will remain marked Unfulfilled Challenge until the winner confirms completion.";
+  } else if (pact.fulfilledOnchain) {
+    $("#pact-sign-status").textContent = "Condition fulfilled on-chain. Both soulbound receipts now show the final outcome.";
+  }
   const tx = $("#pact-tx-status");
   tx.hidden = !minted;
-  tx.textContent = minted ? `Transaction: ${pact.transactionHash || "confirmed"}` : "";
+  tx.textContent = minted
+    ? `Mint: ${pact.transactionHash || "confirmed"}${pact.settlementTxHash ? ` · Settlement: ${pact.settlementTxHash}` : ""}${pact.fulfillmentTxHash ? ` · Fulfilment: ${pact.fulfillmentTxHash}` : ""}`
+    : "";
 }
 async function loadPact() {
   if (!isBattleLobbyPage || !state.session || !state.id || !state.invite) return;
@@ -392,6 +417,25 @@ $("#pact-sign-button").addEventListener("click", async () => {
   try { await signCurrentPact(); } catch (error) { showAlert(error?.message || "Could not sign the agreement."); }
 });
 $("#pact-mint-button").addEventListener("click", mintCurrentPact);
+$("#pact-settle-button").addEventListener("click", async () => {
+  try { await postPactAction("settle"); } catch (error) { showAlert(error?.message || "Could not settle the match result."); }
+});
+$("#pact-fulfill-button").addEventListener("click", async () => {
+  if (!state.wallet || !state.pact?.pactId) return showAlert("Connect your linked winner wallet first.");
+  state.pactBusy = true;
+  renderPact(state.pact);
+  try {
+    const transactionHash = await confirmPactFulfillment(state.wallet, state.pact);
+    state.pactBusy = false;
+    await postPactAction("recordFulfillment", { transactionHash });
+    await loadInvite();
+  } catch (error) {
+    showAlert(error?.message || "Could not confirm condition fulfilment.");
+  } finally {
+    state.pactBusy = false;
+    if (state.pact) renderPact(state.pact);
+  }
+});
 $("#combat-moves").addEventListener("click", (event) => {
   const button = event.target.closest("[data-battle-move]");
   if (!button || state.battleBusy) return;
