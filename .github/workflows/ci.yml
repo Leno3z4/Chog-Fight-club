@@ -22,8 +22,10 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
       - name: Test website services
         run: npm test
-      - name: Syntax-check Vercel API routes
-        run: find api -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Syntax-check API routes and realtime Worker
+        run: |
+          find api functions server src -name '*.js' -print0 | xargs -0 -n1 node --check
+          node --check realtime/worker.js
       - name: Validate Cloudflare D1 migration
         run: |
           python - <<'PY'
