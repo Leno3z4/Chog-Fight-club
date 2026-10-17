@@ -22,6 +22,10 @@ contract ChogBattlePactFactory {
     error InvalidSignature();
     error PactNotActive();
 
+    event Transfer(address indexed from, address indexed to, uint256 indexed tokenId);
+    event Approval(address indexed owner, address indexed approved, uint256 indexed tokenId);
+    event ApprovalForAll(address indexed owner, address indexed operator, bool approved);
+
     event PactMinted(
         uint256 indexed pactId,
         bytes32 indexed inviteKey,
