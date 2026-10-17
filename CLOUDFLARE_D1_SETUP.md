@@ -10,7 +10,7 @@ Your database details are:
 - Binding: `CHOG_DB`
 - Database ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`
 
-Open **Cloudflare Dashboard → Workers & Pages → D1 SQL Database → chog-fight-club → Console**. Run these migrations one at a time, in order. Copy all SQL from [`migrations/0001_challenge_invites.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/main/migrations/0001_challenge_invites.sql), paste it in Console, and click **Execute**. Then do the same with [`migrations/0002_player_directory.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/main/migrations/0002_player_directory.sql). The second migration enables username search.
+Open **Cloudflare Dashboard → Workers & Pages → D1 SQL Database → chog-fight-club → Console**. Run these migrations one at a time, in order. Copy all SQL from [`migrations/0001_challenge_invites.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/main/migrations/0001_challenge_invites.sql), paste it in Console, and click **Execute**. Then apply [`migrations/0002_player_directory.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/feature/pvp-battle-engine-pact-nft/migrations/0002_player_directory.sql), [`migrations/0003_authoritative_battles.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/feature/pvp-battle-engine-pact-nft/migrations/0003_authoritative_battles.sql), and [`migrations/0004_pact_nft_signatures.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/feature/pvp-battle-engine-pact-nft/migrations/0004_pact_nft_signatures.sql), in that order. The third stores server-authoritative battle state; the fourth stores player signatures and minted Pact receipt IDs. Do not apply 0003 or 0004 to production until the feature branch has been reviewed and merged.
 
 ## 2. Bind D1 to the Pages backend
 
@@ -41,6 +41,9 @@ In **Pages → Settings → Variables and Secrets**, set:
 
 - `SESSION_SECRET` — exactly the same value configured in Vercel
 - `MONAD_RPC_URL` — `https://rpc.monad.xyz`
+- `OPENSEA_API_KEY` — server-side secret used to read Chog metadata for combat stats
+- `PACT_FACTORY_ADDRESS` — set only after the factory is deployed and the website integration has been tested
+- `PACT_CHAIN_ID=143` — Monad mainnet chain ID
 
 The matching session secret is required because Vercel signs the Discord session and Cloudflare validates that same signed session before allowing invitation access. Do not share or commit the secret.
 
