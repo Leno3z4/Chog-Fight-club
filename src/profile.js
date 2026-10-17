@@ -510,6 +510,8 @@ $("#lobby-join-link")?.addEventListener("click", () => {
 
 requireDiscordSession().then(async (ok) => {
   if (!ok) return;
+  const requestedPanel = new URLSearchParams(window.location.search).get("panel");
+  if (panels.includes(requestedPanel)) setPanel(requestedPanel);
   await fetch("/api/players", { method: "POST", credentials: "same-origin", headers: { accept: "application/json" } }).catch(() => {});
   const linked = state.session?.walletAddress;
   let walletReady = false;
