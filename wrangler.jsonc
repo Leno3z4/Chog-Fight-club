@@ -3,6 +3,12 @@
   "name": "chog-fight-club",
   "pages_build_output_dir": "./dist",
   "compatibility_date": "2026-10-16",
+  "vars": {
+    "PACT_FACTORY_ADDRESS": "0x3a5485d41cAcE651dBAba9f292C12b1Df425f950",
+    "PACT_RESOLVER_ADDRESS": "0x77DF3ae15b994131797905e59675da3544C90DFF",
+    "PACT_CHAIN_ID": "143",
+    "MONAD_RPC_URL": "https://rpc.monad.xyz"
+  },
   "d1_databases": [
     {
       "binding": "CHOG_DB",
