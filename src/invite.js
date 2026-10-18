@@ -89,6 +89,10 @@ function renderSummary(invite) {
   if (conditionNode) conditionNode.textContent = practiceMode
     ? `${invite.condition} — PROTOTYPE PRACTICE: no Pact NFT or official result.`
     : invite.condition;
+  const conditionNote = $("#invite-condition-note");
+  if (conditionNote && practiceMode) conditionNote.textContent = "Prototype practice only. No NFT is transferred or minted and no official result is recorded. Both players still agree to voluntary, harmless demands.";
+  const readyFooterNote = $("#ready-card-footer-note");
+  if (readyFooterNote && practiceMode) readyFooterNote.textContent = "Prototype practice only: no Pact NFT will be minted and this match is not an official result.";
   const fighterPrompt = $("#fighter-prompt");
   if (fighterPrompt && practiceMode) fighterPrompt.textContent = "Choose Ember, Tide, or Volt. This practice room does not require a Chog NFT.";
   const walletButton = $("#link-wallet");
@@ -116,17 +120,17 @@ function renderSummary(invite) {
     presenceNode.textContent = invite.status === "PENDING_ACCEPTANCE"
       ? `Waiting for @${invite.opponent?.username || "your rival"} to join. Keep this lobby open; you'll be notified when they accept the invitation.`
       : invite.status === "TERMS_ACCEPTED"
-        ? "Your rival joined the lobby. Write your demand and agree on both demands before minting the Pact NFT."
+        ? (practiceMode ? "Your rival joined. Write and accept both demands, then confirm readiness for prototype practice." : "Your rival joined the lobby. Write your demand and agree on both demands before minting the Pact NFT.")
         : ["READY", "IN_BATTLE", "RESULT_PENDING", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(invite.status)
-          ? "Both players have joined. Finish the agreement, mint the Pact, and enter the real-time arena."
+          ? (practiceMode ? "Both players have joined. Confirm readiness and enter prototype practice." : "Both players have joined. Finish the agreement, mint the Pact, and enter the real-time arena.")
           : "This room stays available while you wait for the other player.";
   }
   const waitingCopy = $("#room-waiting-copy");
   if (waitingCopy) waitingCopy.textContent = invite.status === "PENDING_ACCEPTANCE"
     ? "You're in the room early. The invite stays open until the other player joins."
     : invite.status === "TERMS_ACCEPTED"
-      ? "Your opponent is here. Your two demands must be saved and accepted before the match starts."
-      : "Once the Pact is minted and both players are ready, you will enter the same live arena.";
+      ? (practiceMode ? "Your opponent is here. Save and accept both demands before confirming readiness." : "Your opponent is here. Your two demands must be saved and accepted before the match starts.")
+      : (practiceMode ? "Once both players are ready, you will enter the same prototype arena." : "Once the Pact is minted and both players are ready, you will enter the same live arena.");
   $("#challenger-name").textContent = invite.challenger.username || "Challenger";
   $("#challenger-chog").textContent = invite.challenger.tokenId ? `Chog #${invite.challenger.tokenId}` : "Chog not selected";
   $("#challenger-terms").textContent = `Terms accepted: ${invite.challenger.termsAccepted ? "Yes" : "No"}`;
