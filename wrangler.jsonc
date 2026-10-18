@@ -1,13 +1,16 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "chog-fight-club",
-  "pages_build_output_dir": "./dist",
-  "compatibility_date": "2026-10-16",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-18",
+  "compatibility_flags": ["nodejs_compat"],
   "vars": {
     "PACT_FACTORY_ADDRESS": "0x3a5485d41cAcE651dBAba9f292C12b1Df425f950",
     "PACT_RESOLVER_ADDRESS": "0x77DF3ae15b994131797905e59675da3544C90DFF",
     "PACT_CHAIN_ID": "143",
-    "MONAD_RPC_URL": "https://rpc.monad.xyz"
+    "MONAD_RPC_URL": "https://rpc.monad.xyz",
+    "DISCORD_APP_ORIGIN": "https://chog-fight-club.vercel.app",
+    "DISCORD_REDIRECT_URI": "https://chog-fight-club.vercel.app/api/discord/callback"
   },
   "d1_databases": [
     {
