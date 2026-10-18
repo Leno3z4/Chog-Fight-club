@@ -227,6 +227,16 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
   if (!validId(id)) throw new PactApiError("A valid challenge ID is required.", { status: 400, code: "INVITE_ID_INVALID" });
   const db = getDb(env);
   let { row, isChallenger } = await getParticipant({ db, id, user });
+  if (row.game_mode === "PRACTICE") {
+    if (method === "GET") {
+      return {
+        status: 200,
+        body: { pact: { configured: false, minted: false, practiceMode: true, reason: "Prototype practice rooms cannot mint or settle Pact NFTs." } },
+        headers: { "Cache-Control": "no-store" },
+      };
+    }
+    throw new PactApiError("Pact NFTs are disabled for prototype practice rooms.", { status: 409, code: "PRACTICE_PACT_DISABLED" });
+  }
   const address = factoryAddress(env);
   if (!address) {
     if (method === "GET") return { status: 200, body: { pact: publicPact(row, "", env, isChallenger) } };
