@@ -362,3 +362,12 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
   .lobby-join-notice{align-items:flex-start;flex-wrap:wrap;padding:12px}
   .lobby-join-notice .discord-button{flex:1}
 }
+
+/* Pact receipt preview: keep the agreement and final result visible in the lobby. */
+.pact-result-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin:14px 0}
+.pact-result-deal,.pact-result-field{min-width:0;padding:13px 14px;border:1px solid rgba(163,132,255,.24);border-radius:12px;background:rgba(22,15,34,.72)}
+.pact-result-deal{grid-column:1/-1}
+.pact-result-label{display:block;margin-bottom:8px;color:var(--club-yellow);font:500 10px 'DM Mono',monospace;letter-spacing:.12em}
+.pact-result-deal blockquote{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;color:#f3edf9;font-size:13px;line-height:1.65}
+.pact-result-field strong{display:block;color:#f3edf9;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+@media(max-width:620px){.pact-result-grid{grid-template-columns:1fr 1fr}.pact-result-deal{grid-column:1/-1}.pact-result-field:last-child{grid-column:1/-1}}
