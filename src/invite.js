@@ -427,6 +427,31 @@ function renderPact(pact) {
   const relevant = ["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
   card.hidden = !relevant;
   if (!relevant) return;
+  const dealNode = $("#pact-deal-text");
+  if (dealNode) {
+    const agreedDeal = pact?.agreement?.condition
+      || [
+        state.invite?.challengerDemand ? `Challenger demand: ${state.invite.challengerDemand}` : "",
+        state.invite?.opponentDemand ? `Opponent demand: ${state.invite.opponentDemand}` : "",
+      ].filter(Boolean).join("\n");
+    dealNode.textContent = agreedDeal || "Waiting for both players to agree on the terms.";
+  }
+  const winnerNode = $("#pact-winner-text");
+  const loserNode = $("#pact-loser-text");
+  const conditionStatusNode = $("#pact-condition-status");
+  const battleFinishedNow = state.battle?.status === "FINISHED";
+  const hasWinner = battleFinishedNow && Boolean(state.battle?.winnerDiscordId);
+  const winnerPlayer = hasWinner ? (state.battle.youWon ? viewer(state.invite) : opponent(state.invite)) : null;
+  const loserPlayer = hasWinner ? (state.battle.youWon ? opponent(state.invite) : viewer(state.invite)) : null;
+  if (winnerNode) winnerNode.textContent = winnerPlayer?.username || (hasWinner ? "Winner confirmed" : "Not decided yet");
+  if (loserNode) loserNode.textContent = loserPlayer?.username || (hasWinner ? "Loser confirmed" : "Not decided yet");
+  if (conditionStatusNode) {
+    conditionStatusNode.textContent = pact?.fulfilledOnchain ? "Fulfilled on Monad"
+      : pact?.settledOnchain ? "Winner must confirm completion"
+        : hasWinner && pact?.minted ? "Match finished — settlement pending"
+          : pact?.minted ? "Agreement minted — awaiting battle"
+            : "Awaiting Pact mint";
+  }
   const configured = Boolean(pact?.configured);
   const minted = Boolean(pact?.minted);
   const readyCard = $("#ready-card");
