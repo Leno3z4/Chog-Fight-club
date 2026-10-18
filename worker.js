@@ -106,7 +106,7 @@ async function authRoute(request, env) {
       addCookies(headers, result.cookies);
       return new Response(JSON.stringify(result.body), {
         status: result.status || 200,
-        headers: { "Content-Type": "application/json; charset=utf-8", ...Object.fromEntries(headers.entries()) },
+        headers,
       });
     }
 
@@ -131,6 +131,12 @@ async function authRoute(request, env) {
       return new Response(JSON.stringify(result.body), { status: result.status || 200, headers });
     }
 
+    if (url.pathname.startsWith("/api/discord/") || url.pathname.startsWith("/api/wallet/")) {
+      const methods = url.pathname.endsWith("/login") || url.pathname.endsWith("/callback") || url.pathname.endsWith("/session")
+        ? ["GET"]
+        : ["POST"];
+      return json({ error: "Method not allowed.", code: "METHOD_NOT_ALLOWED" }, 405, { Allow: methods.join(", ") });
+    }
     return null;
   } catch (error) {
     if (url.pathname === "/api/discord/login") {
