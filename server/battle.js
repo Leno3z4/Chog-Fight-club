@@ -98,17 +98,115 @@ async function verifyChogOwner(fetchImpl, env, tokenId, wallet) {
     throw new BattleApiError("A selected Chog is no longer owned by the linked wallet.", { status: 409, code: "CHOG_OWNERSHIP_CHANGED" });
   }
 }
+async function fetchTokenUri(fetchImpl, env, tokenId) {
+  const data = "0xc87b56dd" + BigInt(tokenId).toString(16).padStart(64, "0");
+  const response = await fetchImpl(env?.MONAD_RPC_URL || DEFAULT_RPC, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to: CHOG_CONTRACT, data }, "latest"] }),
+  });
+  if (!response.ok) throw new BattleApiError("Monad RPC could not read the selected Chog metadata URI.", { status: 502, code: "NFT_METADATA_RPC_FAILED" });
+  const payload = await response.json();
+  const result = String(payload?.result || "");
+  if (payload.error || !/^0x[0-9a-fA-F]+$/.test(result)) {
+    throw new BattleApiError("The selected Chog did not return a readable tokenURI.", { status: 502, code: "NFT_TOKEN_URI_UNAVAILABLE" });
+  }
+  const hex = result.slice(2);
+  if (hex.length < 128) throw new BattleApiError("The selected Chog returned malformed tokenURI data.", { status: 502, code: "NFT_TOKEN_URI_INVALID" });
+  const offset = Number(BigInt("0x" + hex.slice(0, 64)));
+  if (!Number.isSafeInteger(offset) || offset < 32 || offset * 2 + 64 > hex.length) {
+    throw new BattleApiError("The selected Chog returned malformed tokenURI data.", { status: 502, code: "NFT_TOKEN_URI_INVALID" });
+  }
+  const lengthStart = offset * 2;
+  const length = Number(BigInt("0x" + hex.slice(lengthStart, lengthStart + 64)));
+  const contentStart = lengthStart + 64;
+  if (!Number.isSafeInteger(length) || length < 1 || length > 4096 || contentStart + length * 2 > hex.length) {
+    throw new BattleApiError("The selected Chog returned an invalid metadata URI length.", { status: 502, code: "NFT_TOKEN_URI_INVALID" });
+  }
+  const bytes = new Uint8Array(length);
+  for (let i = 0; i < length; i += 1) bytes[i] = Number.parseInt(hex.slice(contentStart + i * 2, contentStart + i * 2 + 2), 16);
+  return new TextDecoder().decode(bytes);
+}
+
+function metadataJsonFromDataUri(uri) {
+  const comma = uri.indexOf(",");
+  if (comma < 0) throw new BattleApiError("The Chog metadata data URI is malformed.", { status: 502, code: "NFT_METADATA_URI_INVALID" });
+  const header = uri.slice(0, comma).toLowerCase();
+  const payload = uri.slice(comma + 1);
+  try {
+    if (header.includes(";base64")) {
+      const binary = atob(payload);
+      const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+      return JSON.parse(new TextDecoder().decode(bytes));
+    }
+    return JSON.parse(decodeURIComponent(payload));
+  } catch {
+    throw new BattleApiError("The Chog metadata data URI does not contain valid JSON.", { status: 502, code: "NFT_METADATA_JSON_INVALID" });
+  }
+}
+
+function safeMetadataUrl(uri) {
+  let value = String(uri || "").trim();
+  if (value.startsWith("ipfs://")) {
+    value = "https://ipfs.io/ipfs/" + value.slice("ipfs://".length).replace(/^ipfs\//i, "");
+  } else if (value.startsWith("ar://")) {
+    value = "https://arweave.net/" + value.slice("ar://".length);
+  }
+  let url;
+  try { url = new URL(value); } catch {
+    throw new BattleApiError("The Chog metadata URI is not a valid URL.", { status: 502, code: "NFT_METADATA_URI_INVALID" });
+  }
+  const host = url.hostname.toLowerCase();
+  const ipv4 = /^\d{1,3}(?:\.\d{1,3}){3}$/.test(host);
+  if (url.protocol !== "https:" || url.username || url.password || !host.includes(".") || ipv4
+    || host === "localhost" || host.endsWith(".local") || host.endsWith(".internal")
+    || host === "metadata.google.internal" || host === "169.254.169.254") {
+    throw new BattleApiError("The Chog metadata URI uses an unsafe or unsupported host.", { status: 502, code: "NFT_METADATA_URI_UNSAFE" });
+  }
+  return url;
+}
+
+async function fetchTokenMetadata(fetchImpl, env, tokenId) {
+  const uri = await fetchTokenUri(fetchImpl, env, tokenId);
+  if (uri.startsWith("data:application/json")) return metadataJsonFromDataUri(uri);
+  const url = safeMetadataUrl(uri);
+  const response = await fetchImpl(url.toString(), { headers: { accept: "application/json" }, redirect: "follow" });
+  if (!response.ok) throw new BattleApiError("The Chog tokenURI metadata endpoint did not return a successful response.", { status: 502, code: "NFT_METADATA_FETCH_FAILED" });
+  const finalUrl = safeMetadataUrl(response.url || url.toString());
+  if (finalUrl.hostname !== url.hostname) {
+    throw new BattleApiError("The Chog metadata endpoint redirected to a different host. Use an on-chain metadata URI with no cross-host redirects.", { status: 502, code: "NFT_METADATA_REDIRECT_REJECTED" });
+  }
+  const raw = await response.text();
+  if (raw.length > 1_000_000) throw new BattleApiError("The Chog metadata response is too large.", { status: 502, code: "NFT_METADATA_TOO_LARGE" });
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("not an object");
+    return parsed;
+  } catch {
+    throw new BattleApiError("The Chog tokenURI endpoint did not return valid JSON metadata.", { status: 502, code: "NFT_METADATA_JSON_INVALID" });
+  }
+}
+
 async function fetchCombatDNA(fetchImpl, env, tokenId) {
   const prototype = PROTOTYPE_METADATA[String(tokenId)];
   if (prototype) return buildCombatDNA(prototype);
+
   const apiKey = String(env?.OPENSEA_API_KEY || "");
-  if (!apiKey) throw new BattleApiError("OpenSea metadata lookup is not configured. Add OPENSEA_API_KEY to the Cloudflare backend secrets.", { status: 503, code: "OPENSEA_NOT_CONFIGURED" });
-  const url = `https://api.opensea.io/api/v2/chain/monad/contract/${CHOG_CONTRACT}/nfts/${encodeURIComponent(tokenId)}`;
-  const response = await fetchImpl(url, { headers: { accept: "application/json", "X-API-KEY": apiKey } });
-  if (response.status === 429) throw new BattleApiError("OpenSea is rate-limiting metadata reads. Wait briefly and retry.", { status: 503, code: "OPENSEA_RATE_LIMIT" });
-  if (!response.ok) throw new BattleApiError("OpenSea could not return the selected Chog metadata.", { status: 502, code: "OPENSEA_METADATA_FAILED" });
-  return buildCombatDNA(normalizeAttributes(await response.json()));
+  if (apiKey) {
+    const url = `https://api.opensea.io/api/v2/chain/monad/contract/${CHOG_CONTRACT}/nfts/${encodeURIComponent(tokenId)}`;
+    const response = await fetchImpl(url, { headers: { accept: "application/json", "X-API-KEY": apiKey } });
+    if (response.ok) return buildCombatDNA(normalizeAttributes(await response.json()));
+    // Use the NFT's on-chain tokenURI as a fallback if OpenSea is unavailable or rate-limited.
+  }
+
+  try {
+    return buildCombatDNA(normalizeAttributes(await fetchTokenMetadata(fetchImpl, env, tokenId)));
+  } catch (error) {
+    if (error instanceof BattleApiError) throw error;
+    throw new BattleApiError("Could not load the selected Chog's metadata from OpenSea or its on-chain tokenURI.", { status: 502, code: "NFT_METADATA_UNAVAILABLE" });
+  }
 }
+
 function publicBattle(row, invite, user) {
   if (!row) return { inviteId: invite.id, inviteStatus: invite.status, status: "WAITING_FOR_READY", battle: null };
   const isChallenger = user.discordId === invite.challenger_discord_id;
