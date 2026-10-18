@@ -97,7 +97,7 @@ class MockD1 {
         "id","challenger_discord_id","challenger_username","challenger_wallet","challenger_token_id",
         "opponent_discord_id","opponent_username","opponent_wallet","opponent_token_id","condition_text",
         "terms_hash","challenger_terms_accepted","challenger_terms_accepted_at","opponent_terms_accepted",
-        "opponent_terms_accepted_at","challenger_ready","opponent_ready","status","created_at","updated_at","expires_at"
+        "opponent_terms_accepted_at","challenger_ready","opponent_ready","status","created_at","updated_at","expires_at","game_mode"
       ];
       const row = Object.fromEntries(fields.map((field, index) => [field, v[index]]));
       this.rows.set(row.id, row);
@@ -508,4 +508,59 @@ test("unregistered username invite can only be claimed by the matching Discord a
   assert.equal(accepted.body.invite.status, "TERMS_ACCEPTED");
   assert.equal(accepted.body.invite.opponent.discordId, opponentId);
   assert.equal(db.rows.get(row.id).opponent_discord_id, opponentId);
+});
+
+
+test("owner can create prototype practice without a real Chog and mode is returned", async () => {
+  const db = new MockD1();
+  env.CHOG_DB = db;
+  const ownerCookie = await makeLinkedSession({
+    discordId: "1304031867162595361",
+    username: "arena_owner",
+    walletAccount: account,
+  });
+  const result = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: ownerCookie,
+    env,
+    origin,
+    body: {
+      action: "create",
+      opponentDiscordId: opponentId,
+      opponentUsername: "rival",
+      challengerTokenId: "prototype:ember",
+      gameMode: "PRACTICE",
+      condition: "Post a harmless silly message for one day.",
+      agreeToCondition: true,
+    },
+  });
+  assert.equal(result.status, 201);
+  assert.equal(result.body.invite.gameMode, "PRACTICE");
+  assert.equal(db.rows.get(result.body.invite.id).game_mode, "PRACTICE");
+});
+
+test("non-owner cannot create prototype practice invites", async () => {
+  const db = new MockD1();
+  env.CHOG_DB = db;
+  const playerCookie = await makeLinkedSession({ discordId: challengerId, username: "regular_player", walletAccount: account });
+  await assert.rejects(
+    handleInviteRequest({
+      method: "POST",
+      url: "/api/invites",
+      cookieHeader: playerCookie,
+      env,
+      origin,
+      body: {
+        action: "create",
+        opponentDiscordId: opponentId,
+        opponentUsername: "rival",
+        challengerTokenId: "prototype:ember",
+        gameMode: "PRACTICE",
+        condition: "Post a harmless silly message for one day.",
+        agreeToCondition: true,
+      },
+    }),
+    (error) => error instanceof InviteApiError && error.code === "PRACTICE_MODE_FORBIDDEN" && error.status === 403,
+  );
 });
