@@ -247,16 +247,31 @@ contract ChogBattlePactFactory {
         uint256 ownChogId = isChallenger ? pact.challengerChogId : pact.opponentChogId;
         uint256 rivalChogId = isChallenger ? pact.opponentChogId : pact.challengerChogId;
         string memory outcome;
-        if (pact.status == ACTIVE) outcome = "Accepted - awaiting battle";
-        else if (pact.status == FULFILLED) outcome = tokenOwner == pact.winner
-            ? "Winner - condition fulfilled" : "Challenge lost - condition fulfilled";
-        else if (pact.status == SETTLED) outcome = tokenOwner == pact.winner
-            ? "Winner - condition pending" : "Unfulfilled Challenge";
+        string memory conditionStatus;
+        if (pact.status == ACTIVE) {
+            outcome = "Awaiting battle";
+            conditionStatus = "Pending";
+        } else if (pact.status == SETTLED) {
+            outcome = tokenOwner == pact.winner ? "Winner - condition pending" : "Loser - unfulfilled challenge";
+            conditionStatus = "Pending fulfilment";
+        } else if (pact.status == FULFILLED) {
+            outcome = tokenOwner == pact.winner ? "Winner - condition fulfilled" : "Loser - condition fulfilled";
+            conditionStatus = "Fulfilled";
+        }
+
+        address loserAddress = pact.winner == address(0)
+            ? address(0)
+            : (pact.winner == pact.challenger ? pact.opponent : pact.challenger);
+        string memory winnerText = pact.winner == address(0) ? "Pending" : _toHexAddress(pact.winner);
+        string memory loserText = loserAddress == address(0) ? "Pending" : _toHexAddress(loserAddress);
 
         string memory description = string.concat(
             "Chog Battle Arena soulbound agreement. Role: ", role,
-            ". Opponent: ", _toHexAddress(rival),
-            ". Condition: ", pact.condition,
+            ". Challenger: ", _toHexAddress(pact.challenger),
+            ". Opponent: ", _toHexAddress(pact.opponent),
+            ". Winner: ", winnerText,
+            ". Loser: ", loserText,
+            ". Deal: ", pact.condition,
             ". Status: ", outcome,
             ". Terms hash: ", _toHexBytes32(pact.termsHash),
             bytes(pact.termsURI).length == 0 ? "" : string.concat(". Terms document: ", pact.termsURI)
@@ -267,6 +282,10 @@ contract ChogBattlePactFactory {
             '"},{"trait_type":"Opponent","value":"', _toHexAddress(rival),
             '"},{"trait_type":"Your Chog","value":"', _toString(ownChogId),
             '"},{"trait_type":"Opponent Chog","value":"', _toString(rivalChogId),
+            '"},{"trait_type":"Deal","value":"', _escapeJson(pact.condition),
+            '"},{"trait_type":"Winner","value":"', winnerText,
+            '"},{"trait_type":"Loser","value":"', loserText,
+            '"},{"trait_type":"Condition Status","value":"', conditionStatus,
             '"},{"trait_type":"Status","value":"', _escapeJson(outcome),
             '"},{"trait_type":"Terms Hash","value":"', _toHexBytes32(pact.termsHash), '"}]'
         );
