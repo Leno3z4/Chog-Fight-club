@@ -540,6 +540,35 @@ test("owner can create prototype practice without a real Chog and mode is return
   assert.equal(db.rows.get(result.body.invite.id).game_mode, "PRACTICE");
 });
 
+test("practice invite accepts a prototype fighter without NFT ownership lookup", async () => {
+  const db = new MockD1();
+  const row = makeRow({ game_mode: "PRACTICE" });
+  db.rows.set(row.id, row);
+  env.CHOG_DB = db;
+  const opponentCookie = await makeLinkedSession({
+    discordId: opponentId,
+    username: "rival",
+    walletAccount: opponentAccount,
+  });
+  const accepted = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: opponentCookie,
+    env,
+    origin,
+    body: {
+      action: "accept",
+      id: row.id,
+      opponentTokenId: "prototype:tide",
+      agreeToCondition: true,
+    },
+  });
+  assert.equal(accepted.status, 200);
+  assert.equal(accepted.body.invite.gameMode, "PRACTICE");
+  assert.equal(accepted.body.invite.opponent.tokenId, "prototype:tide");
+  assert.equal(db.rows.get(row.id).opponent_wallet, opponentAccount.address.toLowerCase());
+});
+
 test("non-owner cannot create prototype practice invites", async () => {
   const db = new MockD1();
   env.CHOG_DB = db;
