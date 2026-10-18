@@ -1,103 +1,88 @@
 # Cloudflare D1 backend setup for Chog Battle Arena
 
-**Vercel hosts the website and Discord sign-in. Cloudflare is used for the persistent invitation API and D1 database.** Users should keep browsing the Vercel site; its `/api/invites` function forwards invitation requests to Cloudflare.
+Vercel serves the website and Discord sign-in. Cloudflare Pages serves the authenticated invitation/Pact APIs and binds the D1 database. A separate Cloudflare Worker provides the real-time battle room.
 
-## 1. D1 database
+## Current connected deployment
 
-Your database details are:
+- **Pages project:** `chog-fight-club`, production branch `main`, URL `https://chog-fight-club.pages.dev`.
+- **D1 database:** `chog-fight-club`, ID `8b61a704-51a0-40c0-a6dd-0f46bb81589e`, binding `CHOG_DB`.
+- **Real-time Worker:** `chog-battle-arena-realtime`, with Durable Object `ArenaRoom`.
+- **Vercel frontend:** `https://chog-fight-club.vercel.app`.
+- The Pages and Vercel production deployments have completed successfully. The realtime Worker has its D1 and Durable Object bindings configured.
+- Migrations **0001 through 0007 are already applied to this production D1 database**. Do not re-run them there; migrations 0003–0007 alter the existing invite table and are not repeatable.
 
-- Database: `chog-fight-club`
-- Binding: `CHOG_DB`
-- Database ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`
+The session secret was synchronized across Vercel, Pages, and the real-time Worker during deployment. Existing Discord sessions may need to sign in again.
 
-Open **Cloudflare Dashboard → Workers & Pages → D1 SQL Database → chog-fight-club → Console**. Run these migrations one at a time, in order. Copy all SQL from [`migrations/0001_challenge_invites.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/main/migrations/0001_challenge_invites.sql), paste it in Console, and click **Execute**. Then apply [`migrations/0002_player_directory.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/feature/pvp-battle-engine-pact-nft/migrations/0002_player_directory.sql), [`migrations/0003_authoritative_battles.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/feature/pvp-battle-engine-pact-nft/migrations/0003_authoritative_battles.sql), and [`migrations/0004_pact_nft_signatures.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/feature/pvp-battle-engine-pact-nft/migrations/0004_pact_nft_signatures.sql), [`migrations/0005_pact_settlement.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/feature/pvp-battle-engine-pact-nft/migrations/0005_pact_settlement.sql), and [`migrations/0006_bilateral_demands.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/feature/pvp-battle-engine-pact-nft/migrations/0006_bilateral_demands.sql), followed by [`migrations/0007_multiplayer_practice.sql`](https://raw.githubusercontent.com/Leno3z4/Chog-Fight-club/feature/pvp-battle-engine-pact-nft/migrations/0007_multiplayer_practice.sql), in that order. Migration 0007 adds the official/practice mode flag; prototype practice must remain separate from Pact minting. Migration 0003 stores match state, 0004 stores Pact signatures/receipt IDs, 0005 stores settlement/fulfilment references, and 0006 adds the opponent's separate demand. Do not apply migrations 0003–0007 to production until the feature branch has been reviewed and merged. The connected account's current D1 database was checked and lacks migrations 0003–0007; do not enable the new backend against it until the full migration set is approved and applied in a safe deployment window.
+## 1. For a fresh D1 database only
 
-## 2. Bind D1 to the Pages backend
+For a *new/empty* database, apply these SQL migrations once, in numerical order:
 
-Open **Workers & Pages → your Pages project → Settings → Bindings → Add → D1 database**.
+1. [`0001_challenge_invites.sql`](./migrations/0001_challenge_invites.sql)
+2. [`0002_player_directory.sql`](./migrations/0002_player_directory.sql)
+3. [`0003_authoritative_battles.sql`](./migrations/0003_authoritative_battles.sql)
+4. [`0004_pact_nft_signatures.sql`](./migrations/0004_pact_nft_signatures.sql)
+5. [`0005_pact_settlement.sql`](./migrations/0005_pact_settlement.sql)
+6. [`0006_bilateral_demands.sql`](./migrations/0006_bilateral_demands.sql)
+7. [`0007_multiplayer_practice.sql`](./migrations/0007_multiplayer_practice.sql)
 
-Set **Variable name** to exactly `CHOG_DB`, select the database above, save, and redeploy.
+Do not apply these files again to the connected production database listed above.
 
-## 3. Fix the failed Cloudflare deployment
+## 2. Cloudflare Pages settings
 
-The build log shows the deploy command is `npx wrangler deploy`. That is the wrong command for a Pages project; it attempts to deploy a Worker and fails with “Missing entry-point to Worker script or to assets directory.”
+In **Cloudflare Dashboard → Workers & Pages → chog-fight-club → Settings → Bindings**, the Pages Functions binding must be named exactly `CHOG_DB` and point to the database above.
 
-In the Cloudflare project’s build settings, set:
+The connected production and preview configurations use:
 
-- **Build command:** `npm run build`
-- **Build output directory:** `dist`
-
-If your dashboard is showing a separate **Deploy command** field (as in the log you sent), change that command from `npx wrangler deploy` to:
-
-```text
-npx wrangler pages deploy dist --project-name=chog-fight-club
-```
-
-That deploy command must run after the build command. If you are using the normal Git-connected Pages build settings that deploy automatically, do not add a separate deploy command at all. The project name in the command must match the actual Pages project name.
-
-## 4. Cloudflare backend settings
-
-In **Pages → Settings → Variables and Secrets**, set:
-
-- `SESSION_SECRET` — exactly the same value configured in Vercel
-- `MONAD_RPC_URL` — `https://rpc.monad.xyz`
-- `OPENSEA_API_KEY` — server-side secret used to read Chog metadata for combat stats
-- `PACT_FACTORY_ADDRESS` — set only after the factory is deployed and the website integration has been tested
+- `SESSION_SECRET` — the same secret as Vercel and the real-time Worker
+- `MONAD_RPC_URL=https://rpc.monad.xyz`
 - `PACT_CHAIN_ID=143` — Monad mainnet chain ID
-- `PACT_RESOLVER_ADDRESS` — the resolver wallet passed to the factory constructor
-- `PACT_RESOLVER_PRIVATE_KEY` — add as a Cloudflare secret only; this wallet needs MON for settlement gas
-- `PACT_RESOLVER_ADDRESS` — dedicated wallet passed as the factory's immutable resolver
-- `PACT_RESOLVER_PRIVATE_KEY` — the resolver's private key, stored as a Cloudflare secret only; fund this wallet with enough MON for settlement transactions
 
-The matching session secret is required because Vercel signs the Discord session and Cloudflare validates that same signed session before allowing invitation access. Do not share or commit the secret.
+Pages is a Git-connected project. Its build command is `npm run build`, output directory is `dist`, and production branch is `main`. Pages deploys automatically after a successful build; do not run `npx wrangler deploy` for this Pages project.
 
-The Discord OAuth client ID, client secret, and redirect URI belong on **Vercel**, not Cloudflare, because the live browser signs in at the Vercel domain.
+## 3. Vercel settings
 
-## 5. Configure Vercel to reach Cloudflare
+Vercel production uses:
 
-In **Vercel → your Chog Battle Arena project → Settings → Environment Variables**, set:
-
-- `CLOUDFLARE_BACKEND_URL` — the base URL of your deployed Pages backend, e.g. `https://chog-fight-club.pages.dev`
-- `SESSION_SECRET` — same exact value as Cloudflare
+- `CLOUDFLARE_BACKEND_URL=https://chog-fight-club.pages.dev`
+- `SESSION_SECRET` — same exact secret as Cloudflare
 - `DISCORD_CLIENT_ID`
 - `DISCORD_CLIENT_SECRET`
 - `DISCORD_REDIRECT_URI=https://chog-fight-club.vercel.app/api/discord/callback`
-- `OPENSEA_API_KEY`
 - `MONAD_RPC_URL=https://rpc.monad.xyz`
-- `VITE_ARENA_REALTIME_URL` — public base URL of the separate Cloudflare realtime Worker, for example `https://chog-battle-arena-realtime.<your-account>.workers.dev`
+- `OPENSEA_API_KEY`, if using OpenSea API lookups
+- `VITE_ARENA_REALTIME_URL` — public URL of the real-time Worker, no keys/secrets
 
-`VITE_ARENA_REALTIME_URL` is public and bundled into the browser, so it must contain only the Worker URL, never a key or secret. Redeploy Vercel after changing it. If your actual Vercel or Cloudflare hostname differs, use the exact hostname shown in that platform's dashboard.
+After changing Vercel environment variables, create a new deployment to pick them up. The OAuth redirect stays on the Vercel domain.
 
+## 4. Real-time Worker
 
-## 6. Deploy the realtime Worker
+The Worker named `chog-battle-arena-realtime` is deployed with:
 
-The realtime battle room is a separate Cloudflare Worker. Do not deploy it as part of the Pages project.
+- Durable Object namespace binding `ARENA_ROOMS` targeting `ArenaRoom`
+- D1 binding `CHOG_DB`
+- `SESSION_SECRET` as a Cloudflare secret
+- `ARENA_FRONTEND_ORIGIN=https://chog-fight-club.vercel.app`
 
-1. In Cloudflare Dashboard → **Workers & Pages**, create a Worker connected to this GitHub repo and set its root/build directory to `realtime` (the folder containing `worker.js` and `wrangler.jsonc`). Name it `chog-battle-arena-realtime`.
-2. Use `realtime/wrangler.jsonc` for the Worker configuration. It defines the Durable Object `ArenaRoom` and binds the `chog-fight-club` D1 database as `CHOG_DB`.
-3. In Worker → Settings → Variables and Secrets, add `SESSION_SECRET` as a secret with the exact same value as Vercel/Pages. Set `ARENA_FRONTEND_ORIGIN` to the actual Vercel site origin, e.g. `https://chog-fight-club.vercel.app`.
-4. Deploy the Worker, then copy its `.workers.dev` URL from the Cloudflare dashboard.
-5. In Vercel, set `VITE_ARENA_REALTIME_URL` to that URL and redeploy Vercel.
+The WebSocket service checks a short-lived signed ticket from the Pages API and verifies the participant against the shared D1 invitation. Do not put the session secret or resolver key in browser code.
 
-The realtime Worker checks a short-lived ticket issued by the authenticated Pages API before joining the room. It uses the same D1 database for invitation/match state. Keep the Worker URL public, but do not expose `SESSION_SECRET` or the Pact resolver key.
+## 5. Pact factory configuration
 
-## 7. Discord redirect
+The Pact factory is not yet deployed/configured. After the contract is deployed, set these on **Cloudflare Pages → Variables and Secrets**:
 
-In [Discord Developer Portal](https://discord.com/developers/applications) → your application → **OAuth2**, add this exact Redirect URL:
+- `PACT_FACTORY_ADDRESS` — deployed factory address
+- `PACT_CHAIN_ID=143`
+- `PACT_RESOLVER_ADDRESS` — must match the immutable constructor argument
+- `PACT_RESOLVER_PRIVATE_KEY` — Cloudflare secret only, matching the resolver address; keep it funded for settlement gas
 
-`https://chog-fight-club.vercel.app/api/discord/callback`
+Do not paste the resolver private key into chat, GitHub, or Vercel. See [`PACT_FACTORY_DEPLOYMENT.md`](./PACT_FACTORY_DEPLOYMENT.md) for the contract and end-to-end test requirements.
 
-The URL must match `DISCORD_REDIRECT_URI` on Vercel. Do not register the Pages URL as the callback.
+## 6. Post-deployment validation
 
-## 8. Test
+1. Sign in with Discord and confirm the holder-role gate.
+2. Link a Monad wallet and verify the signed wallet-link message.
+3. Test invitation creation, target acceptance, both written demands, and readiness.
+4. Connect two browser sessions and verify the real-time room opens and both players see the other player.
+5. With a test factory, exercise both EIP-712 signatures, paired minting, winner settlement, and winner-confirmed fulfilment. Verify both NFTs' `tokenURI()` outputs after each stage.
+6. Only after that full cycle succeeds should the immutable Monad mainnet factory be treated as production-ready.
 
-After both deployments and variables are set:
-
-1. Open the Vercel website.
-2. Click **Connect Discord**; the URL should remain on the Vercel domain until Discord's own authorization page opens.
-3. After authorization, Discord should return to the Vercel callback and send you to the profile.
-4. Connect the Monad wallet and sign the wallet-link message.
-5. Open **Invite to battle**, type at least two characters of the opponent's Discord username, and select them from the results. Create the invitation and verify it appears in the sent list. Open it as the intended Discord user to test acceptance.
-
-Players become searchable after signing in once; search matches the start of their Discord username or display name. If a target has not joined yet, choose the exact-username invite fallback. The invite remains pending for that handle until the matching Discord account accepts, when its stable ID is bound internally. After acceptance, both players use the same `/battle-lobby.html?id=...` room link. The shared lobby opens before the invited player arrives. Both players write and accept the two demands; then they sign and mint the paired soulbound Pact receipts. After both are ready and present, the live real-time arena can start. Single Player vs Bot practice is separate and does not mint a Pact.
-
+The Discord OAuth redirect must remain `https://chog-fight-club.vercel.app/api/discord/callback`; do not register the Pages URL as the callback.
