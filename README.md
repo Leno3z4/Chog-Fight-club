@@ -1,6 +1,6 @@
 # Chog Battle Arena
 
-Chog Battle Arena is a Discord-gated 2D/2.5D Chog fighting game. Vercel serves the website and Discord OAuth; Cloudflare Pages runs the authenticated backend API; a separate Cloudflare Durable Object Worker handles the real-time arena.
+Chog Battle Arena is a Discord-gated 2D/2.5D Chog fighting game. Vercel serves the website and same-origin API proxy routes; the `chog-fight-club` Cloudflare Worker runs the authenticated API; a separate Cloudflare Durable Object Worker handles the real-time arena.
 
 ## Implemented
 
@@ -17,39 +17,36 @@ Chog Battle Arena is a Discord-gated 2D/2.5D Chog fighting game. Vercel serves t
 ## Live deployment architecture
 
 - **Website:** Vercel project `chog-fight-club`, production branch `main`, domain `https://chog-fight-club.vercel.app`.
-- **Cloudflare Pages API:** project `chog-fight-club`, production branch `main`, URL `https://chog-fight-club.pages.dev`.
+- **Cloudflare API Worker:** `chog-fight-club`, URL `https://chog-fight-club.gatakehanami.workers.dev`. The Worker runs Discord auth, wallet linking, Chog roster lookup, player directory, invites, battle APIs, and Pact lifecycle endpoints.
 - **Cloudflare D1:** database `chog-fight-club`, binding `CHOG_DB`, ID `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
 - **Real-time Worker:** `chog-battle-arena-realtime`; its URL is configured in Vercel's public `VITE_ARENA_REALTIME_URL` variable.
 - **D1 migrations:** 0001 through 0007 have been applied to the connected production database. Do not re-run migrations 0003–0007 against this database; they contain ALTER TABLE operations.
 
-The Cloudflare Pages build from `main`, the real-time Worker deployment, and the Vercel production deployment from merge commit `91f3ecc` completed successfully. Run a live two-account test before accepting official matches.
+The Cloudflare API Worker is deployed from `main`; its live health check confirms D1, Discord/OpenSea credentials, Monad chain ID, deployed factory bytecode, and the resolver key/address match. Vercel's production deployment is `READY`, and the public API proxy routes return the expected authentication/validation responses. Run the full two-account Pact lifecycle test before accepting official matches.
 
 ## Required configuration
 
 ### Vercel
 
-In **Vercel → Project → Settings → Environment Variables**, keep these configured for production:
+In **Vercel → Project → Settings → Environment Variables**, configure:
 
-- `DISCORD_CLIENT_ID`
-- `DISCORD_CLIENT_SECRET`
-- `DISCORD_REDIRECT_URI=https://chog-fight-club.vercel.app/api/discord/callback`
-- `SESSION_SECRET` — must exactly match the value on Cloudflare Pages and the real-time Worker
-- `CLOUDFLARE_BACKEND_URL=https://chog-fight-club.pages.dev`
-- `MONAD_RPC_URL=https://rpc.monad.xyz`
-- `OPENSEA_API_KEY` (for OpenSea metadata lookups, where configured)
-- `VITE_ARENA_REALTIME_URL` — public Worker URL only; never put secrets in a `VITE_*` variable
+- `CLOUDFLARE_BACKEND_URL=https://chog-fight-club.gatakehanami.workers.dev` — server-side API proxy target
+- `VITE_ARENA_REALTIME_URL` — public URL of the separate real-time Worker
 
-The exact Discord OAuth callback must be registered in the Discord Developer Portal. Keep the callback on the Vercel domain, not Pages.
+The Discord OAuth callback remains `https://chog-fight-club.vercel.app/api/discord/callback`. Register that exact callback in the Discord Developer Portal. Vercel serves the frontend and proxies its `/api/*` routes to the Cloudflare API Worker; do not put secrets into `VITE_*` variables.
 
-### Cloudflare Pages
+### Cloudflare API Worker
 
-The project uses a D1 binding named `CHOG_DB`. The production/preview configuration includes:
+The Worker `chog-fight-club` uses the D1 binding `CHOG_DB` and these public runtime variables:
 
-- `SESSION_SECRET` — same as Vercel and the realtime Worker
-- `MONAD_RPC_URL=https://rpc.monad.xyz`
+- `PACT_FACTORY_ADDRESS=0x3a5485d41cAcE651dBAba9f292C12b1Df425f950`
+- `PACT_RESOLVER_ADDRESS=0x77DF3ae15b994131797905e59675da3544C90DFF`
 - `PACT_CHAIN_ID=143`
+- `MONAD_RPC_URL=https://rpc.monad.xyz`
+- `DISCORD_APP_ORIGIN=https://chog-fight-club.vercel.app`
+- `DISCORD_REDIRECT_URI=https://chog-fight-club.vercel.app/api/discord/callback`
 
-The Pact factory has **not yet been deployed or configured**. After the factory is deployed, configure `PACT_FACTORY_ADDRESS` and `PACT_RESOLVER_ADDRESS`; store `PACT_RESOLVER_PRIVATE_KEY` as a Cloudflare secret only. The resolver private key must match the immutable resolver address passed to the factory constructor and the wallet needs MON for gas.
+Worker secrets include `DISCORD_CLIENT_ID`, `DISCORD_CLIENT_SECRET`, `SESSION_SECRET`, `OPENSEA_API_KEY`, and `PACT_RESOLVER_PRIVATE_KEY`. The resolver key stays in Cloudflare Worker Secrets and must match the immutable resolver address. The live health endpoint currently confirms that match.
 
 ### Real-time Worker
 
@@ -60,7 +57,7 @@ The Worker `chog-battle-arena-realtime` is deployed with Durable Object binding 
 Contract source: [`contracts/ChogBattlePactFactory.sol`](./contracts/ChogBattlePactFactory.sol)  
 Deployment instructions: [`PACT_FACTORY_DEPLOYMENT.md`](./PACT_FACTORY_DEPLOYMENT.md)
 
-The contract compiles and its Foundry unit tests pass in CI, but it is immutable after deployment. The full mint → real-time match settlement → fulfilment flow still needs an end-to-end test against a test deployment before the mainnet contract should be treated as production-ready.
+The contract is already deployed and immutable on Monad mainnet. The full mint → real-time match settlement → winner-confirmed fulfilment flow still needs an end-to-end test against this deployed factory before official matches should be treated as production-ready. Do not redeploy another factory unless that is intentional.
 
 The contract generates metadata on-chain through `tokenURI()`. Settlement writes the winner to contract storage; the winner must then submit `confirmFulfillment` after the agreed off-chain task is done. The next `tokenURI()` response reflects those values without uploading a replacement metadata file. NFT marketplaces may cache metadata and can take time to refresh.
 
