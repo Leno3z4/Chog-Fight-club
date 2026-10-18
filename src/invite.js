@@ -29,6 +29,11 @@ const state = {
 const alertNode = $("#invite-page-alert");
 const isBattleLobbyPage = window.location.pathname.endsWith("/battle-lobby.html");
 const acceptedStatuses = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
+const PROTOTYPE_FIGHTERS = [
+  { tokenId: "prototype:ember", metadata: { name: "Ember", Tier: "Rare", Aura: "Fire", Skin: "Red", Body: "Toad", Eyes: "Angry" } },
+  { tokenId: "prototype:tide", metadata: { name: "Tide", Tier: "Uncommon", Aura: "Water", Skin: "Blue", Body: "Toad", Eyes: "Happy" } },
+  { tokenId: "prototype:volt", metadata: { name: "Volt", Tier: "Epic", Aura: "Electric", Skin: "Yellow", Body: "Tuxedo", Eyes: "Angry" } },
+];
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -79,8 +84,17 @@ function renderSummary(invite) {
   if (roomPath) roomPath.textContent = roomUrl;
   if (roomCode) roomCode.textContent = invite.id.slice(0, 8).toUpperCase();
   $("#invite-status-chip").textContent = statusText(invite.status);
+  const practiceMode = invite.gameMode === "PRACTICE";
   const conditionNode = $("#invite-condition");
-  if (conditionNode) conditionNode.textContent = invite.condition;
+  if (conditionNode) conditionNode.textContent = practiceMode
+    ? `${invite.condition} — PROTOTYPE PRACTICE: no Pact NFT or official result.`
+    : invite.condition;
+  const fighterPrompt = $("#fighter-prompt");
+  if (fighterPrompt && practiceMode) fighterPrompt.textContent = "Choose Ember, Tide, or Volt. This practice room does not require a Chog NFT.";
+  const walletButton = $("#link-wallet");
+  if (walletButton && practiceMode && !state.wallet) walletButton.innerHTML = "Connect wallet to join practice <b>↗</b>";
+  const pactCard = $("#pact-card");
+  if (pactCard && practiceMode) pactCard.hidden = true;
   const conditionHashNode = $("#condition-hash");
   if (conditionHashNode) conditionHashNode.textContent = invite.termsHash || "—";
   const bilateralCard = $("#bilateral-terms-card");
@@ -136,7 +150,7 @@ function renderSummary(invite) {
       : `Challenge between ${invite.challenger.username || "the challenger"} and ${invite.opponent.username || "the opponent"}. Review the condition and status here.`;
 
   $("#accept-card").hidden = !(isRecipient && pending);
-  $("#ready-card").hidden = invite.status !== "READY" || !state.pact?.minted;
+  $("#ready-card").hidden = invite.status !== "READY" || (!practiceMode && !state.pact?.minted);
   $("#cancel-invite").hidden = !(invite.viewerRole === "challenger" && pending);
   $("#accept-invite").disabled = !state.selectedTokenId || !$("#accept-condition-check").checked || !state.wallet;
   $("#ready-status-chip").textContent = invite.challenger.ready && invite.opponent.ready ? "BOTH READY" : "READY CHECK";
@@ -163,7 +177,8 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
   const bothReady = Boolean(invite.challenger?.ready && invite.opponent?.ready);
   const bothConnected = Boolean(players.challenger?.connected && players.opponent?.connected);
   const startButton = $("#combat-start");
-  startButton.hidden = !(invite.status === "READY" && bothReady && bothConnected && state.pact?.minted && phase !== "IN_BATTLE" && matchStatus !== "FINISHED");
+  const pactSatisfied = invite.gameMode === "PRACTICE" || Boolean(state.pact?.minted);
+  startButton.hidden = !(invite.status === "READY" && bothReady && bothConnected && pactSatisfied && phase !== "IN_BATTLE" && matchStatus !== "FINISHED");
   startButton.disabled = state.battleBusy || state.realtimeConnecting;
   startButton.textContent = state.battleBusy ? "Entering arena…" : "Enter live arena ↗";
 
@@ -182,13 +197,15 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
   } else if (invite.status === "TERMS_ACCEPTED") {
     $("#combat-status").textContent = "AGREEMENT ROOM";
     $("#combat-message").textContent = "Your rival joined. Write a demand each, then both accept the exact pair before minting the Pact.";
-  } else if (invite.status === "READY" && !state.pact?.minted) {
+  } else if (invite.status === "READY" && !state.pact?.minted && invite.gameMode !== "PRACTICE") {
     $("#combat-status").textContent = "PACT REQUIRED";
     $("#combat-message").textContent = "Both demands are accepted. Sign and mint the soulbound Pact NFT before entering combat.";
   } else if (invite.status === "READY" && !bothReady) {
     $("#combat-status").textContent = "READY CHECK";
-    $("#combat-message").textContent = "The agreement is minted. Both players need to confirm readiness before entering the live arena.";
-  } else if (invite.status === "READY" && bothReady && state.pact?.minted && !bothConnected) {
+    $("#combat-message").textContent = invite.gameMode === "PRACTICE"
+      ? "Both demands are accepted. Both players need to confirm readiness before practice combat."
+      : "The agreement is minted. Both players need to confirm readiness before entering the live arena.";
+  } else if (invite.status === "READY" && bothReady && pactSatisfied && !bothConnected) {
     $("#combat-status").textContent = "WAITING FOR RIVAL";
     $("#combat-message").textContent = "Both players are ready, but one is not connected to the room yet. Keep this lobby open until both are online.";
   } else {
@@ -392,8 +409,15 @@ async function connectRealtime() {
 }
 
 function renderPact(pact) {
-  state.pact = pact;
   const card = $("#pact-card");
+  if (state.invite?.gameMode === "PRACTICE") {
+    state.pact = null;
+    if (card) card.hidden = true;
+    const readyCard = $("#ready-card");
+    if (readyCard) readyCard.hidden = state.invite.status !== "READY";
+    return;
+  }
+  state.pact = pact;
   if (!card || !isBattleLobbyPage) return;
   const status = state.invite?.status;
   const relevant = ["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
@@ -450,6 +474,13 @@ function renderPact(pact) {
 }
 async function loadPact() {
   if (!isBattleLobbyPage || !state.session || !state.id || !state.invite) return;
+  if (state.invite.gameMode === "PRACTICE") {
+    state.pact = null;
+    const card = $("#pact-card");
+    if (card) card.hidden = true;
+    if (state.realtimeState) renderBattle(state.realtimeState);
+    return;
+  }
   if (!["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(state.invite.status)) return;
   const payload = await requestJson(`/api/pacts?id=${encodeURIComponent(state.id)}`);
   renderPact(payload.pact);
@@ -512,7 +543,7 @@ async function postBattleAction(action, extra = {}) {
   clearAlert();
   try {
     if (action !== "start") throw new Error("Unsupported battle action.");
-    if (!state.pact?.minted) throw new Error("Both players must mint the Pact NFT before combat can begin.");
+    if (state.invite?.gameMode !== "PRACTICE" && !state.pact?.minted) throw new Error("Both players must mint the Pact NFT before combat can begin.");
     if (!state.invite?.challenger?.ready || !state.invite?.opponent?.ready) throw new Error("Both players must confirm readiness first.");
     await requestJson("/api/battle", {
       method: "POST",
@@ -571,26 +602,33 @@ async function acceptBilateralTerms() {
 }
 function renderChogs() {
   const target = $("#lobby-chog-grid");
-  $("#fighter-count").textContent = state.chogs.length ? `${state.chogs.length} CHOG(S)` : "NO CHOGS";
-  if (!state.chogs.length) {
-    target.innerHTML = '<div class="roster-empty">Connect and verify a wallet to load your owned Chogs.</div>';
+  const practiceMode = state.invite?.gameMode === "PRACTICE";
+  const fighters = practiceMode ? PROTOTYPE_FIGHTERS : state.chogs;
+  $("#fighter-count").textContent = practiceMode ? "PROTOTYPE FIGHTERS" : (state.chogs.length ? `${state.chogs.length} CHOG(S)` : "NO CHOGS");
+  if (!state.wallet) {
+    target.innerHTML = '<div class="roster-empty">Connect and verify a wallet to load the fighter selector.</div>';
     updateAcceptButton();
     return;
   }
-  target.innerHTML = state.chogs.map((chog) => {
+  if (!fighters.length) {
+    target.innerHTML = '<div class="roster-empty">No Chog Genesis NFTs were found in this wallet. You cannot accept an official challenge without one.</div>';
+    updateAcceptButton();
+    return;
+  }
+  target.innerHTML = fighters.map((chog) => {
     const meta = chog.metadata || {};
     const dna = buildRosterPreview(meta);
     const picked = String(state.selectedTokenId) === String(chog.tokenId);
     const image = meta.image
-      ? `<img src="${escapeHtml(meta.image)}" alt="${escapeHtml(meta.name || `Chog #${chog.tokenId}`)}" loading="lazy" referrerpolicy="no-referrer">`
+      ? `<img src="${escapeHtml(meta.image)}" alt="${escapeHtml(meta.name || (practiceMode ? meta.name : `Chog #${chog.tokenId}`))}" loading="lazy" referrerpolicy="no-referrer">`
       : '<div class="no-art">C</div>';
     return `<button type="button" class="lobby-chog-card ${picked ? "selected" : ""}" data-select-fighter="${escapeHtml(chog.tokenId)}">
       <div class="lobby-chog-art">${image}</div>
       <div class="lobby-chog-card-copy">
         <div class="lobby-chog-title"><strong>${escapeHtml(meta.name || `Chog #${chog.tokenId}`)}</strong><span class="tier-chip">${escapeHtml(meta.Tier || "Common")}</span></div>
-        <small>Chog Genesis · #${escapeHtml(chog.tokenId)}</small>
+        <small>${practiceMode ? "PROTOTYPE · NO NFT" : `Chog Genesis · #${escapeHtml(chog.tokenId)}`}</small>
         <div class="lobby-chog-stats"><span>HP <b>${Math.round(dna.stats.hp)}</b></span><span>ATK <b>${Math.round(dna.stats.attack)}</b></span><span>DEF <b>${Math.round(dna.stats.defense)}</b></span><span>SPD <b>${Math.round(dna.stats.speed)}</b></span></div>
-        <span class="lobby-pick-label">${picked ? "✓ SELECTED" : "SELECT THIS CHOG"}</span>
+        <span class="lobby-pick-label">${picked ? "✓ SELECTED" : (practiceMode ? "SELECT PROTOTYPE" : "SELECT THIS CHOG")}</span>
       </div>
     </button>`;
   }).join("");
@@ -627,12 +665,19 @@ async function loadInvite() {
   }
   if (isBattleLobbyPage) {
     await connectRealtime();
-    if (acceptedStatuses.includes(payload.invite.status)) await loadPact();
+    if (acceptedStatuses.includes(payload.invite.status) && payload.invite.gameMode !== "PRACTICE") await loadPact();
     if (state.realtimeState) renderBattle(state.realtimeState);
   }
 }
 async function loadChogs() {
   if (!state.wallet) return;
+  if (state.invite?.gameMode === "PRACTICE") {
+    state.chogs = [];
+    state.selectedTokenId = null;
+    $("#fighter-prompt").textContent = "Choose a prototype fighter. No Chog Genesis NFT is needed for practice.";
+    renderChogs();
+    return;
+  }
   $("#fighter-prompt").textContent = "Reading Chog ownership and metadata from Monad…";
   try {
     state.chogs = await getOwnedChogs(state.wallet);
@@ -808,10 +853,11 @@ $("#refresh-invite").addEventListener("click", async () => {
 $("#lobby-chog-grid").addEventListener("click", (event) => {
   const button = event.target.closest("[data-select-fighter]");
   if (!button) return;
-  const chog = state.chogs.find((item) => String(item.tokenId) === button.dataset.selectFighter);
+  const practiceMode = state.invite?.gameMode === "PRACTICE";
+  const chog = (practiceMode ? PROTOTYPE_FIGHTERS : state.chogs).find((item) => String(item.tokenId) === button.dataset.selectFighter);
   if (!chog) return;
   state.selectedTokenId = chog.tokenId;
-  $("#selected-fighter-status").textContent = `${chog.metadata.name || `Chog #${chog.tokenId}`} selected.`;
+  $("#selected-fighter-status").textContent = `${chog.metadata.name || `Chog #${chog.tokenId}`} ${practiceMode ? "prototype" : "Chog"} selected.`;
   renderChogs();
 });
 
