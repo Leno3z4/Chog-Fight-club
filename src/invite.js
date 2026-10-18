@@ -77,7 +77,6 @@ function updateTimeline(invite) {
 }
 function renderSummary(invite) {
   state.invite = invite;
-  $("#invite-short-id").textContent = invite.id.slice(0, 8).toUpperCase();
   const roomUrl = new URL(`/battle-lobby.html?id=${encodeURIComponent(invite.id)}`, window.location.origin).toString();
   const roomPath = $("#battle-room-url");
   const roomCode = $("#battle-room-id");

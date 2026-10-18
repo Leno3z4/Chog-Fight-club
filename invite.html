@@ -10,10 +10,10 @@
   <main class="invite-page-shell">
     <header class="invite-page-header">
       <a class="club-logo" href="/profile.html">CHOG <span>BATTLE ARENA</span></a>
-      <span class="live-pill"><i></i> CHALLENGE LOBBY</span>
+      
     </header>
     <section class="invite-page-hero">
-      <span class="club-eyebrow">INVITATION / <code id="invite-short-id">LOADING</code></span>
+      
       <h1 id="invite-headline">YOUR RIVAL<br /><span>HAS CALLED.</span></h1>
       <p id="invite-intro" class="invite-page-lede">Loading the challenge details…</p>
       <div id="invite-page-alert" class="profile-alert" hidden></div>
@@ -22,14 +22,14 @@
     <section class="lobby-grid">
       <div class="lobby-primary">
         <article class="lobby-card">
-          <div class="lobby-card-heading"><div><span class="club-eyebrow">THE INVITATION</span><h2>Your rival’s demand.</h2></div><span id="invite-status-chip" class="invite-state">LOADING</span></div>
+          <div class="lobby-card-heading"><div><h2>Your rival’s demand.</h2></div><span id="invite-status-chip" class="invite-state">LOADING</span></div>
           <blockquote id="invite-condition" class="condition-quote">Fetching the proposed condition…</blockquote>
           <div class="condition-meta"><span>PUBLIC TERMS HASH</span><code id="condition-hash">—</code></div>
           <p class="lobby-note" id="invite-condition-note">This is the challenger’s initial demand, not the final agreement. When you join the lobby, each player writes a demand and both accept the combined terms before the Pact NFT is minted. Conditions must be voluntary, harmless, and non-invasive.</p>
         </article>
 
         <article class="lobby-card">
-          <div class="lobby-card-heading"><div><span class="club-eyebrow">BOTH SIDES</span><h2>Choose your Chog.</h2></div><span id="fighter-count" class="invite-state">WALLET REQUIRED</span></div>
+          <div class="lobby-card-heading"><div><h2>Choose your Chog.</h2></div><span id="fighter-count" class="invite-state">WALLET REQUIRED</span></div>
           <p id="fighter-prompt" class="lobby-note">Link the wallet belonging to your Discord account, then pick the Chog that will represent you. Ownership is rechecked server-side before acceptance.</p>
           <button id="link-wallet" class="discord-button" type="button">Connect and verify wallet <b>↗</b></button>
           <div id="lobby-chog-grid" class="lobby-chog-grid"></div>
@@ -37,23 +37,23 @@
         </article>
 
         <article class="lobby-card" id="accept-card" hidden>
-          <span class="club-eyebrow">FINAL CHECK</span>
+          
           <h2>Accept the challenge?</h2>
           <label class="terms-check"><input id="accept-condition-check" type="checkbox" /><span>I want to join this challenge lobby. I will write my own demand there; joining does not mean I have accepted the final agreement. My Chog is referenced, never transferred.</span></label>
           <div class="lobby-actions"><button id="accept-invite" class="discord-button" type="button" disabled>Join lobby <b>↗</b></button><button id="decline-invite" class="outline-button" type="button">Decline</button></div>
         </article>
 
         <article class="lobby-card" id="ready-card" hidden>
-          <div class="lobby-card-heading"><div><span class="club-eyebrow">PRE-FIGHT CHECK</span><h2>Ready when you are.</h2></div><span id="ready-status-chip" class="invite-state">WAITING</span></div>
+          <div class="lobby-card-heading"><div><h2>Ready when you are.</h2></div><span id="ready-status-chip" class="invite-state">WAITING</span></div>
           <p id="ready-explanation" class="lobby-note">Both players must confirm they are ready. This lobby state is persistent.</p>
           <button id="ready-button" class="discord-button" type="button">I'm ready <b>↗</b></button>
-          <p class="lobby-note" id="ready-card-footer-note">After both players accept the demands and mint the Pact NFT, you enter the shared real-time arena.</p>
+          <p class="lobby-note" id="ready-card-footer-note" hidden></p>
         </article>
       </div>
 
       <aside class="lobby-aside">
         <div class="lobby-card">
-          <span class="club-eyebrow">FIGHTERS</span>
+          
           <div class="lobby-player">
             <div class="lobby-player-icon">A</div>
             <div><strong id="challenger-name">Challenger</strong><span id="challenger-chog">Chog not selected</span><small id="challenger-terms">Terms accepted: —</small><small id="challenger-ready">Ready: —</small></div>
@@ -65,7 +65,7 @@
           </div>
         </div>
         <div class="lobby-card">
-          <span class="club-eyebrow">INVITE STATUS</span>
+          <h3>Invite status</h3>
           <ol id="lobby-timeline" class="lobby-timeline">
             <li class="current">Invitation created</li>
             <li>Opponent accepts</li>
@@ -78,7 +78,7 @@
         </div>
       </aside>
     </section>
-    <footer class="profile-footer"><span>CHOG BATTLE ARENA</span><a href="/profile.html">Back to profile ↗</a></footer>
+    <footer class="profile-footer"><a href="/profile.html">Back to profile ↗</a></footer>
   </main>
   <script type="module" src="/src/invite.js"></script>
 </body>

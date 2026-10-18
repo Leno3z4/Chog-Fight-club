@@ -6,11 +6,11 @@ import { connectAndLinkWallet } from "./walletLink.js";
 const $ = (selector) => document.querySelector(selector);
 const panels = ["chogs", "invites", "incoming", "outgoing", "history"];
 const titles = {
-  chogs: ["My Chogs", "YOUR COLLECTION"],
-  invites: ["Invite to battle", "CHALLENGE DESK"],
-  incoming: ["Incoming invites", "YOUR LOBBY"],
-  outgoing: ["Sent invites", "CHALLENGE TRACKER"],
-  history: ["Battle history", "YOUR RECORD"],
+  chogs: "My Chogs",
+  invites: "Invite to battle",
+  incoming: "Incoming invites",
+  outgoing: "Sent invites",
+  history: "Battle history",
 };
 const state = { session: null, account: null, chogs: [], loading: false, selectedTokenId: null, selectedOpponent: null };
 const walletButton = $("#connect-wallet");
@@ -32,8 +32,7 @@ function setPanel(name) {
     $(`#panel-${panel}`).classList.toggle("active", panel === name);
     document.querySelector(`[data-panel="${panel}"]`).classList.toggle("active", panel === name);
   }
-  $("#panel-title").textContent = titles[name][0];
-  $("#panel-overline").textContent = titles[name][1];
+  $("#panel-title").textContent = titles[name];
   if (name === "incoming" || name === "outgoing") loadInvites(name);
   if (name === "invites") updateSelectedMain();
 }

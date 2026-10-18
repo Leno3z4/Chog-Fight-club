@@ -12,7 +12,6 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 .club-body{background:radial-gradient(ellipse at 80% 15%,rgba(116,72,211,.24),transparent 36%),radial-gradient(ellipse at 15% 92%,rgba(255,121,8,.1),transparent 35%),var(--club-bg)}
 .club-logo{display:inline-flex;align-items:center;gap:7px;font:400 20px 'Lilita One',sans-serif;letter-spacing:.02em;white-space:nowrap}
 .club-logo span{color:var(--club-yellow)}
-.club-eyebrow{display:block;font:500 10px 'DM Mono',monospace;letter-spacing:.15em;color:var(--club-purple2);text-transform:uppercase}
 .login-shell{max-width:1460px;min-height:100vh;margin:auto;padding:0 4.5vw;display:flex;flex-direction:column}
 .login-top{height:84px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(166,130,255,.2)}
 .live-pill{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--club-line);background:rgba(139,107,255,.14);padding:9px 13px;border-radius:999px;font:500 10px 'DM Mono',monospace;letter-spacing:.06em}
@@ -30,7 +29,7 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 .access-stamp{position:absolute;right:26px;top:22px;font:400 16px 'Lilita One',sans-serif;color:var(--club-yellow);transform:rotate(8deg)}
 .access-stamp span{color:var(--club-orange)}
 .access-card h2{position:relative;font:400 35px/1 'Lilita One',sans-serif;margin:17px 0 14px}
-.access-card>p:not(.club-eyebrow){position:relative;color:var(--club-muted);font-size:14px;line-height:1.65}
+.access-card>p{position:relative;color:var(--club-muted);font-size:14px;line-height:1.65}
 .discord-button{position:relative;display:flex;align-items:center;gap:12px;width:100%;margin:28px 0 13px;padding:16px 18px;background:var(--club-purple);border:0;border-radius:14px;color:white;font:400 19px 'Lilita One',sans-serif;box-shadow:0 5px 0 #5740ab;transition:transform .15s,box-shadow .15s}
 .discord-button:hover{transform:translateY(2px);box-shadow:0 3px 0 #5740ab}
 .discord-button:disabled{opacity:.6;cursor:wait}
@@ -81,8 +80,7 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 .section-banner:after{content:'';position:absolute;width:260px;height:260px;right:100px;top:-170px;border-radius:50%;background:rgba(139,107,255,.14)}
 .section-banner h2{position:relative;margin:12px 0 8px;font:400 clamp(30px,3.3vw,42px)/.98 'Lilita One',sans-serif}
 .section-banner p{position:relative;max-width:570px;color:#c8b7d8;font-size:12px;line-height:1.6;margin:0}
-.banner-mark{position:relative;z-index:1;flex-shrink:0;display:grid;place-content:center;width:112px;height:112px;text-align:center;transform:rotate(8deg);border:3px solid var(--club-yellow);outline:1px solid rgba(255,213,68,.3);border-radius:50%;color:var(--club-yellow);font:400 18px/.85 'Lilita One',sans-serif}
-.banner-mark b{color:#fff1d8;font-size:14px;margin-top:6px}.orange-mark{border-color:var(--club-orange);color:var(--club-orange)}
+
 .roster-toolbar{display:flex;align-items:center;justify-content:space-between;gap:15px;margin:28px 0 16px}
 .roster-toolbar strong{display:block;font:400 19px 'Lilita One',sans-serif}.roster-toolbar span{display:block;color:var(--club-muted);font-size:11px;margin-top:4px}
 .roster-empty{padding:25px;border:1px dashed rgba(163,132,255,.36);border-radius:14px;color:var(--club-muted);font-size:12px;text-align:center;line-height:1.6}
@@ -113,7 +111,7 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 .invite-steps h3{font:400 16px 'Lilita One',sans-serif;margin:20px 0 7px}.invite-steps p{margin:0;color:var(--club-muted);font-size:11px;line-height:1.6}
 .profile-footer{margin-top:45px}
 @media(max-width:1050px){.app-layout{grid-template-columns:220px minmax(0,1fr)}.app-sidebar{padding-inline:12px}.dashboard-chog-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.invite-steps{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:760px){.login-layout{grid-template-columns:1fr;gap:20px;padding:40px 0}.login-copy h1{font-size:clamp(56px,14vw,88px)}.login-points{margin-top:26px}.login-footer{flex-wrap:wrap}.app-layout{display:block}.app-sidebar{height:auto;position:relative;padding:16px 16px 10px;border-right:0;border-bottom:1px solid rgba(163,132,255,.2)}.sidebar-logo{padding:0 4px 15px}.member-panel{margin:14px 0}.side-nav{display:flex;overflow-x:auto;padding-bottom:8px}.side-link{min-width:max-content;grid-template-columns:20px auto auto;padding:10px}.sidebar-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}.role-note{margin:0;padding:8px 0;border:0}.logout-button{width:auto}.profile-main{padding:23px 16px 0}.profile-topbar{align-items:flex-start;flex-direction:column}.section-banner{padding:23px 20px}.banner-mark{width:75px;height:75px;font-size:13px}.banner-mark b{font-size:10px}.invite-steps{grid-template-columns:1fr 1fr}}
+@media(max-width:760px){.login-layout{grid-template-columns:1fr;gap:20px;padding:40px 0}.login-copy h1{font-size:clamp(56px,14vw,88px)}.login-points{margin-top:26px}.login-footer{flex-wrap:wrap}.app-layout{display:block}.app-sidebar{height:auto;position:relative;padding:16px 16px 10px;border-right:0;border-bottom:1px solid rgba(163,132,255,.2)}.sidebar-logo{padding:0 4px 15px}.member-panel{margin:14px 0}.side-nav{display:flex;overflow-x:auto;padding-bottom:8px}.side-link{min-width:max-content;grid-template-columns:20px auto auto;padding:10px}.sidebar-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px}.role-note{margin:0;padding:8px 0;border:0}.logout-button{width:auto}.profile-main{padding:23px 16px 0}.profile-topbar{align-items:flex-start;flex-direction:column}.section-banner{padding:23px 20px}.invite-steps{grid-template-columns:1fr 1fr}}
 @media(max-width:480px){.login-shell{padding-inline:18px}.access-card{padding:30px 22px}.live-pill{font-size:8px}.dashboard-chog-grid{grid-template-columns:1fr}.chog-card-image{height:210px}.section-banner{align-items:flex-start}.banner-mark{display:none}.invite-steps{grid-template-columns:1fr}.profile-footer{flex-direction:column;align-items:flex-start}}
 
 
@@ -155,7 +153,6 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 .invite-page-hero h1{font:400 clamp(49px,7vw,87px)/.9 'Lilita One',sans-serif;letter-spacing:-.025em;margin:17px 0 15px}
 .invite-page-hero h1 span{color:var(--club-yellow)}
 .invite-page-lede{max-width:700px;color:var(--club-muted);font-size:14px;line-height:1.65}
-.invite-page-hero .club-eyebrow code{font:500 10px 'DM Mono',monospace;color:var(--club-yellow)}
 .lobby-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(280px,.75fr);gap:20px;align-items:start}
 .lobby-primary,.lobby-aside{display:grid;gap:16px;min-width:0}
 .lobby-card{padding:23px;border:1px solid rgba(163,132,255,.32);border-radius:18px;background:linear-gradient(150deg,rgba(42,25,64,.92),rgba(24,14,36,.98));min-width:0}

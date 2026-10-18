@@ -12,7 +12,7 @@
       <a class="club-logo sidebar-logo" href="/">CHOG <span>BATTLE ARENA</span></a>
       <div class="member-panel">
         <div id="member-avatar" class="member-avatar">C</div>
-        <div><strong id="member-name">Loading member…</strong><small id="member-access-label">HOLDER ACCESS</small></div>
+        <div><strong id="member-name">Loading member…</strong><small id="member-access-label">Holder access</small></div>
         <span class="member-check">✓</span>
       </div>
       <nav class="side-nav" aria-label="Profile navigation">
@@ -24,14 +24,14 @@
         <button class="side-link" data-panel="history"><span>✦</span><b>Battle history</b></button>
       </nav>
       <div class="sidebar-bottom">
-        <div class="role-note"><span class="role-dot"></span><div><strong id="member-access-status">Access verified</strong><small>Discord access active</small></div></div>
+        <div class="role-note"><span class="role-dot"></span><div><strong id="member-access-status">Access verified</strong></div></div>
         <button id="disconnect-discord" class="logout-button">Disconnect Discord ↗</button>
       </div>
     </aside>
 
     <main class="profile-main">
       <header class="profile-topbar">
-        <div><span class="club-eyebrow">MEMBER AREA / <span id="panel-overline">YOUR COLLECTION</span></span><h1 id="panel-title">My Chogs</h1></div>
+        <div><h1 id="panel-title">My Chogs</h1></div>
         <div class="topbar-actions"><span class="network-tag"><i></i> MONAD</span><button id="enable-notifications" class="outline-button" type="button">Enable notifications</button><button id="connect-wallet" class="wallet-button">Connect wallet</button></div>
       </header>
 
@@ -39,14 +39,14 @@
       <div id="lobby-join-notice" class="lobby-join-notice" role="status" aria-live="polite" hidden><div><strong id="lobby-join-title">Your rival joined</strong><span id="lobby-join-copy">Your challenge lobby is ready.</span></div><a id="lobby-join-link" class="discord-button" href="/battle-lobby.html">Join lobby ↗</a><button id="dismiss-lobby-notice" type="button" aria-label="Dismiss notification">×</button></div>
 
       <section class="dashboard-panel active" id="panel-chogs">
-        <div class="section-banner"><div><span class="club-eyebrow">FIGHTER SELECT</span><h2>Pick your main.</h2><p>Every Chog gets its own Battle DNA. Choose the one you want to take into a challenge.</p></div><div class="banner-mark">CHOG<br /><b>ROSTER</b></div></div>
+        <div class="section-banner"><div><h2>Choose your main Chog.</h2><p>Pick the Chog you want to use in challenges.</p></div></div>
         <div class="roster-toolbar"><div><strong>Your fighters</strong><span id="roster-subtitle">Connect a wallet to load the collection.</span></div><button id="refresh-chogs" class="outline-button" disabled>↻ Refresh</button></div>
         <div id="roster-empty" class="roster-empty">Connect your Monad wallet. Your Chogs will appear here as separate fighter cards.</div>
         <div id="chog-grid" class="dashboard-chog-grid"></div>
       </section>
 
        <section class="dashboard-panel" id="panel-invites">
-        <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE DESK</span><h2>Call them out.</h2><p>Choose your main Chog, write the proposed condition, and send your rival a persistent invitation link.</p></div><div class="banner-mark orange-mark">VS<br /><b>?</b></div></div>
+        <div class="section-banner"><div><h2>Send a challenge.</h2><p>Choose a player, write your demand, and send an invitation.</p></div></div>
         <form id="create-invite-form" class="invite-form">
           <div class="invite-form-heading"><h3>Challenge a player</h3><p>Choose your Chog and write your demand. Your rival will join the lobby and write theirs before either of you accepts the final agreement.</p></div>
           <label class="field-label" for="opponent-search">Player username</label>
@@ -77,20 +77,20 @@
       </section>
 
       <section class="dashboard-panel" id="panel-incoming">
-        <div class="section-banner"><div><span class="club-eyebrow">YOUR LOBBY</span><h2>Invitations for you.</h2><p>Incoming challenges stay here while you decide. Accepting takes you to the fighter and terms lobby.</p></div><div class="banner-mark">IN<br /><b>BOX</b></div></div>
+        <div class="section-banner"><div><h2>Incoming invitations.</h2><p>Review challenges and accept or decline them.</p></div></div>
         <div id="incoming-invite-list" class="invite-list"><div class="roster-empty">Loading incoming invitations…</div></div>
       </section>
 
       <section class="dashboard-panel" id="panel-outgoing">
-        <div class="section-banner"><div><span class="club-eyebrow">CHALLENGE TRACKER</span><h2>Sent challenges.</h2><p>Track pending invitations, accepted terms, and whether both players are ready.</p></div><div class="banner-mark orange-mark">WAIT<br /><b>ING</b></div></div>
+        <div class="section-banner"><div><h2>Sent challenges.</h2><p>Check invitation status and see when the other player responds.</p></div></div>
         <div id="outgoing-invite-list" class="invite-list"><div class="roster-empty">Loading sent invitations…</div></div>
       </section>
 
       <section class="dashboard-panel" id="panel-history">
-        <div class="section-banner"><div><span class="club-eyebrow">YOUR RECORD</span><h2>Battle history.</h2><p>Finished fights, pact terms, results, and whether the agreed condition has been fulfilled.</p></div><div class="banner-mark">W / L<br /><b>LOG</b></div></div>
+        <div class="section-banner"><div><h2>Battle history.</h2><p>See match results and the status of each agreed condition.</p></div></div>
         <div class="setup-warning"><strong>No verified challenge results yet.</strong><span>Real pact outcomes will only be revealed after the match result is validated. Practice battles will be kept separate from official challenges.</span></div>
       </section>
-      <footer class="profile-footer"><span>CHOG BATTLE ARENA</span></footer>
+      
     </main>
   </div>
   <script type="module" src="/src/profile.js"></script>
