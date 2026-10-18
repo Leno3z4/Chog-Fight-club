@@ -4,6 +4,15 @@ The contract is [`contracts/ChogBattlePactFactory.sol`](./contracts/ChogBattlePa
 
 ## Current status and mainnet warning
 
+
+**Monad mainnet deployment recorded (chain ID 143):**
+
+- Factory: `0x3a5485d41cAcE651dBAba9f292C12b1Df425f950`
+- Immutable resolver: `0x77DF3ae15b994131797905e59675da3544C90DFF`
+- RPC: `https://rpc.monad.xyz`
+
+The addresses have been added to the Cloudflare Pages production and preview configuration. The resolver private key must be stored as the Cloudflare Pages secret `PACT_RESOLVER_PRIVATE_KEY` (not in source control or frontend variables), and it must derive exactly the resolver address above.
+
 The application signing/mint/settlement integration is merged into `main`; the contract unit tests and CI checks passed. Cloudflare Pages, the D1 schema, and the real-time Worker are deployed.
 
 **The full end-to-end lifecycle has not yet been exercised against a deployed factory. Do that with a test factory before deploying the immutable contract on Monad mainnet.** A mainnet deployment cannot be upgraded or repaired in place if a constructor address or contract bug is discovered later.
