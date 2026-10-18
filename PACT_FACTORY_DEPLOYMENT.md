@@ -11,11 +11,11 @@ The contract is [`contracts/ChogBattlePactFactory.sol`](./contracts/ChogBattlePa
 - Immutable resolver: `0x77DF3ae15b994131797905e59675da3544C90DFF`
 - RPC: `https://rpc.monad.xyz`
 
-The public factory/resolver addresses, chain ID, and RPC are defined in `wrangler.jsonc`, so they deploy with the Pages runtime. Add the resolver private key in Cloudflare Pages → Settings → Variables and Secrets as `PACT_RESOLVER_PRIVATE_KEY` with type **Secret** for the production environment (and preview if you test there). Never put the private key in `wrangler.jsonc`, source control, frontend variables, or chat. The key must derive exactly the resolver address above.
+The public factory/resolver addresses, chain ID, and RPC are defined in `wrangler.jsonc` and are deployed with the Cloudflare Worker. The resolver key is stored in Cloudflare Worker Secrets as `PACT_RESOLVER_PRIVATE_KEY`; the live Worker health endpoint confirms that the key derives the configured resolver address and that the factory's immutable on-chain resolver matches it. Never put the private key in `wrangler.jsonc`, source control, frontend variables, or chat.
 
-The application signing/mint/settlement integration is merged into `main`; the contract unit tests and CI checks passed. Cloudflare Pages, the D1 schema, and the real-time Worker are deployed.
+The application signing/mint/settlement integration is merged into `main`; contract unit tests and CI checks passed. The Cloudflare API Worker, D1 schema, and separate real-time Worker are deployed. Vercel hosts the frontend and proxies API requests to the Cloudflare API Worker.
 
-**The full end-to-end lifecycle has not yet been exercised against a deployed factory. Do that with a test factory before deploying the immutable contract on Monad mainnet.** A mainnet deployment cannot be upgraded or repaired in place if a constructor address or contract bug is discovered later.
+**The full end-to-end lifecycle has not yet been exercised against this deployed mainnet factory. Do not treat official Pact matches as production-ready until a controlled two-account test passes the full mint → authoritative winner settlement → winner-confirmed fulfilment lifecycle and both `tokenURI()` responses reflect each state change.** This factory is immutable and cannot be upgraded or repaired in place; do not deploy another factory unless that is intentional.
 
 ## Open the source
 
@@ -27,7 +27,7 @@ Compile with Solidity **0.8.24**, optimizer enabled, 200 runs, and **via-IR enab
 ## Constructor arguments
 
 1. `chogCollection_`: `0xc96d31f8626c6d03fae5dcd3d61e3fb9f4a73763`
-2. `matchResolver_`: a dedicated resolver wallet address. The address is immutable and is the only address allowed to call `settleMatch`. Use a wallet kept for this purpose, not an everyday wallet. The backend's Cloudflare Pages secret `PACT_RESOLVER_PRIVATE_KEY` must match `PACT_RESOLVER_ADDRESS`, and the resolver wallet needs MON for gas.
+2. `matchResolver_`: a dedicated resolver wallet address. The address is immutable and is the only address allowed to call `settleMatch`. Use a wallet kept for this purpose, not an everyday wallet. The Cloudflare Worker secret `PACT_RESOLVER_PRIVATE_KEY` must match `PACT_RESOLVER_ADDRESS`, and the resolver wallet needs MON for gas.
 
 ## Remix steps
 
@@ -37,8 +37,7 @@ Compile with Solidity **0.8.24**, optimizer enabled, 200 runs, and **via-IR enab
 4. In **Deploy & Run Transactions**, select **Injected Provider** and verify the wallet is connected to **Monad Mainnet (chain ID 143)** before choosing Deploy.
 5. Enter the two constructor arguments above, with your dedicated resolver wallet address as the second argument.
 6. Deploy and save the resulting factory address. Check the deployed address/constructor values before using it.
-7. In Cloudflare Pages → project `chog-fight-club` → Variables and Secrets, configure `PACT_FACTORY_ADDRESS` and `PACT_RESOLVER_ADDRESS`. Add `PACT_RESOLVER_PRIVATE_KEY` as a secret only. Never paste or commit the private key to GitHub, Vercel frontend environment variables, or chat.
-8. Once these values are set, the Pact card can call the deployed contract. Until then, it correctly shows that the factory is not configured.
+7. For the already deployed factory, do not repeat the deployment steps. The current Cloudflare Worker has `PACT_FACTORY_ADDRESS`, `PACT_RESOLVER_ADDRESS`, and `PACT_CHAIN_ID` configured and the live health check has confirmed the resolver-key match. Keep `PACT_RESOLVER_PRIVATE_KEY` in Worker Secrets only, and keep the resolver wallet funded with MON for gas.
 
 ## How metadata changes
 
@@ -61,4 +60,4 @@ This is not automatic detection of an off-chain task: the smart contract cannot 
 - There is no owner, upgrade mechanism, or arbitrary metadata editor.
 - Conditions are public and permanent. Do not accept private, dangerous, illegal, harassing, or non-consensual demands.
 
-Run the full two-account flow against a test factory before treating the mainnet factory as production-ready.
+Next validation: run the full flow with two authorized Discord accounts and separate wallets on the deployed app. Test the challenge signing, Pact mint event verification, finished-match settlement, and winner confirmation. Compare both receipts' `tokenURI()` output before/after settlement and fulfilment. Treat any failure as a blocker; do not accept real official matches until this passes.
