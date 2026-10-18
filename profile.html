@@ -56,10 +56,20 @@
           <div id="opponent-search-results" class="player-search-results" role="listbox" aria-label="Matching players" hidden></div>
           <p id="opponent-selected" class="selected-player-note" aria-live="polite">Choose a player from the results.</p>
           <small class="field-help">Search existing Arena players, or invite an exact Discord username that has not joined yet.</small>
-          <div class="selected-main-row"><div><strong id="selected-main-name">No main Chog selected</strong><small id="selected-main-details">Select a Chog in My Chogs first.</small></div><button type="button" class="outline-button" id="go-to-chogs">Choose Chog</button></div>
+          <div class="selected-main-row" id="official-main-chog-row"><div><strong id="selected-main-name">No main Chog selected</strong><small id="selected-main-details">Select a Chog in My Chogs first.</small></div><button type="button" class="outline-button" id="go-to-chogs">Choose Chog</button></div>
+          <label class="terms-check" id="prototype-practice-option" hidden><input id="prototype-multiplayer-toggle" type="checkbox" /><span>Create an owner-only prototype practice room (no real Chog NFT or Pact mint).</span></label>
+          <div id="prototype-practice-controls" hidden>
+            <label class="field-label" for="prototype-main-fighter">Prototype fighter</label>
+            <select id="prototype-main-fighter" name="prototypeMainFighter">
+              <option value="prototype:ember">Ember · Fire</option>
+              <option value="prototype:tide">Tide · Water</option>
+              <option value="prototype:volt">Volt · Electric</option>
+            </select>
+            <small class="field-help">Prototype rooms are for testing only. No Chog NFT is transferred and no Pact NFT or official result is created.</small>
+          </div>
           <label class="field-label" for="invite-condition">Your demand</label>
           <textarea id="invite-condition" name="condition" minlength="5" maxlength="500" rows="3" placeholder="Example: Post a harmless, silly community message and leave it up for 24 hours." required></textarea>
-          <label class="terms-check"><input id="invite-condition-agree" type="checkbox" required /><span>This is my demand. If we both accept the final agreement, both demands may be recorded publicly on a soulbound Pact NFT. Conditions must be voluntary, harmless, and non-invasive.</span></label>
+          <label class="terms-check"><input id="invite-condition-agree" type="checkbox" required /><span id="invite-condition-agree-copy">This is my demand. If we both accept the final agreement, both demands may be recorded publicly on a soulbound Pact NFT. Conditions must be voluntary, harmless, and non-invasive.</span></label>
           <button id="create-invite-button" type="submit" class="discord-button invite-submit">Create invitation link <b>↗</b></button>
           <p id="create-invite-status" class="auth-status" role="status" aria-live="polite"></p>
           <div id="created-invite-result" class="created-invite-result" hidden></div>
