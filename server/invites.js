@@ -120,6 +120,7 @@ function presentInvite(row, currentDiscordId) {
       ready: Boolean(row.opponent_ready),
     },
     condition: row.condition_text,
+    gameMode: row.game_mode === "PRACTICE" ? "PRACTICE" : "OFFICIAL",
     challengerDemand: row.condition_text,
     opponentDemand: row.opponent_demand_text || "",
     termsHash: row.terms_hash,
