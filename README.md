@@ -46,7 +46,7 @@ The Pages Functions API is used behind Vercel's `/api` proxies. The separate rea
 - `PACT_RESOLVER_ADDRESS` — the resolver address passed to the factory constructor
 - `PACT_RESOLVER_PRIVATE_KEY` — Cloudflare secret only; this wallet needs MON for settlement gas
 
-After the feature branch is reviewed and merged, apply migrations `0001_challenge_invites.sql` through `0006_bilateral_demands.sql` in numerical order in the D1 dashboard Console. Do not run the new migrations on production before the feature has been reviewed. Players who have signed in once appear in username search; if a player is not listed yet, invite their exact Discord username and they can claim it after signing in. Database binding ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
+After the feature branch is reviewed and merged, apply migrations `0001_challenge_invites.sql` through `0007_multiplayer_practice.sql` in numerical order in the D1 dashboard Console. Do not run the new migrations on production before the feature has been reviewed. Players who have signed in once appear in username search; if a player is not listed yet, invite their exact Discord username and they can claim it after signing in. Database binding ID: `8b61a704-51a0-40c0-a6dd-0f46bb81589e`.
 
 ### Cloudflare deployment settings
 
@@ -58,7 +58,7 @@ Deploy `realtime/worker.js` as a separate Cloudflare Worker named `chog-battle-a
 
 In Vercel, add the public build-time variable `VITE_ARENA_REALTIME_URL` with that Worker base URL, for example `https://chog-battle-arena-realtime.<your-account>.workers.dev`, then redeploy Vercel. This value is a public service URL, not a secret.
 
-The real-time game cannot start officially until the Pact factory is deployed/configured and both players have signed and minted the Pact. Single Player practice is separate and does not touch the contract.
+The real-time game cannot start officially until the Pact factory is deployed/configured and both players have signed and minted the Pact. Single Player practice and owner-only multiplayer prototype practice are separate from official matches; neither mints a Pact.
 
 ## Development and validation
 
