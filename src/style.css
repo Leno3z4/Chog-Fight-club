@@ -49,8 +49,8 @@ h1 em, h2 em { color: #c6b3d7; font-style: normal; }
 h2 { font-size: clamp(48px, 6vw, 86px); }
 .section-body { max-width: 700px; color: #c6b3d7; font-size: 17px; line-height: 1.7; }
 .feature-list { margin-top: 50px; border-top: 1px solid rgba(163,132,255,.22); }
-.feature-list article { display: grid; grid-template-columns: 50px 1fr; gap: 20px; padding: 24px 0; border-bottom: 1px solid rgba(163,132,255,.22); }
-.feature-list b, .key { font: 11px 'DM Mono', monospace; color: #ffd544; }
+.feature-list article { display: block; padding: 24px 0; border-bottom: 1px solid rgba(163,132,255,.22); }
+.key { font: 11px 'DM Mono', monospace; color: #ffd544; }
 .feature-list strong { display: block; color: #f5f2ea; margin-bottom: 5px; }
 .combat-section { background: #211431; }
 .combat-grid { margin-top: 65px; display: grid; grid-template-columns: repeat(4, 1fr); border-block: 1px solid rgba(163,132,255,.22); }
