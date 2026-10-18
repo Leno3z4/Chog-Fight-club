@@ -11,7 +11,7 @@ The contract is [`contracts/ChogBattlePactFactory.sol`](./contracts/ChogBattlePa
 - Immutable resolver: `0x77DF3ae15b994131797905e59675da3544C90DFF`
 - RPC: `https://rpc.monad.xyz`
 
-The addresses have been added to the Cloudflare Pages production and preview configuration. The resolver private key must be stored as the Cloudflare Pages secret `PACT_RESOLVER_PRIVATE_KEY` (not in source control or frontend variables), and it must derive exactly the resolver address above.
+The public factory/resolver addresses, chain ID, and RPC are defined in `wrangler.jsonc`, so they deploy with the Pages runtime. Add the resolver private key in Cloudflare Pages → Settings → Variables and Secrets as `PACT_RESOLVER_PRIVATE_KEY` with type **Secret** for the production environment (and preview if you test there). Never put the private key in `wrangler.jsonc`, source control, frontend variables, or chat. The key must derive exactly the resolver address above.
 
 The application signing/mint/settlement integration is merged into `main`; the contract unit tests and CI checks passed. Cloudflare Pages, the D1 schema, and the real-time Worker are deployed.
 
