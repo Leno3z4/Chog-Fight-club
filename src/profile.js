@@ -44,6 +44,22 @@ function escapeHtml(value) {
 }
 function stat(stats, key) { return Math.round(Number(stats?.[key] ?? 0)); }
 
+function isPrototypePracticeSelected() {
+  return Boolean($("#prototype-multiplayer-toggle")?.checked && state.session?.isAdmin);
+}
+function updatePracticeForm() {
+  const practice = isPrototypePracticeSelected();
+  const officialRow = $("#official-main-chog-row");
+  const controls = $("#prototype-practice-controls");
+  const copy = $("#invite-condition-agree-copy");
+  const button = $("#create-invite-button");
+  if (officialRow) officialRow.hidden = practice;
+  if (controls) controls.hidden = !practice;
+  if (copy) copy.textContent = practice
+    ? "This is for prototype practice only. No Pact NFT or official match result will be created. Conditions must still be voluntary, harmless, and non-invasive."
+    : "This is my demand. If we both accept the final agreement, both demands may be recorded publicly on a soulbound Pact NFT. Conditions must be voluntary, harmless, and non-invasive.";
+  if (button) button.innerHTML = practice ? "Create prototype practice room <b>↗</b>" : "Create invitation link <b>↗</b>";
+}
 function updateSelectedMain() {
   const chog = state.chogs.find((item) => String(item.tokenId) === String(state.selectedTokenId));
   const name = $("#selected-main-name");
@@ -145,6 +161,9 @@ async function requireDiscordSession() {
   const accessStatus = $("#member-access-status");
   if (accessBadge) accessBadge.textContent = accessLabel;
   if (accessStatus) accessStatus.textContent = state.session.isAdmin ? "Owner access" : "Holder verified";
+  const practiceOption = $("#prototype-practice-option");
+  if (practiceOption) practiceOption.hidden = !state.session.isAdmin;
+  updatePracticeForm();
   const avatar = $("#member-avatar");
   if (state.session.avatar) avatar.innerHTML = `<img src="${escapeHtml(state.session.avatar)}" alt="" />`;
   else avatar.textContent = (state.session.username || "C").slice(0, 1).toUpperCase();
@@ -363,6 +382,8 @@ opponentResults.addEventListener("click", (event) => {
 });
 
 $("#go-to-chogs").addEventListener("click", () => setPanel("chogs"));
+$("#prototype-multiplayer-toggle")?.addEventListener("change", updatePracticeForm);
+updatePracticeForm();
 $("#create-invite-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const status = $("#create-invite-status");
@@ -376,7 +397,10 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
     if (!state.account || !state.session?.walletAddress || state.account.toLowerCase() !== state.session.walletAddress.toLowerCase()) {
       throw new Error("Connect and sign your wallet-link message before creating a challenge.");
     }
-    if (!state.selectedTokenId) throw new Error("Choose your main Chog in My Chogs first.");
+    const practiceMode = isPrototypePracticeSelected();
+    if (practiceMode && !state.session?.isAdmin) throw new Error("Prototype practice is restricted to the Arena owner.");
+    if (!practiceMode && !state.selectedTokenId) throw new Error("Choose your main Chog in My Chogs first.");
+    const challengerTokenId = practiceMode ? $("#prototype-main-fighter").value : String(state.selectedTokenId);
     if (!state.selectedOpponent || !opponentUsernameTarget.value || (!opponentIdInput.value && !state.selectedOpponent.unregistered)) {
       throw new Error("Search for a player and select them from the results first.");
     }
@@ -388,7 +412,8 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
         action: "create",
         opponentDiscordId: opponentIdInput.value,
         opponentUsername: opponentUsernameTarget.value,
-        challengerTokenId: String(state.selectedTokenId),
+        gameMode: practiceMode ? "PRACTICE" : "OFFICIAL",
+        challengerTokenId,
         condition: $("#invite-condition").value,
         agreeToCondition: $("#invite-condition-agree").checked,
       }),
