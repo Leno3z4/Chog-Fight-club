@@ -97,7 +97,7 @@ class MockD1 {
         "id","challenger_discord_id","challenger_username","challenger_wallet","challenger_token_id",
         "opponent_discord_id","opponent_username","opponent_wallet","opponent_token_id","condition_text",
         "terms_hash","challenger_terms_accepted","challenger_terms_accepted_at","opponent_terms_accepted",
-        "opponent_terms_accepted_at","challenger_ready","opponent_ready","status","created_at","updated_at","expires_at"
+        "opponent_terms_accepted_at","challenger_ready","opponent_ready","status","created_at","updated_at","expires_at","game_mode"
       ];
       const row = Object.fromEntries(fields.map((field, index) => [field, v[index]]));
       this.rows.set(row.id, row);
@@ -114,12 +114,12 @@ class MockD1 {
     throw new Error("MockD1.run received unexpected SQL: " + normalized);
   }
   async updateReturning(sql, v) {
-    if (sql.includes("opponent_terms_accepted = 1")) {
+    if (sql.includes("opponent_terms_accepted = 0") && sql.includes("opponent_discord_id = ?1")) {
       const row = this.rows.get(v[5]);
       if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[6]) return null;
       Object.assign(row, {
         opponent_discord_id: v[0], opponent_username: v[1], opponent_wallet: v[2], opponent_token_id: v[3],
-        opponent_terms_accepted: 1, opponent_terms_accepted_at: v[4], status: "TERMS_ACCEPTED", updated_at: v[4],
+        opponent_terms_accepted: 0, opponent_terms_accepted_at: null, status: "TERMS_ACCEPTED", updated_at: v[4],
       });
       return clone(row);
     }
@@ -137,12 +137,33 @@ class MockD1 {
     }
     if (sql.includes("challenger_ready = CASE")) {
       const row = this.rows.get(v[2]);
-      if (!row || !["TERMS_ACCEPTED", "READY"].includes(row.status)
+      if (!row || row.status !== "READY" || !row.challenger_terms_accepted || !row.opponent_terms_accepted
         || ![row.challenger_discord_id, row.opponent_discord_id].includes(v[0])) return null;
       if (row.challenger_discord_id === v[0]) row.challenger_ready = 1;
       if (row.opponent_discord_id === v[0]) row.opponent_ready = 1;
-      if (row.challenger_ready && row.opponent_ready) row.status = "READY";
+      row.status = "READY";
       row.updated_at = v[1];
+      return clone(row);
+    }
+    if (sql.includes("terms_hash = ?2") && sql.includes("challenger_ready = 0") && sql.includes("opponent_terms_accepted = 0")) {
+      const row = this.rows.get(v[3]);
+      if (!row || !["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id || row.pact_tx_hash) return null;
+      const column = sql.includes("opponent_demand_text = ?1") ? "opponent_demand_text" : "condition_text";
+      row[column] = v[0]; row.terms_hash = v[1];
+      row.challenger_terms_accepted = 0; row.opponent_terms_accepted = 0;
+      row.challenger_terms_accepted_at = v[2]; row.opponent_terms_accepted_at = null;
+      row.challenger_ready = 0; row.opponent_ready = 0; row.status = "TERMS_ACCEPTED"; row.updated_at = v[2];
+      return clone(row);
+    }
+    if (sql.includes("SET challenger_terms_accepted = 1") || sql.includes("SET opponent_terms_accepted = 1")) {
+      const row = this.rows.get(v[2]);
+      if (!row || !["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id) return null;
+      const own = sql.includes("SET challenger_terms_accepted = 1") ? "challenger" : "opponent";
+      row[own + "_terms_accepted"] = 1;
+      row[own + "_terms_accepted_at"] = v[0];
+      row.terms_hash = v[1];
+      row.status = row.challenger_terms_accepted && row.opponent_terms_accepted ? "READY" : "TERMS_ACCEPTED";
+      row.updated_at = v[0];
       return clone(row);
     }
     throw new Error("MockD1.updateReturning received unexpected SQL: " + sql);
@@ -205,7 +226,7 @@ function makeRow(overrides = {}) {
     opponent_token_id: null,
     condition_text: "Post a harmless silly message for one day.",
     terms_hash: "a".repeat(64),
-    challenger_terms_accepted: 1,
+    challenger_terms_accepted: 0,
     challenger_terms_accepted_at: now,
     opponent_terms_accepted: 0,
     opponent_terms_accepted_at: null,
@@ -287,7 +308,8 @@ test("the challenged Discord account can accept with its own verified Chog", asy
   assert.equal(result.body.invite.viewerRole, "opponent");
   assert.equal(result.body.invite.opponent.wallet, opponentAccount.address.toLowerCase());
   assert.equal(result.body.invite.opponent.tokenId, "973");
-  assert.equal(env.CHOG_DB.rows.get(row.id).opponent_terms_accepted, 1);
+  assert.equal(env.CHOG_DB.rows.get(row.id).opponent_terms_accepted, 0);
+  assert.equal(env.CHOG_DB.rows.get(row.id).status, "TERMS_ACCEPTED");
 });
 
 test("a different holder cannot read an invitation addressed to someone else", async () => {
@@ -308,7 +330,8 @@ test("a different holder cannot read an invitation addressed to someone else", a
 test("both linked players can record readiness; the second sets status READY", async () => {
   const db = new MockD1();
   const row = makeRow({
-    status: "TERMS_ACCEPTED",
+    status: "READY",
+    challenger_terms_accepted: 1,
     opponent_username: "Opponent",
     opponent_wallet: opponentAccount.address.toLowerCase(),
     opponent_token_id: "973",
@@ -324,9 +347,9 @@ test("both linked players can record readiness; the second sets status READY", a
     method: "POST", url: "/api/invites", cookieHeader: opponentCookie, env, origin,
     body: { action: "ready", id: row.id },
   });
-  assert.equal(opponentReady.body.invite.status, "TERMS_ACCEPTED");
+  assert.equal(opponentReady.body.invite.status, "READY");
   assert.equal(opponentReady.body.invite.opponent.ready, true);
-  assert.equal(opponentReady.body.multiplayerAvailable, false);
+  assert.equal(opponentReady.body.multiplayerAvailable, true);
 
   const challengerReady = await handleInviteRequest({
     method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
@@ -337,6 +360,92 @@ test("both linked players can record readiness; the second sets status READY", a
   assert.equal(challengerReady.body.invite.challenger.ready, true);
 });
 
+test("both players must write separate demands and accept the combined terms", async () => {
+  const db = new MockD1();
+  const now = new Date().toISOString();
+  const row = makeRow({
+    status: "TERMS_ACCEPTED",
+    opponent_username: "Opponent",
+    opponent_wallet: opponentAccount.address.toLowerCase(),
+    opponent_token_id: "973",
+    opponent_demand_text: "",
+    challenger_terms_accepted: 0,
+    challenger_terms_accepted_at: null,
+    opponent_terms_accepted: 0,
+    opponent_terms_accepted_at: null,
+  });
+  db.rows.set(row.id, row);
+  env.CHOG_DB = db;
+  const challengerCookie = await makeLinkedSession({ discordId: challengerId, username: "ChallengeMaker", walletAccount: account });
+  const opponentCookie = await makeLinkedSession({ discordId: opponentId, username: "Opponent", walletAccount: opponentAccount });
+
+  const savedChallengerDemand = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
+    body: { action: "saveDemand", id: row.id, demand: "Post a harmless silly message for one day." },
+  });
+  assert.equal(savedChallengerDemand.status, 200);
+  assert.equal(savedChallengerDemand.body.invite.challengerDemand, "Post a harmless silly message for one day.");
+  assert.equal(savedChallengerDemand.body.invite.opponentDemand, "");
+
+  await assert.rejects(
+    handleInviteRequest({
+      method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
+      body: { action: "acceptTerms", id: row.id },
+    }),
+    (error) => error instanceof InviteApiError && error.code === "CONDITION_LENGTH"
+  );
+
+  const savedOpponentDemand = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: opponentCookie, env, origin,
+    body: { action: "saveDemand", id: row.id, demand: "Share a harmless drawing of your Chog." },
+  });
+  assert.equal(savedOpponentDemand.body.invite.opponentDemand, "Share a harmless drawing of your Chog.");
+  assert.equal(savedOpponentDemand.body.invite.challenger.termsAccepted, false);
+  assert.equal(savedOpponentDemand.body.invite.opponent.termsAccepted, false);
+
+  const challengerAccepted = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
+    body: { action: "acceptTerms", id: row.id },
+  });
+  assert.equal(challengerAccepted.body.invite.status, "TERMS_ACCEPTED");
+  assert.equal(challengerAccepted.body.invite.challenger.termsAccepted, true);
+  assert.equal(challengerAccepted.body.invite.opponent.termsAccepted, false);
+
+  const opponentAccepted = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: opponentCookie, env, origin,
+    body: { action: "acceptTerms", id: row.id },
+  });
+  assert.equal(opponentAccepted.body.invite.status, "READY");
+  assert.equal(opponentAccepted.body.invite.challenger.termsAccepted, true);
+  assert.equal(opponentAccepted.body.invite.opponent.termsAccepted, true);
+  assert.match(opponentAccepted.body.invite.termsHash, /^[0-9a-f]{64}$/);
+});
+
+test("editing either demand resets both previous acceptances", async () => {
+  const db = new MockD1();
+  const now = new Date().toISOString();
+  const row = makeRow({
+    status: "READY",
+    opponent_username: "Opponent",
+    opponent_wallet: opponentAccount.address.toLowerCase(),
+    opponent_token_id: "973",
+    opponent_demand_text: "Share a harmless drawing of your Chog.",
+    challenger_terms_accepted: 1,
+    challenger_terms_accepted_at: now,
+    opponent_terms_accepted: 1,
+    opponent_terms_accepted_at: now,
+  });
+  db.rows.set(row.id, row);
+  env.CHOG_DB = db;
+  const challengerCookie = await makeLinkedSession({ discordId: challengerId, username: "ChallengeMaker", walletAccount: account });
+  const changed = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
+    body: { action: "saveDemand", id: row.id, demand: "Post a different harmless silly message." },
+  });
+  assert.equal(changed.body.invite.status, "TERMS_ACCEPTED");
+  assert.equal(changed.body.invite.challenger.termsAccepted, false);
+  assert.equal(changed.body.invite.opponent.termsAccepted, false);
+});
 test("returns an explicit configuration error if Cloudflare D1 binding is absent", async () => {
   const cookieHeader = await makeLinkedSession();
   delete env.CHOG_DB;
@@ -399,4 +508,88 @@ test("unregistered username invite can only be claimed by the matching Discord a
   assert.equal(accepted.body.invite.status, "TERMS_ACCEPTED");
   assert.equal(accepted.body.invite.opponent.discordId, opponentId);
   assert.equal(db.rows.get(row.id).opponent_discord_id, opponentId);
+});
+
+
+test("owner can create prototype practice without a real Chog and mode is returned", async () => {
+  const db = new MockD1();
+  env.CHOG_DB = db;
+  const ownerCookie = await makeLinkedSession({
+    discordId: "1304031867162595361",
+    username: "arena_owner",
+    walletAccount: account,
+  });
+  const result = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: ownerCookie,
+    env,
+    origin,
+    body: {
+      action: "create",
+      opponentDiscordId: opponentId,
+      opponentUsername: "rival",
+      challengerTokenId: "prototype:ember",
+      gameMode: "PRACTICE",
+      condition: "Post a harmless silly message for one day.",
+      agreeToCondition: true,
+    },
+  });
+  assert.equal(result.status, 201);
+  assert.equal(result.body.invite.gameMode, "PRACTICE");
+  assert.equal(db.rows.get(result.body.invite.id).game_mode, "PRACTICE");
+});
+
+test("practice invite accepts a prototype fighter without NFT ownership lookup", async () => {
+  const db = new MockD1();
+  const row = makeRow({ game_mode: "PRACTICE" });
+  db.rows.set(row.id, row);
+  env.CHOG_DB = db;
+  const opponentCookie = await makeLinkedSession({
+    discordId: opponentId,
+    username: "rival",
+    walletAccount: opponentAccount,
+  });
+  const accepted = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: opponentCookie,
+    env,
+    origin,
+    body: {
+      action: "accept",
+      id: row.id,
+      opponentTokenId: "prototype:tide",
+      agreeToCondition: true,
+    },
+  });
+  assert.equal(accepted.status, 200);
+  assert.equal(accepted.body.invite.gameMode, "PRACTICE");
+  assert.equal(accepted.body.invite.opponent.tokenId, "prototype:tide");
+  assert.equal(db.rows.get(row.id).opponent_wallet, opponentAccount.address.toLowerCase());
+});
+
+test("non-owner cannot create prototype practice invites", async () => {
+  const db = new MockD1();
+  env.CHOG_DB = db;
+  const playerCookie = await makeLinkedSession({ discordId: challengerId, username: "regular_player", walletAccount: account });
+  await assert.rejects(
+    handleInviteRequest({
+      method: "POST",
+      url: "/api/invites",
+      cookieHeader: playerCookie,
+      env,
+      origin,
+      body: {
+        action: "create",
+        opponentDiscordId: opponentId,
+        opponentUsername: "rival",
+        challengerTokenId: "prototype:ember",
+        gameMode: "PRACTICE",
+        condition: "Post a harmless silly message for one day.",
+        agreeToCondition: true,
+      },
+    }),
+    (error) => error instanceof InviteApiError && error.code === "PRACTICE_MODE_FORBIDDEN" && error.status === 403,
+  );
 });

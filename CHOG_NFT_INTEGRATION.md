@@ -4,9 +4,9 @@
 - Wallet connection and switch/add Monad Mainnet (chain ID 143).
 - Chog Genesis read-only integration using collection contract `0xc96d31f8626c6d03fae5dcd3d61e3fb9f4a73763`.
 - Metadata parsing from `tokenURI`, including standard `attributes` into trait fields and IPFS URI resolution.
-- A `/roster.html` screen that displays each owned Chog as a separate card with its current Battle DNA preview, rarity, traits, and ability preview.
-- Selecting a real NFT stores a local practice selection that the Phaser arena reads. It does not approve, transfer, or modify the Chog.
-- A clearly labelled local training fighter for testing when the developer owns no Chog.
+- The profile and shared lobby show each owned Chog separately with a Battle DNA preview, rarity, traits, and ability preview.
+- Single Player vs Bot is playable with prototype fighters even if the developer owns no Chog NFT. Loading an owned Chog is optional and remains read-only.
+- The real-time multiplayer arena uses the two selected Chogs' metadata-derived stats. It does not approve, transfer, or modify either Chog.
 
 ## OpenSea API lookup
 
@@ -33,7 +33,7 @@ npm install
 npm run dev
 ```
 
-Open `/roster.html`, connect a wallet, and choose a real Chog or the local training fighter. The selected profile is saved in session storage and read by `battle.html` in practice mode.
+Open **Play → Single Player** to choose Ember, Tide, or Volt as a prototype fighter. Use **Load my Chogs** only if you want to use a real owned Chog in practice. The prototype mode never mints a Pact NFT.
 
 ## Deliberately not included yet
 - Discord OAuth/account linking.
@@ -41,7 +41,7 @@ Open `/roster.html`, connect a wallet, and choose a real Chog or the local train
 - A condition NFT contract or mutable/revealed outcome metadata.
 - Production battle-result verification.
 
-Those should be added only with a server-side OAuth/session layer and a dedicated conditional NFT/challenge contract. The browser's session storage is only for practice UI; never use it as proof of ownership or as a settlement result.
+The bilateral demand flow, dedicated soulbound Pact factory, and authenticated realtime lobby now exist in the feature branch. Keep session-storage selection strictly for practice UI; never use it as proof of ownership or as a settlement result.
 
 
 ## Tests and checks

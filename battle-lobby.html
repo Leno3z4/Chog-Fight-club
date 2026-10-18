@@ -21,18 +21,25 @@
 
     <section class="lobby-grid">
       <div class="lobby-primary">\n        <article class="lobby-card battle-room-location">
-          <div class="lobby-card-heading"><div><h2>This is your battle room.</h2><p class="lobby-note">Both players use this same link after accepting. Keep it open to see the confirmed condition, fighters, and readiness status.</p></div><span class="invite-state">ROOM <code id="battle-room-id">—</code></span></div>
+          <div class="lobby-card-heading"><div><h2>Your battle room.</h2><p class="lobby-note" id="room-presence-message">Keep this room open while you wait for your rival. It updates when they join and while you play.</p></div><span class="invite-state">ROOM <code id="battle-room-id">—</code></span></div>
           <code id="battle-room-url" class="battle-room-url">Loading battle room link…</code>
           <button id="copy-battle-room" type="button" class="battle-room-copy">Copy battle room link</button>
-          <p class="lobby-note">The shared lobby is ready; synchronized combat will be activated when the multiplayer battle engine is integrated.</p>
+          <p class="lobby-note" id="room-waiting-copy">This room stays available while you wait for the other player.</p>
         </article>
 
 
-        <article class="lobby-card">
-          <div class="lobby-card-heading"><div><span class="club-eyebrow">THE CHALLENGE</span><h2>Terms on the table.</h2></div><span id="invite-status-chip" class="invite-state">LOADING</span></div>
-          <blockquote id="invite-condition" class="condition-quote">Fetching the proposed condition…</blockquote>
-          <div class="condition-meta"><span>PUBLIC TERMS HASH</span><code id="condition-hash">—</code></div>
-          <p class="lobby-note">Read the exact condition. It cannot be edited after acceptance. Conditions must be voluntary, harmless, and non-invasive. On-chain Pact NFTs are not enabled yet; this lobby records the invitation and consent in the configured database only.</p>
+        <article class="lobby-card bilateral-terms-card" id="bilateral-terms-card" hidden>
+          <div class="lobby-card-heading"><div><h2>Make the agreement.</h2><p class="lobby-note">Each player writes one demand. Both must accept the exact pair before the Pact NFT can be minted.</p></div><span id="invite-status-chip" class="invite-state">LOADING</span></div>
+          <div class="demand-pair">
+            <section class="demand-slot"><span class="demand-label">CHALLENGER'S DEMAND</span><blockquote id="challenger-demand-text" class="condition-quote">Waiting for demand…</blockquote><span id="challenger-demand-acceptance" class="demand-acceptance">Not accepted</span></section>
+            <section class="demand-slot"><span class="demand-label">OPPONENT'S DEMAND</span><blockquote id="opponent-demand-text" class="condition-quote">Waiting for demand…</blockquote><span id="opponent-demand-acceptance" class="demand-acceptance">Not accepted</span></section>
+          </div>
+          <div class="condition-meta"><span>COMBINED TERMS HASH</span><code id="condition-hash">—</code></div>
+          <label for="own-demand-text" class="field-label">Your demand</label>
+          <textarea id="own-demand-text" minlength="5" maxlength="500" rows="3" placeholder="Write the harmless condition you want the other player to complete." required></textarea>
+          <p class="lobby-note">Your demand is public if the Pact NFT is minted. Keep it voluntary, harmless, non-invasive, and within the game's rules.</p>
+          <div class="lobby-actions"><button id="save-demand-button" class="outline-button" type="button">Save my demand</button><button id="accept-bilateral-terms" class="discord-button" type="button" disabled>I accept both demands ↗</button></div>
+          <p id="demand-status" class="lobby-note" role="status"></p>
         </article>
 
         <article class="lobby-card">
@@ -50,11 +57,70 @@
           <div class="lobby-actions"><button id="accept-invite" class="discord-button" type="button" disabled>Accept challenge <b>↗</b></button><button id="decline-invite" class="outline-button" type="button">Decline</button></div>
         </article>
 
+        
+        <article class="lobby-card pact-card" id="pact-card" hidden>
+          <div class="lobby-card-heading"><div><h2>Agreement NFT</h2><p class="lobby-note">Both players sign the exact terms. The factory mints one linked, non-transferable Pact NFT to each wallet.</p></div><span id="pact-state-chip" class="invite-state">NOT MINTED</span></div>
+          <p id="pact-sign-status" class="lobby-note">Waiting for both players to sign the agreement.</p>
+          <div class="pact-result-grid" aria-live="polite">
+            <section class="pact-result-deal">
+              <span class="pact-result-label">THE AGREED DEAL</span>
+              <blockquote id="pact-deal-text">Waiting for both players to agree on the terms.</blockquote>
+            </section>
+            <section class="pact-result-field">
+              <span class="pact-result-label">WINNER</span>
+              <strong id="pact-winner-text">Not decided yet</strong>
+            </section>
+            <section class="pact-result-field">
+              <span class="pact-result-label">LOSER</span>
+              <strong id="pact-loser-text">Not decided yet</strong>
+            </section>
+            <section class="pact-result-field">
+              <span class="pact-result-label">CONDITION STATUS</span>
+              <strong id="pact-condition-status">Awaiting battle</strong>
+            </section>
+          </div>
+          <div class="lobby-actions">
+            <button id="pact-sign-button" class="discord-button" type="button">Sign agreement ↗</button>
+            <button id="pact-mint-button" class="outline-button" type="button" hidden>Mint Pact NFTs ↗</button>
+            <button id="pact-settle-button" class="outline-button" type="button" hidden>Settle match result ↗</button>
+            <button id="pact-fulfill-button" class="outline-button" type="button" hidden>Confirm condition fulfilled ↗</button>
+          </div>
+          <p id="pact-tx-status" class="lobby-note" hidden></p>
+        </article>
+
+        <article class="lobby-card combat-card" id="combat-card" hidden>
+          <div class="lobby-card-heading"><div><h2>The Arena</h2><p class="lobby-note">Move, dash, and attack in real time. The server owns the match state.</p></div><span id="combat-status" class="invite-state">WAITING</span></div>
+          <p id="combat-message" class="lobby-note">Both players must confirm readiness first.</p>
+          <button id="combat-start" class="discord-button" type="button" hidden>Start battle ↗</button>
+          <div class="combat-fighters">
+            <div class="combat-fighter">
+              <div class="combat-fighter-head"><strong id="combat-challenger-name">Challenger</strong><span id="combat-challenger-hp-text">— HP</span></div>
+              <div class="combat-hp-track"><span id="combat-challenger-hp-bar"></span></div>
+              <small id="combat-challenger-dna">Waiting for battle data</small>
+              <small id="combat-challenger-energy">Energy: —</small>
+            </div>
+            <div class="combat-versus">VS</div>
+            <div class="combat-fighter">
+              <div class="combat-fighter-head"><strong id="combat-opponent-name">Opponent</strong><span id="combat-opponent-hp-text">— HP</span></div>
+              <div class="combat-hp-track"><span id="combat-opponent-hp-bar"></span></div>
+              <small id="combat-opponent-dna">Waiting for battle data</small>
+              <small id="combat-opponent-energy">Energy: —</small>
+            </div>
+          </div>
+          <div class="arena-controls-note">Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys · <kbd>Space</kbd> attack · <kbd>Shift</kbd> dash</div>
+          <canvas id="realtime-arena" width="960" height="540" tabindex="0" aria-label="Real-time Chog battle arena"></canvas>
+          <div class="arena-mobile-controls">
+            <div class="arena-pad"><button type="button" data-arena-key="up">▲</button><div><button type="button" data-arena-key="left">◀</button><button type="button" data-arena-key="down">▼</button><button type="button" data-arena-key="right">▶</button></div></div>
+            <div class="arena-actions"><button type="button" data-arena-action="attack">ATTACK</button><button type="button" data-arena-action="special">SPECIAL</button><button type="button" data-arena-action="dash">DASH</button></div>
+          </div>
+          <h3 class="combat-log-title">Match activity</h3>
+          <ol id="combat-log" class="combat-log"><li>Battle events will appear here.</li></ol>
+        </article>
         <article class="lobby-card" id="ready-card" hidden>
           <div class="lobby-card-heading"><div><span class="club-eyebrow">PRE-FIGHT CHECK</span><h2>Ready when you are.</h2></div><span id="ready-status-chip" class="invite-state">WAITING</span></div>
           <p id="ready-explanation" class="lobby-note">Both players must confirm they are ready. This lobby state is persistent.</p>
           <button id="ready-button" class="discord-button" type="button">I'm ready <b>↗</b></button>
-          <p class="lobby-note">The shared readiness flow is implemented, but the server-authoritative multiplayer combat relay and Pact NFT minting are not enabled yet. We will not falsely send you into a single-player arena and call it PvP.</p>
+          <p class="lobby-note">Once the Pact is minted, both players confirm readiness and enter the same live arena.</p>
         </article>
       </div>
 

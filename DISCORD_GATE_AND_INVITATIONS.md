@@ -11,20 +11,19 @@
 The gated profile has a left sidebar: My Chogs, Invite to Battle, Incoming Invites, Sent Invites, Battle History. Wallet connection happens here, after Discord verification. Chogs are listed separately and the player selects a main fighter.
 
 ## Invitation state machine
-`DRAFT → PENDING_ACCEPTANCE → ACCEPTED → SELECTING_FIGHTERS → TERMS_REVIEW → TERMS_ACCEPTED → PACT_MINT_PENDING → READY → IN_BATTLE → RESULT_PENDING → SETTLED → CONDITION_PENDING → CONDITION_FULFILLED`
+`PENDING_ACCEPTANCE → TERMS_ACCEPTED (recipient has joined lobby) → READY (both demands accepted) → PACT_MINT_PENDING → IN_BATTLE → RESULT_PENDING → CONDITION_PENDING → CONDITION_FULFILLED`
 
 Alternate terminal/recovery states:
 `DECLINED`, `CANCELLED`, `EXPIRED`, `DISPUTED`, `ABANDONED`.
 
 ### Proposed flow
 1. Player A chooses a real owned Chog and creates an invitation link with an unguessable invitation ID. Store a record on the backend immediately; the link must survive refreshes, logout, and the recipient being offline.
-2. Player B opens the link. They pass Discord role verification, connect their wallet, and choose their own Chog.
-3. The lobby displays both players, Discord display names, selected Chog images/IDs, metadata-derived stats, and a persistent invitation status.
-4. Either side can decline. The sender can cancel while pending. Pending invites remain stored until accepted, declined, or cancelled; creation is rate-limited. One invitation ID can be accepted only once.
-5. Both players see the exact condition text and disclosure that pact terms/outcomes are public on-chain. Each signs/accepts the same `termsHash`.
-6. Only after both players consent does the pact NFT mint. The Chog NFTs are never approved, transferred, or escrowed.
-7. When both players are online and click Ready, the shared lobby enters the arena. A reconnect token restores the lobby after refresh.
-8. After a validated result, the separate pact NFTs reveal win/condition-pending status. The winner can confirm fulfilment, changing the loser's record from unfulfilled to fulfilled. Disputes/expiry need a defined neutral process.
+2. Player B opens the link, passes Discord holder verification, links their wallet, selects an owned Chog, and chooses **Join lobby**. The invitation creator can already be waiting in that same lobby.
+3. The lobby shows who is connected and prompts each player to write one demand. Each player must explicitly accept the exact combined demands; joining alone is not consent. Changing either demand resets both acceptances.
+4. The opponent's join causes an in-app notification and, where enabled, a browser notification with a **Join lobby** link. Either side can decline before acceptance; the sender can cancel while pending. Each invite ID is accepted at most once.
+5. Both wallets sign the same EIP-712 Pact agreement only after both demands are accepted. The factory mints two linked soulbound receipts; the Chog NFTs remain read-only and are never transferred or approved.
+6. After mint, both players are online and ready, then enter the shared real-time arena. Players move and attack continuously; this is not a turn-based combat loop. The Cloudflare Durable Object owns the live combat state.
+7. After the resolver records the winner, the Pact receipts reveal the result. The winner confirms the condition when it has been completed. A timeout/dispute path should be designed before meaningful wagers.
 
 ## Persistence is mandatory
 Do not store invitations only in localStorage, sessionStorage, or an in-memory serverless variable. The invitation needs a durable record with transactional status transitions, expiry, replay protection, and access control. Before implementing live invitations, select a persistent backend/storage binding and configure it in the deployment target.
@@ -53,7 +52,7 @@ The branch includes `server/invites.js`, the Cloudflare Pages adapter at `functi
 
 To activate this portion, create a Cloudflare D1 database, apply `migrations/0001_challenge_invites.sql` with Wrangler, then bind the database to the Cloudflare Pages project using the exact binding name `CHOG_DB`. Set `MONAD_RPC_URL` as a server-side variable. D1 binding setup is documented in `CLOUDFLARE_D1_SETUP.md`.
 
-The shared lobby updates status through polling and tracks both players' readiness. It deliberately does not enter the existing single-player Phaser arena as if it were a synchronized PvP match. Real-time battle transport, Pact NFT minting, validated result settlement, and fulfilment confirmation are not complete.
+The feature branch now has a Durable Object WebSocket room for real-time combat, separate Single Player vs Bot practice, a bilateral demand editor, the EIP-712 soulbound Pact mint flow, and result/fulfilment handlers. It remains a draft branch and still needs deployment/configuration in Cloudflare and Vercel plus a staged end-to-end test.
 
 
 ## Cloudflare storage decision

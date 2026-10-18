@@ -44,6 +44,22 @@ function escapeHtml(value) {
 }
 function stat(stats, key) { return Math.round(Number(stats?.[key] ?? 0)); }
 
+function isPrototypePracticeSelected() {
+  return Boolean($("#prototype-multiplayer-toggle")?.checked && state.session?.isAdmin);
+}
+function updatePracticeForm() {
+  const practice = isPrototypePracticeSelected();
+  const officialRow = $("#official-main-chog-row");
+  const controls = $("#prototype-practice-controls");
+  const copy = $("#invite-condition-agree-copy");
+  const button = $("#create-invite-button");
+  if (officialRow) officialRow.hidden = practice;
+  if (controls) controls.hidden = !practice;
+  if (copy) copy.textContent = practice
+    ? "This is for prototype practice only. No Pact NFT or official match result will be created. Conditions must still be voluntary, harmless, and non-invasive."
+    : "This is my demand. If we both accept the final agreement, both demands may be recorded publicly on a soulbound Pact NFT. Conditions must be voluntary, harmless, and non-invasive.";
+  if (button) button.innerHTML = practice ? "Create prototype practice room <b>↗</b>" : "Create invitation link <b>↗</b>";
+}
 function updateSelectedMain() {
   const chog = state.chogs.find((item) => String(item.tokenId) === String(state.selectedTokenId));
   const name = $("#selected-main-name");
@@ -145,6 +161,9 @@ async function requireDiscordSession() {
   const accessStatus = $("#member-access-status");
   if (accessBadge) accessBadge.textContent = accessLabel;
   if (accessStatus) accessStatus.textContent = state.session.isAdmin ? "Owner access" : "Holder verified";
+  const practiceOption = $("#prototype-practice-option");
+  if (practiceOption) practiceOption.hidden = !state.session.isAdmin;
+  updatePracticeForm();
   const avatar = $("#member-avatar");
   if (state.session.avatar) avatar.innerHTML = `<img src="${escapeHtml(state.session.avatar)}" alt="" />`;
   else avatar.textContent = (state.session.username || "C").slice(0, 1).toUpperCase();
@@ -247,7 +266,7 @@ async function loadInvites(view) {
       const other = incoming ? invite.challenger : invite.opponent;
       const status = invite.status;
       const accepted = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
-      const url = `${accepted ? "/battle-lobby.html" : "/invite.html"}?id=${encodeURIComponent(invite.id)}`;
+      const url = `${accepted || !incoming ? "/battle-lobby.html" : "/invite.html"}?id=${encodeURIComponent(invite.id)}`;
       const canRespond = incoming && status === "PENDING_ACCEPTANCE";
       const canCancel = !incoming && status === "PENDING_ACCEPTANCE";
       return `<article class="invite-list-item">
@@ -257,7 +276,7 @@ async function loadInvites(view) {
           <div class="invite-list-meta"><span class="invite-state">${escapeHtml(status.replaceAll("_"," "))}</span><span class="invite-state">Expires ${escapeHtml(invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : "No expiry")}</span></div>
         </div>
         <div class="invite-item-actions">
-          <a class="invite-open-button" href="${url}">${canRespond ? "Review challenge" : accepted ? "Open battle lobby" : "Open invitation"}</a>
+          <a class="invite-open-button" href="${url}">${canRespond ? "Join lobby" : accepted ? "Join lobby" : incoming ? "Review challenge" : "Wait in lobby"}</a>
           ${canCancel ? `<button class="copy-invite-link" data-cancel-invite="${escapeHtml(invite.id)}" type="button">Cancel</button><button class="copy-invite-link" data-copy-invite="${escapeHtml(invite.id)}" type="button">Copy invite link</button>` : ""}
         </div>
       </article>`;
@@ -363,6 +382,8 @@ opponentResults.addEventListener("click", (event) => {
 });
 
 $("#go-to-chogs").addEventListener("click", () => setPanel("chogs"));
+$("#prototype-multiplayer-toggle")?.addEventListener("change", updatePracticeForm);
+updatePracticeForm();
 $("#create-invite-form").addEventListener("submit", async (event) => {
   event.preventDefault();
   const status = $("#create-invite-status");
@@ -376,7 +397,10 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
     if (!state.account || !state.session?.walletAddress || state.account.toLowerCase() !== state.session.walletAddress.toLowerCase()) {
       throw new Error("Connect and sign your wallet-link message before creating a challenge.");
     }
-    if (!state.selectedTokenId) throw new Error("Choose your main Chog in My Chogs first.");
+    const practiceMode = isPrototypePracticeSelected();
+    if (practiceMode && !state.session?.isAdmin) throw new Error("Prototype practice is restricted to the Arena owner.");
+    if (!practiceMode && !state.selectedTokenId) throw new Error("Choose your main Chog in My Chogs first.");
+    const challengerTokenId = practiceMode ? $("#prototype-main-fighter").value : String(state.selectedTokenId);
     if (!state.selectedOpponent || !opponentUsernameTarget.value || (!opponentIdInput.value && !state.selectedOpponent.unregistered)) {
       throw new Error("Search for a player and select them from the results first.");
     }
@@ -388,7 +412,8 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
         action: "create",
         opponentDiscordId: opponentIdInput.value,
         opponentUsername: opponentUsernameTarget.value,
-        challengerTokenId: String(state.selectedTokenId),
+        gameMode: practiceMode ? "PRACTICE" : "OFFICIAL",
+        challengerTokenId,
         condition: $("#invite-condition").value,
         agreeToCondition: $("#invite-condition-agree").checked,
       }),
@@ -397,7 +422,7 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
     if (!response.ok || !payload.inviteUrl) throw new Error(payload.error || "Invitation could not be created.");
     status.textContent = `Invitation saved for @${state.selectedOpponent?.username || "your opponent"}.`;
     status.dataset.kind = "success";
-    resultNode.innerHTML = `<strong>Challenge created · ${escapeHtml(payload.invite.status.replaceAll("_"," "))}</strong><a href="${escapeHtml(payload.inviteUrl)}">${escapeHtml(payload.inviteUrl)}</a><br /><button type="button" class="copy-invite-link" id="copy-created-invite">Copy invitation link</button> <a class="copy-invite-link" href="/invite.html?id=${encodeURIComponent(payload.invite.id)}">Open lobby</a>`;
+    resultNode.innerHTML = `<strong>Challenge created · ${escapeHtml(payload.invite.status.replaceAll("_"," "))}</strong><a href="${escapeHtml(payload.inviteUrl)}">${escapeHtml(payload.inviteUrl)}</a><br /><button type="button" class="copy-invite-link" id="copy-created-invite">Copy invitation link</button> <a class="copy-invite-link" href="/battle-lobby.html?id=${encodeURIComponent(payload.invite.id)}">Wait in lobby</a>`;
     resultNode.hidden = false;
     $("#copy-created-invite").addEventListener("click", async () => {
       try {
@@ -453,8 +478,93 @@ document.addEventListener("click", async (event) => {
   }
 });
 
+const notificationButton = $("#enable-notifications");
+if (notificationButton) {
+  if (!("Notification" in window)) {
+    notificationButton.hidden = true;
+  } else if (Notification.permission === "granted") {
+    notificationButton.textContent = "Notifications enabled ✓";
+    notificationButton.disabled = true;
+  }
+  notificationButton.addEventListener("click", async () => {
+    if (!("Notification" in window)) return;
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        notificationButton.textContent = "Notifications enabled ✓";
+        notificationButton.disabled = true;
+      } else {
+        notificationButton.textContent = "In-app alerts only";
+      }
+    } catch {
+      notificationButton.textContent = "In-app alerts only";
+    }
+  });
+}
+const joinNotice = $("#lobby-join-notice");
+const notifiedJoinIds = new Set();
+function showLobbyJoinNotice(invite) {
+  if (!joinNotice || !invite?.id) return;
+  const link = `/battle-lobby.html?id=${encodeURIComponent(invite.id)}`;
+  $("#lobby-join-title").textContent = `@${invite.opponent?.username || "Your rival"} joined your lobby`;
+  $("#lobby-join-copy").textContent = "They accepted the challenge. Open the shared room to agree on both demands.";
+  $("#lobby-join-link").href = link;
+  joinNotice.hidden = false;
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      const notification = new Notification("Chog Battle Arena", {
+        body: `@${invite.opponent?.username || "Your rival"} joined your challenge lobby.`,
+        tag: `chog-join-${invite.id}`,
+      });
+      notification.onclick = () => window.location.assign(link);
+    } catch { /* the in-page notification remains available */ }
+  }
+}
+async function pollLobbyJoins(initial = false) {
+  try {
+    const response = await fetch("/api/invites?view=outgoing", { credentials: "same-origin", headers: { accept: "application/json" } });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) return;
+    const rows = Array.isArray(payload.invites) ? payload.invites : [];
+    let changed = false;
+    let notifiedThisPoll = false;
+    for (const invite of rows) {
+      const joined = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(invite.status);
+      const previous = window.sessionStorage.getItem(`chog-invite-status-${invite.id}`);
+      if (joined && !notifiedJoinIds.has(invite.id)) {
+        const alreadySeen = window.sessionStorage.getItem(`chog-join-seen-${invite.id}`) === "1";
+        if (!notifiedThisPoll && !alreadySeen && (initial || previous === "PENDING_ACCEPTANCE")
+          && ["TERMS_ACCEPTED", "READY", "IN_BATTLE"].includes(invite.status)) {
+          showLobbyJoinNotice(invite);
+          notifiedThisPoll = true;
+        }
+        notifiedJoinIds.add(invite.id);
+      }
+      if (previous && previous !== invite.status) changed = true;
+      window.sessionStorage.setItem(`chog-invite-status-${invite.id}`, invite.status);
+    }
+    if (changed) loadInvites("outgoing");
+  } catch {
+    // The notification poll is best-effort; manual refresh remains available.
+  }
+}
+$("#dismiss-lobby-notice")?.addEventListener("click", () => {
+  const link = $("#lobby-join-link")?.href || "";
+  const id = new URL(link).searchParams.get("id");
+  if (id) window.sessionStorage.setItem(`chog-join-seen-${id}`, "1");
+  if (joinNotice) joinNotice.hidden = true;
+});
+$("#lobby-join-link")?.addEventListener("click", () => {
+  try {
+    const id = new URL($("#lobby-join-link").href).searchParams.get("id");
+    if (id) window.sessionStorage.setItem(`chog-join-seen-${id}`, "1");
+  } catch {}
+});
+
 requireDiscordSession().then(async (ok) => {
   if (!ok) return;
+  const requestedPanel = new URLSearchParams(window.location.search).get("panel");
+  if (panels.includes(requestedPanel)) setPanel(requestedPanel);
   await fetch("/api/players", { method: "POST", credentials: "same-origin", headers: { accept: "application/json" } }).catch(() => {});
   const linked = state.session?.walletAddress;
   let walletReady = false;
@@ -479,4 +589,6 @@ requireDiscordSession().then(async (ok) => {
     ? "Discord verified. Reconnect the linked wallet on Monad to load your fighters."
     : "Discord verified. Connect and sign your wallet to load your fighters.";
   loadInvites("incoming");
+  await pollLobbyJoins(true);
+  window.setInterval(() => pollLobbyJoins(false), 3500);
 }).catch(() => window.location.replace("/"));

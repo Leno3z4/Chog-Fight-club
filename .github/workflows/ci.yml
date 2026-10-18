@@ -18,23 +18,36 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install
+      - name: Set up Foundry
+        uses: foundry-rs/foundry-toolchain@v1
       - name: Test website services
         run: npm test
-      - name: Syntax-check Vercel API routes
-        run: find api -name '*.js' -print0 | xargs -0 -n1 node --check
+      - name: Syntax-check API routes and realtime Worker
+        run: |
+          find api functions server src -name '*.js' -print0 | xargs -0 -n1 node --check
+          node --check realtime/worker.js
       - name: Validate Cloudflare D1 migration
         run: |
           python - <<'PY'
           import sqlite3
           db = sqlite3.connect(":memory:")
-          for path in ["migrations/0001_challenge_invites.sql", "migrations/0002_player_directory.sql"]:
+          for path in ["migrations/0001_challenge_invites.sql", "migrations/0002_player_directory.sql", "migrations/0003_authoritative_battles.sql", "migrations/0004_pact_nft_signatures.sql", "migrations/0005_pact_settlement.sql", "migrations/0006_bilateral_demands.sql", "migrations/0007_multiplayer_practice.sql"]:
               with open(path, encoding="utf-8") as migration:
                   db.executescript(migration.read())
           invites = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_challenge_invites'").fetchone()
           players = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_players'").fetchone()
           assert invites is not None, "D1 migration did not create chog_challenge_invites"
           assert players is not None, "D1 migration did not create chog_players"
-          print("Both D1 migrations are valid SQLite and create their tables")
+          battles = db.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='chog_battles'").fetchone()
+          assert battles is not None, "Battle migration did not create chog_battles"
+          pact_columns = {row[1] for row in db.execute("PRAGMA table_info(chog_challenge_invites)")}
+          assert "challenger_pact_signature" in pact_columns and "pact_id" in pact_columns, "Pact migration columns missing"
+          assert "pact_settlement_tx_hash" in pact_columns and "pact_fulfillment_tx_hash" in pact_columns, "Pact settlement columns missing"
+          assert "opponent_demand_text" in pact_columns, "Bilateral demand column missing"
+          assert "game_mode" in pact_columns, "Practice-mode column missing"
+          print("All D1 migrations are valid SQLite and create their tables")
           PY
+      - name: Test Solidity contracts
+        run: forge test -vvv
       - name: Build website
         run: npm run build

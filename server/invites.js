@@ -42,6 +42,10 @@ function isUsernameInviteFor(row, user) {
   const target = usernameInviteTarget(row);
   return Boolean(target && normalizeDiscordUsername(user?.discordUsername) === target);
 }
+function validPrototypeFighter(value) {
+  const id = String(value ?? "");
+  return ["prototype:ember", "prototype:tide", "prototype:volt"].includes(id) ? id : "";
+}
 function validTokenId(value) {
   return (typeof value === "string" || typeof value === "number") && /^\d{1,78}$/.test(String(value));
 }
@@ -116,6 +120,9 @@ function presentInvite(row, currentDiscordId) {
       ready: Boolean(row.opponent_ready),
     },
     condition: row.condition_text,
+    gameMode: row.game_mode === "PRACTICE" ? "PRACTICE" : "OFFICIAL",
+    challengerDemand: row.condition_text,
+    opponentDemand: row.opponent_demand_text || "",
     termsHash: row.terms_hash,
     status: expired ? "EXPIRED" : row.status,
     createdAt: row.created_at,
@@ -183,12 +190,21 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     opponentName = `@${requestedUsername}`;
   }
 
-  const tokenId = String(body.challengerTokenId ?? "");
+  const practiceMode = body.gameMode === "PRACTICE";
+  if (practiceMode && !user.isAdmin) {
+    throw new InviteApiError("Prototype multiplayer is available only to the Arena owner for testing.", { status: 403, code: "PRACTICE_MODE_FORBIDDEN" });
+  }
+  const tokenId = practiceMode
+    ? validPrototypeFighter(body.challengerTokenId)
+    : String(body.challengerTokenId ?? "");
+  if (!tokenId) {
+    throw new InviteApiError(practiceMode ? "Choose Ember, Tide, or Volt for the prototype fighter." : "Choose a valid Chog token.", { status: 400, code: "CHALLENGER_FIGHTER_INVALID" });
+  }
   const condition = cleanCondition(body.condition);
   if (body.agreeToCondition !== true) {
     throw new InviteApiError("Confirm that the condition is voluntary, harmless, and will be shown publicly if a Pact NFT is minted.", { status: 400, code: "TERMS_NOT_ACKNOWLEDGED" });
   }
-  await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
+  if (!practiceMode) await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
 
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const recent = await db.prepare(
@@ -201,6 +217,7 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
   const now = new Date();
   const invite = {
     id: crypto.randomUUID(),
+    game_mode: practiceMode ? "PRACTICE" : "OFFICIAL",
     challenger_discord_id: user.discordId,
     challenger_username: user.username,
     challenger_wallet: user.walletAddress.toLowerCase(),
@@ -211,7 +228,7 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     opponent_token_id: null,
     condition_text: condition,
     terms_hash: await hashText(condition),
-    challenger_terms_accepted: 1,
+    challenger_terms_accepted: 0,
     challenger_terms_accepted_at: now.toISOString(),
     opponent_terms_accepted: 0,
     opponent_terms_accepted_at: null,
@@ -229,14 +246,14 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
       id, challenger_discord_id, challenger_username, challenger_wallet, challenger_token_id,
       opponent_discord_id, opponent_username, opponent_wallet, opponent_token_id, condition_text,
       terms_hash, challenger_terms_accepted, challenger_terms_accepted_at, opponent_terms_accepted,
-      opponent_terms_accepted_at, challenger_ready, opponent_ready, status, created_at, updated_at, expires_at
-    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)`
+      opponent_terms_accepted_at, challenger_ready, opponent_ready, status, created_at, updated_at, expires_at, game_mode
+    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22)`
   ).bind(
     invite.id, invite.challenger_discord_id, invite.challenger_username, invite.challenger_wallet,
     invite.challenger_token_id, invite.opponent_discord_id, invite.opponent_username, invite.opponent_wallet,
     invite.opponent_token_id, invite.condition_text, invite.terms_hash, invite.challenger_terms_accepted,
     invite.challenger_terms_accepted_at, invite.opponent_terms_accepted, invite.opponent_terms_accepted_at,
-    invite.challenger_ready, invite.opponent_ready, invite.status, invite.created_at, invite.updated_at, invite.expires_at,
+    invite.challenger_ready, invite.opponent_ready, invite.status, invite.created_at, invite.updated_at, invite.expires_at, invite.game_mode,
   ).run();
 
   return {
@@ -305,14 +322,16 @@ export async function handleInviteRequest({
     if (!user.walletAddress) throw new InviteApiError("Link your wallet before accepting the challenge.", { status: 409, code: "WALLET_NOT_LINKED" });
     if (body.agreeToCondition !== true) throw new InviteApiError("Read and explicitly accept the proposed condition before accepting.", { status: 400, code: "TERMS_NOT_ACKNOWLEDGED" });
 
-    const tokenId = String(body.opponentTokenId ?? "");
-    await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
+    const practiceMode = row.game_mode === "PRACTICE";
+    const tokenId = practiceMode ? validPrototypeFighter(body.opponentTokenId) : String(body.opponentTokenId ?? "");
+    if (!tokenId) throw new InviteApiError(practiceMode ? "Choose Ember, Tide, or Volt for your prototype fighter." : "Choose a valid Chog token.", { status: 400, code: "OPPONENT_FIGHTER_INVALID" });
+    if (!practiceMode) await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
     const now = new Date().toISOString();
     const updated = await conditionalUpdate({
       env,
       sql: `UPDATE chog_challenge_invites SET
         opponent_discord_id = ?1, opponent_username = ?2, opponent_wallet = ?3, opponent_token_id = ?4,
-        opponent_terms_accepted = 1, opponent_terms_accepted_at = ?5,
+        opponent_terms_accepted = 0, opponent_terms_accepted_at = NULL,
         status = 'TERMS_ACCEPTED', updated_at = ?5
         WHERE id = ?6 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?7
         RETURNING *`,
@@ -341,9 +360,83 @@ export async function handleInviteRequest({
     return { status: 200, body: { invite: presentInvite(updated, user.discordId) }, headers: { "Cache-Control": "no-store" } };
   }
 
+  if (body.action === "saveDemand") {
+    const expectedWallet = isChallenger ? row.challenger_wallet : row.opponent_wallet;
+    if (!expectedWallet || !user.walletAddress || expectedWallet.toLowerCase() !== user.walletAddress.toLowerCase()) {
+      throw new InviteApiError("Connect the wallet linked to this challenge before editing your demand.", { status: 403, code: "INVITE_WALLET_MISMATCH" });
+    }
+    if (!["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id || row.pact_tx_hash) {
+      throw new InviteApiError("Demands can only be edited in the lobby before the Pact NFT is minted.", { status: 409, code: "DEMAND_EDIT_LOCKED" });
+    }
+    const demand = cleanCondition(body.demand);
+    const now = new Date().toISOString();
+    const challengerDemand = isChallenger ? demand : row.condition_text;
+    const opponentDemand = isChallenger ? (row.opponent_demand_text || "") : demand;
+    const combined = `Challenger demand: ${challengerDemand}\nOpponent demand: ${opponentDemand}`;
+    const demandHash = await hashText(combined);
+    const column = isChallenger ? "condition_text" : "opponent_demand_text";
+    const acceptedColumn = isChallenger ? "challenger_terms_accepted" : "opponent_terms_accepted";
+    const acceptedAtColumn = isChallenger ? "challenger_terms_accepted_at" : "opponent_terms_accepted_at";
+    const updated = await conditionalUpdate({
+      env,
+      sql: `UPDATE chog_challenge_invites SET ${column} = ?1, terms_hash = ?2,
+        challenger_terms_accepted = 0, opponent_terms_accepted = 0,
+        challenger_terms_accepted_at = ?3, opponent_terms_accepted_at = NULL,
+        challenger_ready = 0, opponent_ready = 0, status = 'TERMS_ACCEPTED', updated_at = ?3
+        WHERE id = ?4 AND status IN ('TERMS_ACCEPTED','READY') AND pact_id IS NULL
+          AND challenger_pact_signature IS NULL AND opponent_pact_signature IS NULL
+        RETURNING *`,
+      values: [demand, demandHash, now, id],
+      conflictCode: "DEMAND_SAVE_CONFLICT",
+    });
+    return { status: 200, body: { invite: presentInvite(updated, user.discordId) }, headers: { "Cache-Control": "no-store" } };
+  }
+
+  if (body.action === "acceptTerms") {
+    const expectedWallet = isChallenger ? row.challenger_wallet : row.opponent_wallet;
+    if (!expectedWallet || !user.walletAddress || expectedWallet.toLowerCase() !== user.walletAddress.toLowerCase()) {
+      throw new InviteApiError("Connect the wallet linked to this challenge before accepting the demands.", { status: 403, code: "INVITE_WALLET_MISMATCH" });
+    }
+    if (row.status !== "TERMS_ACCEPTED" && row.status !== "READY") {
+      throw new InviteApiError("Join the lobby before accepting the final demands.", { status: 409, code: "LOBBY_NOT_JOINED" });
+    }
+    if (row.pact_id || row.pact_tx_hash) {
+      throw new InviteApiError("The Pact NFT has already been minted; the agreed terms are locked.", { status: 409, code: "DEMAND_EDIT_LOCKED" });
+    }
+    const challengerDemand = cleanCondition(row.condition_text);
+    const opponentDemand = cleanCondition(row.opponent_demand_text);
+    const now = new Date().toISOString();
+    const combined = `Challenger demand: ${challengerDemand}\nOpponent demand: ${opponentDemand}`;
+    const demandHash = await hashText(combined);
+    const ownFlag = isChallenger ? "challenger_terms_accepted" : "opponent_terms_accepted";
+    const ownAt = isChallenger ? "challenger_terms_accepted_at" : "opponent_terms_accepted_at";
+    const otherFlag = isChallenger ? "opponent_terms_accepted" : "challenger_terms_accepted";
+    const updated = await conditionalUpdate({
+      env,
+      sql: `UPDATE chog_challenge_invites SET ${ownFlag} = 1, ${ownAt} = ?1, terms_hash = ?2,
+        status = CASE WHEN ${otherFlag} = 1 THEN 'READY' ELSE 'TERMS_ACCEPTED' END,
+        updated_at = ?1
+        WHERE id = ?3 AND status IN ('TERMS_ACCEPTED','READY') AND pact_id IS NULL
+        RETURNING *`,
+      values: [now, demandHash, id],
+      conflictCode: "TERMS_ACCEPT_CONFLICT",
+    });
+    const bothAccepted = Boolean(updated.challenger_terms_accepted && updated.opponent_terms_accepted);
+    return {
+      status: 200,
+      body: {
+        invite: presentInvite(updated, user.discordId),
+        notice: bothAccepted
+          ? "Both players accepted the written demands. The agreement NFT can now be signed and minted."
+          : "Your acceptance is saved. The other player must also accept both written demands.",
+      },
+      headers: { "Cache-Control": "no-store" },
+    };
+  }
+
   if (body.action === "ready") {
-    if (!["TERMS_ACCEPTED", "READY"].includes(row.status)) {
-      throw new InviteApiError("Both players must accept the condition before readiness can be recorded.", { status: 409, code: "INVITE_TERMS_PENDING" });
+    if (row.status !== "READY" || !row.challenger_terms_accepted || !row.opponent_terms_accepted) {
+      throw new InviteApiError("Both players must accept both written demands before readiness can be recorded.", { status: 409, code: "INVITE_TERMS_PENDING" });
     }
     const requiredWallet = isChallenger ? row.challenger_wallet : row.opponent_wallet;
     if (!user.walletAddress || !requiredWallet || user.walletAddress.toLowerCase() !== requiredWallet.toLowerCase()) {
@@ -355,13 +448,10 @@ export async function handleInviteRequest({
       sql: `UPDATE chog_challenge_invites SET
         challenger_ready = CASE WHEN challenger_discord_id = ?1 THEN 1 ELSE challenger_ready END,
         opponent_ready = CASE WHEN opponent_discord_id = ?1 THEN 1 ELSE opponent_ready END,
-        status = CASE
-          WHEN (challenger_ready = 1 OR challenger_discord_id = ?1)
-           AND (opponent_ready = 1 OR opponent_discord_id = ?1) THEN 'READY'
-          ELSE status
-        END,
+        status = 'READY',
         updated_at = ?2
-        WHERE id = ?3 AND status IN ('TERMS_ACCEPTED','READY')
+        WHERE id = ?3 AND status = 'READY'
+          AND challenger_terms_accepted = 1 AND opponent_terms_accepted = 1
           AND (challenger_discord_id = ?1 OR opponent_discord_id = ?1)
         RETURNING *`,
       values: [user.discordId, now, id],
@@ -371,10 +461,10 @@ export async function handleInviteRequest({
       status: 200,
       body: {
         invite: presentInvite(updated, user.discordId),
-        multiplayerAvailable: false,
-        notice: updated.status === "READY"
-          ? "Both players are ready. The invite state is synchronized, but the real-time PvP relay must be deployed before this can safely start a shared battle."
-          : "Your readiness is saved. The invitation remains in the lobby while the other player gets ready.",
+        multiplayerAvailable: true,
+        notice: updated.challenger_ready && updated.opponent_ready
+          ? "Both players are ready. Starting the real-time match is now available."
+          : "Your readiness is saved. Wait for the other player in the lobby.",
       },
       headers: { "Cache-Control": "no-store" },
     };
