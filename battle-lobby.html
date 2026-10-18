@@ -61,6 +61,24 @@
         <article class="lobby-card pact-card" id="pact-card" hidden>
           <div class="lobby-card-heading"><div><h2>Agreement NFT</h2><p class="lobby-note">Both players sign the exact terms. The factory mints one linked, non-transferable Pact NFT to each wallet.</p></div><span id="pact-state-chip" class="invite-state">NOT MINTED</span></div>
           <p id="pact-sign-status" class="lobby-note">Waiting for both players to sign the agreement.</p>
+          <div class="pact-result-grid" aria-live="polite">
+            <section class="pact-result-deal">
+              <span class="pact-result-label">THE AGREED DEAL</span>
+              <blockquote id="pact-deal-text">Waiting for both players to agree on the terms.</blockquote>
+            </section>
+            <section class="pact-result-field">
+              <span class="pact-result-label">WINNER</span>
+              <strong id="pact-winner-text">Not decided yet</strong>
+            </section>
+            <section class="pact-result-field">
+              <span class="pact-result-label">LOSER</span>
+              <strong id="pact-loser-text">Not decided yet</strong>
+            </section>
+            <section class="pact-result-field">
+              <span class="pact-result-label">CONDITION STATUS</span>
+              <strong id="pact-condition-status">Awaiting battle</strong>
+            </section>
+          </div>
           <div class="lobby-actions">
             <button id="pact-sign-button" class="discord-button" type="button">Sign agreement ↗</button>
             <button id="pact-mint-button" class="outline-button" type="button" hidden>Mint Pact NFTs ↗</button>
