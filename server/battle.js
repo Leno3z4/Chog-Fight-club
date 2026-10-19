@@ -52,7 +52,7 @@ const PROTOTYPE_METADATA = {
 function abilityFromTraits(meta) {
   const signal = `${meta.Aura || ""} ${meta.Background || ""} ${meta.Skin || ""}`.toLowerCase();
   if (/fire|flame|ember|red/.test(signal)) return "Ember Strike";
-  if (/water|aqua|blue|ice/.test(signal)) return "Tidal Jab";
+  if (/water|aqua|blue|ice/.test(signal)) return "Pressure Wave";
   if (/electric|shock|lightning|yellow/.test(signal)) return "Static Snap";
   if (/shadow|smoke|dark|purple/.test(signal)) return "Shadow Feint";
   if (/green|nature|leaf/.test(signal)) return "Thorn Rush";

@@ -10,12 +10,18 @@
     "test:opensea": "node --test server/openSeaChogs.test.js",
     "test:discord": "node --test server/discordAuth.test.js",
     "test:invites": "node --test server/invites.test.js",
-    "test": "npm run test:opensea && npm run test:discord && npm run test:invites && npm run test:players && npm run test:battle",
+    "test:rig": "node --test src/game/chogRig.test.js",
+    "test:combat": "node --test src/game/attackPresentation.test.js src/game/counterMechanics.test.js src/game/opponentAI.test.js",
+    "test:mechanics": "node --test src/game/mechanics.test.js",
+    "test:matchFlow": "node --test src/game/matchFlow.test.js",
+    "test:realtime-ticket": "node --test server/realtimeTicket.test.js",
+    "test": "npm run test:opensea && npm run test:discord && npm run test:invites && npm run test:players && npm run test:battle && npm run test:realtime-ticket && npm run test:rig && npm run test:combat && npm run test:mechanics && npm run test:matchFlow",
     "test:players": "node --test server/players.test.js",
     "test:battle": "node --test server/battle.test.js",
     "deploy:worker": "wrangler deploy"
   },
   "dependencies": {
+    "phaser": "3.90.0",
     "viem": "^2.37.3"
   },
   "devDependencies": {

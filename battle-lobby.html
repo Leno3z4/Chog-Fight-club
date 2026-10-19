@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="description" content="Review and respond to a Chog Battle Arena challenge." />
-  <title>Battle Lobby — Chog Battle Arena</title>
+  <title>Battle Lobby | Chog Battle Arena</title>
 </head>
 <body class="club-body invite-body">
   <main class="invite-page-shell">
@@ -22,7 +22,7 @@
     <section class="lobby-grid">
       <div class="lobby-primary">
         <article class="lobby-card battle-room-location">
-          <div class="lobby-card-heading"><div><h2>Your battle room.</h2><p class="lobby-note" id="room-presence-message">Keep this room open while you wait for your rival. It updates when they join and while you play.</p></div><span class="invite-state">ROOM <code id="battle-room-id">—</code></span></div>
+          <div class="lobby-card-heading"><div><h2>Your battle room.</h2><p class="lobby-note" id="room-presence-message">Keep this room open while you wait for your rival. It updates when they join and while you play.</p></div><span class="invite-state">ROOM <code id="battle-room-id">Loading</code></span></div>
           <code id="battle-room-url" class="battle-room-url">Loading battle room link…</code>
           <button id="copy-battle-room" type="button" class="battle-room-copy">Copy battle room link</button>
           <p class="lobby-note" id="room-waiting-copy">This room stays available while you wait for the other player.</p>
@@ -35,7 +35,7 @@
             <section class="demand-slot"><span class="demand-label">CHALLENGER'S DEMAND</span><blockquote id="challenger-demand-text" class="condition-quote">Waiting for demand…</blockquote><span id="challenger-demand-acceptance" class="demand-acceptance">Not accepted</span></section>
             <section class="demand-slot"><span class="demand-label">OPPONENT'S DEMAND</span><blockquote id="opponent-demand-text" class="condition-quote">Waiting for demand…</blockquote><span id="opponent-demand-acceptance" class="demand-acceptance">Not accepted</span></section>
           </div>
-          <div class="condition-meta"><span>COMBINED TERMS HASH</span><code id="condition-hash">—</code></div>
+          <div class="condition-meta"><span>COMBINED TERMS HASH</span><code id="condition-hash">Not available</code></div>
           <label for="own-demand-text" class="field-label">Your demand</label>
           <textarea id="own-demand-text" minlength="5" maxlength="500" rows="3" placeholder="Write the harmless condition you want the other player to complete." required></textarea>
           <p class="lobby-note">Your demand is public if the Pact NFT is minted. Keep it voluntary, harmless, non-invasive, and within the game's rules.</p>
@@ -90,29 +90,31 @@
         </article>
 
         <article class="lobby-card combat-card" id="combat-card" hidden>
-          <div class="lobby-card-heading"><div><h2>The Arena</h2><p class="lobby-note">Move, dash, and attack in real time. The server owns the match state.</p></div><span id="combat-status" class="invite-state">WAITING</span></div>
+          <div class="lobby-card-heading"><div><h2>The Arena</h2><p class="lobby-note">Move, attack, use your Battle DNA ability, or dash. The server owns the match state.</p></div><span id="combat-status" class="invite-state" aria-live="polite">WAITING</span></div>
           <p id="combat-message" class="lobby-note">Both players must confirm readiness first.</p>
           <button id="combat-start" class="discord-button" type="button" hidden>Start battle ↗</button>
           <div class="combat-fighters">
             <div class="combat-fighter">
-              <div class="combat-fighter-head"><strong id="combat-challenger-name">Challenger</strong><span id="combat-challenger-hp-text">— HP</span></div>
+              <div class="combat-fighter-head"><strong id="combat-challenger-name">Challenger</strong><span id="combat-challenger-hp-text">Waiting</span></div>
               <div class="combat-hp-track"><span id="combat-challenger-hp-bar"></span></div>
               <small id="combat-challenger-dna">Waiting for battle data</small>
-              <small id="combat-challenger-energy">Energy: —</small>
+              <small id="combat-challenger-energy">In lobby</small>
             </div>
             <div class="combat-versus">VS</div>
             <div class="combat-fighter">
-              <div class="combat-fighter-head"><strong id="combat-opponent-name">Opponent</strong><span id="combat-opponent-hp-text">— HP</span></div>
+              <div class="combat-fighter-head"><strong id="combat-opponent-name">Opponent</strong><span id="combat-opponent-hp-text">Waiting</span></div>
               <div class="combat-hp-track"><span id="combat-opponent-hp-bar"></span></div>
               <small id="combat-opponent-dna">Waiting for battle data</small>
-              <small id="combat-opponent-energy">Energy: —</small>
+              <small id="combat-opponent-energy">In lobby</small>
             </div>
           </div>
-          <div class="arena-controls-note">Move with <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrow keys · <kbd>Space</kbd> attack · <kbd>Shift</kbd> dash</div>
-          <canvas id="realtime-arena" width="960" height="540" tabindex="0" aria-label="Real-time Chog battle arena"></canvas>
-          <div class="arena-mobile-controls">
-            <div class="arena-pad"><button type="button" data-arena-key="up">▲</button><div><button type="button" data-arena-key="left">◀</button><button type="button" data-arena-key="down">▼</button><button type="button" data-arena-key="right">▶</button></div></div>
-            <div class="arena-actions"><button type="button" data-arena-action="attack">ATTACK</button><button type="button" data-arena-action="special">SPECIAL</button><button type="button" data-arena-action="dash">DASH</button></div>
+          <div id="arena-playfield" class="arena-playfield" hidden>
+            <div class="arena-controls-note">Move: <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or arrows. Attack: <kbd>Space</kbd>. Special: <kbd>E</kbd>. Dash: <kbd>Shift</kbd>.</div>
+            <div id="realtime-arena" tabindex="0" role="img" aria-label="Live multiplayer Chog ring. The server synchronizes both fighters and combat state."></div>
+            <div class="arena-mobile-controls" aria-label="Live arena touch controls">
+              <div class="arena-pad" aria-label="Movement controls"><button type="button" data-arena-key="up" aria-label="Move up">▲</button><div><button type="button" data-arena-key="left" aria-label="Move left">◀</button><button type="button" data-arena-key="down" aria-label="Move down">▼</button><button type="button" data-arena-key="right" aria-label="Move right">▶</button></div></div>
+              <div class="arena-actions" aria-label="Combat actions"><button type="button" data-arena-action="attack" aria-label="Attack">ATTACK</button><button type="button" data-arena-action="special" aria-label="Use Battle DNA special ability">SPECIAL</button><button type="button" data-arena-action="dash" aria-label="Dash">DASH</button></div>
+            </div>
           </div>
           <h3 class="combat-log-title">Match activity</h3>
           <ol id="combat-log" class="combat-log"><li>Battle events will appear here.</li></ol>
@@ -130,12 +132,12 @@
           
           <div class="lobby-player">
             <div class="lobby-player-icon">A</div>
-            <div><strong id="challenger-name">Challenger</strong><span id="challenger-chog">Chog not selected</span><small id="challenger-terms">Terms accepted: —</small><small id="challenger-ready">Ready: —</small></div>
+            <div><strong id="challenger-name">Challenger</strong><span id="challenger-chog">Chog not selected</span><small id="challenger-terms">Terms: waiting</small><small id="challenger-ready">Ready: no</small></div>
           </div>
           <div class="versus-divider"><span>VS</span></div>
           <div class="lobby-player">
             <div class="lobby-player-icon orange-player">B</div>
-            <div><strong id="opponent-name">Opponent</strong><span id="opponent-chog">Chog not selected</span><small id="opponent-terms">Terms accepted: —</small><small id="opponent-ready">Ready: —</small></div>
+            <div><strong id="opponent-name">Opponent</strong><span id="opponent-chog">Chog not selected</span><small id="opponent-terms">Terms: waiting</small><small id="opponent-ready">Ready: no</small></div>
           </div>
         </div>
         <div class="lobby-card">

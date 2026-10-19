@@ -3,41 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Real-time Chog Battle Arena practice against a bot." />
-  <title>Single Player — Chog Battle Arena</title>
+  <meta name="robots" content="noindex" />
+  <meta http-equiv="refresh" content="0;url=/battle.html" />
+  <title>Practice Arena | Chog Fight Club</title>
+  <script>window.location.replace("/battle.html");</script>
 </head>
-<body class="club-body solo-body">
-  <main class="solo-shell">
-    <header class="mode-header"><a class="club-logo" href="/play.html">CHOG <span>BATTLE ARENA</span></a><span class="practice-pill">Practice · No Pact NFT</span><a class="outline-button" href="/play.html">Change mode</a></header>
-    <section class="solo-heading"><div><h1>FIGHT THE <span>BOT.</span></h1><p>Move, attack and dash. Watch your range and timing.</p></div><button id="load-owned-chogs" class="outline-button" type="button">Load my Chogs</button></section>
-    <section class="solo-layout">
-      <aside class="solo-selection">
-        <h2>Choose your fighter</h2><p class="lobby-note">Choose a prototype or load one of your Chogs. Traits affect practice stats.</p>
-        <div id="prototype-roster" class="prototype-roster">
-          <button class="prototype-card selected" type="button" data-prototype="ember"><span class="prototype-swatch ember"></span><span><strong>Ember</strong><small>Rare · Fire</small></span><b>SELECT</b></button>
-          <button class="prototype-card" type="button" data-prototype="tide"><span class="prototype-swatch tide"></span><span><strong>Tide</strong><small>Uncommon · Water</small></span><b>SELECT</b></button>
-          <button class="prototype-card" type="button" data-prototype="volt"><span class="prototype-swatch volt"></span><span><strong>Volt</strong><small>Epic · Electric</small></span><b>SELECT</b></button>
-        </div>
-        <div id="owned-chog-roster" class="prototype-roster" hidden></div>
-        <div id="solo-stats" class="solo-stats"></div>
-        <div class="solo-controls-list"><strong>Controls</strong><p><kbd>W A S D</kbd> Move</p><p><kbd>Space</kbd> Attack</p><p><kbd>E</kbd> Special</p><p><kbd>Shift</kbd> Dash</p></div>
-        <button id="start-practice" class="discord-button" type="button">Start practice <b>↗</b></button>
-      </aside>
-      <section class="solo-arena-panel">
-        <div class="solo-arena-header"><div><strong id="solo-status">Ready to fight</strong><small id="solo-substatus">You vs Arena Bot</small></div><button id="restart-practice" class="outline-button" type="button">Restart</button></div>
-        <canvas id="solo-arena" width="960" height="540" tabindex="0" aria-label="Single-player real-time battle arena"></canvas>
-        <div class="solo-health">
-          <div><span><strong id="player-label">Ember</strong><b id="player-hp-text">— HP</b></span><div class="combat-hp-track"><i id="player-hp-bar"></i></div></div>
-          <div><span><strong>ARENA BOT</strong><b id="bot-hp-text">— HP</b></span><div class="combat-hp-track"><i id="bot-hp-bar"></i></div></div>
-        </div>
-        <div class="arena-mobile-controls">
-          <div class="arena-pad"><button type="button" data-solo-key="up">▲</button><div><button type="button" data-solo-key="left">◀</button><button type="button" data-solo-key="down">▼</button><button type="button" data-solo-key="right">▶</button></div></div>
-          <div class="arena-actions"><button type="button" data-solo-action="attack">ATTACK</button><button type="button" data-solo-action="dash">DASH</button><button type="button" data-solo-action="special">SPECIAL</button></div>
-        </div>
-        <ol id="solo-battle-log" class="combat-log"><li>Choose a fighter, then start practice.</li></ol>
-      </section>
-    </section>
+<body>
+  <main>
+    <h1>Practice Arena</h1>
+    <p>Practice now uses the Phaser training arena.</p>
+    <p><a href="/battle.html">Open the practice arena</a></p>
   </main>
-  <script type="module" src="/src/single-player.js"></script>
 </body>
 </html>

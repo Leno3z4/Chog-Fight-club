@@ -6,6 +6,7 @@ async function verifySession() {
     const payload = await response.json();
     if (payload.authenticated) return;
   } catch { /* redirect if auth cannot be verified */ }
-  window.location.replace("/");
+  const returnTo = `${window.location.pathname}${window.location.search}`;
+  window.location.replace(`/?returnTo=${encodeURIComponent(returnTo)}`);
 }
 verifySession();

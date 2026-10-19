@@ -4,7 +4,7 @@ const TIER_BONUS = { Common: 0, Uncommon: 2, Rare: 4, Epic: 6, Legendary: 8 };
 function pickAbility(metadata) {
   const signal = `${metadata?.Aura ?? ""} ${metadata?.Background ?? ""} ${metadata?.Skin ?? ""}`.toLowerCase();
   if (/fire|flame|ember|red/.test(signal)) return "Ember Strike";
-  if (/water|aqua|blue|ice/.test(signal)) return "Tidal Jab";
+  if (/water|aqua|blue|ice/.test(signal)) return "Pressure Wave";
   if (/electric|shock|lightning|yellow/.test(signal)) return "Static Snap";
   if (/shadow|smoke|dark|purple/.test(signal)) return "Shadow Feint";
   if (/green|nature|leaf/.test(signal)) return "Thorn Rush";

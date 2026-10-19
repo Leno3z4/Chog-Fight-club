@@ -61,8 +61,12 @@ export default {
 const MAP_W = 960;
 const MAP_H = 540;
 const ARENA_MARGIN = 42;
-const MIN_FIGHTER_DISTANCE = 42;
+const MIN_FIGHTER_DISTANCE = 132;
 const MAX_LOG = 60;
+const ARENA_LEFT = 100;
+const ARENA_RIGHT = MAP_W - 100;
+const ARENA_TOP = 192;
+const ARENA_BOTTOM = 388;
 
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 function parseJSON(value, fallback) {
@@ -73,16 +77,18 @@ function randomInt(min, max) {
   crypto.getRandomValues(values);
   return min + (values[0] % (max - min + 1));
 }
-function fighterFromDna({ id, username, role, dna, hp, connected, x, y }) {
+function fighterFromDna({ id, username, role, dna, hp, connected, x, y, tokenId }) {
   const parsed = typeof dna === "string" ? parseJSON(dna, {}) : (dna || {});
   const stats = parsed.stats || {};
   const maxHp = Math.max(1, Number(stats.maxHp || hp || 100));
   return {
     discordId: id,
     username: username || (role === "challenger" ? "Challenger" : "Opponent"),
+    tokenId: String(tokenId || ""),
+    fighterName: String(parsed.name || "Chog"),
     role,
     connected: Boolean(connected),
-    x: x ?? (role === "challenger" ? 170 : 790),
+    x: x ?? (role === "challenger" ? 280 : 680),
     y: y ?? 270,
     vx: 0,
     vy: 0,
@@ -93,6 +99,9 @@ function fighterFromDna({ id, username, role, dna, hp, connected, x, y }) {
     speed: clamp(Number(stats.speed || 14), 8, 28),
     tier: String(parsed.tier || "Common"),
     ability: String(parsed.ability || "Focused Strike"),
+    action: "idle",
+    actionStartedAt: 0,
+    actionUntil: 0,
     input: { x: 0, y: 0 },
     facing: role === "challenger" ? 1 : -1,
     nextAttackAt: 0,
@@ -126,7 +135,8 @@ export class ArenaRoom {
     if ((!isChallenger && !isOpponent) || !wallet || wallet.toLowerCase() !== String(claims.walletAddress).toLowerCase()) {
       return json({ error: "This Discord wallet is not a participant in this lobby." }, 403);
     }
-    if (!["PENDING_ACCEPTANCE", "TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(invite.status)) {
+    if (invite.status === "PENDING_ACCEPTANCE") return json({ error: "The invited player must accept before anyone can join the realtime room." }, 409);
+    if (!["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(invite.status)) {
       return json({ error: "This lobby is no longer active." }, 409);
     }
     const battle = await this.env.CHOG_DB.prepare("SELECT * FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(claims.inviteId).first();
@@ -252,6 +262,13 @@ export class ArenaRoom {
     for (const role of ["challenger", "opponent"]) {
       const sockets = this.ctx.getWebSockets(role);
       state.players[role].connected = sockets.length > 0;
+      const player = state.players[role];
+      if (!player.tokenId) player.tokenId = String(invite[`${role}_token_id`] || "");
+      if (!player.fighterName) player.fighterName = "Chog";
+      if (!player.action) player.action = "idle";
+      if (!Number.isFinite(player.actionStartedAt)) player.actionStartedAt = 0;
+      if (!Number.isFinite(player.actionUntil)) player.actionUntil = 0;
+      if (!Number.isFinite(player.facing)) player.facing = role === "challenger" ? 1 : -1;
     }
     if (isStarted && state.phase === "LOBBY" && battle.status === "IN_BATTLE") {
       const challengerDna = parseJSON(battle.challenger_dna, {});
@@ -260,11 +277,11 @@ export class ArenaRoom {
       const opponentExisting = state.players.opponent;
       state.players.challenger = fighterFromDna({
         id: invite.challenger_discord_id, username: invite.challenger_username, role: "challenger",
-        dna: challengerDna, hp: battle.challenger_hp, connected: challengerExisting.connected,
+        dna: challengerDna, hp: battle.challenger_hp, connected: challengerExisting.connected, tokenId: invite.challenger_token_id,
       });
       state.players.opponent = fighterFromDna({
         id: invite.opponent_discord_id, username: invite.opponent_username, role: "opponent",
-        dna: opponentDna, hp: battle.opponent_hp, connected: opponentExisting.connected,
+        dna: opponentDna, hp: battle.opponent_hp, connected: opponentExisting.connected, tokenId: invite.opponent_token_id,
       });
       state.phase = "IN_BATTLE";
       state.status = "IN_BATTLE";
@@ -276,8 +293,8 @@ export class ArenaRoom {
       state.status = "FINISHED";
       state.winnerDiscordId = battle.winner_discord_id;
       if (state.players.challenger?.hp == null || state.players.opponent?.hp == null) {
-        state.players.challenger = fighterFromDna({ id: invite.challenger_discord_id, username: invite.challenger_username, role: "challenger", dna: battle.challenger_dna, hp: battle.challenger_hp });
-        state.players.opponent = fighterFromDna({ id: invite.opponent_discord_id, username: invite.opponent_username, role: "opponent", dna: battle.opponent_dna, hp: battle.opponent_hp });
+        state.players.challenger = fighterFromDna({ id: invite.challenger_discord_id, username: invite.challenger_username, role: "challenger", dna: battle.challenger_dna, hp: battle.challenger_hp, tokenId: invite.challenger_token_id });
+        state.players.opponent = fighterFromDna({ id: invite.opponent_discord_id, username: invite.opponent_username, role: "opponent", dna: battle.opponent_dna, hp: battle.opponent_hp, tokenId: invite.opponent_token_id });
       }
     }
     return state;
@@ -316,9 +333,15 @@ export class ArenaRoom {
       const p = state.players[role] || {};
       publicState.players[role] = {
         username: p.username,
+        tokenId: p.tokenId,
+        fighterName: p.fighterName,
         connected: Boolean(p.connected),
         x: p.x,
         y: p.y,
+        facing: p.facing,
+        action: p.actionUntil > Date.now() ? p.action : "idle",
+        actionStartedAt: p.actionStartedAt,
+        actionUntil: p.actionUntil,
         hp: p.hp,
         maxHp: p.maxHp,
         attack: p.attack,
@@ -347,8 +370,8 @@ export class ArenaRoom {
       const iy = Number(p.input?.y || 0);
       const length = Math.hypot(ix, iy) || 1;
       const speed = 160 + p.speed * 2.2;
-      p.x = clamp(p.x + (ix / length) * speed * dt, ARENA_MARGIN + 15, MAP_W - ARENA_MARGIN - 15);
-      p.y = clamp(p.y + (iy / length) * speed * dt, ARENA_MARGIN + 55, MAP_H - ARENA_MARGIN - 15);
+      p.x = clamp(p.x + (ix / length) * speed * dt, ARENA_LEFT, ARENA_RIGHT);
+      p.y = clamp(p.y + (iy / length) * speed * dt, ARENA_TOP, ARENA_BOTTOM);
     }
     const a = state.players.challenger;
     const b = state.players.opponent;
@@ -358,10 +381,10 @@ export class ArenaRoom {
     if (dist > 0 && dist < MIN_FIGHTER_DISTANCE) {
       const overlap = (MIN_FIGHTER_DISTANCE - dist) / 2;
       const nx = dx / dist; const ny = dy / dist;
-      a.x = clamp(a.x - nx * overlap, ARENA_MARGIN + 15, MAP_W - ARENA_MARGIN - 15);
-      a.y = clamp(a.y - ny * overlap, ARENA_MARGIN + 55, MAP_H - ARENA_MARGIN - 15);
-      b.x = clamp(b.x + nx * overlap, ARENA_MARGIN + 15, MAP_W - ARENA_MARGIN - 15);
-      b.y = clamp(b.y + ny * overlap, ARENA_MARGIN + 55, MAP_H - ARENA_MARGIN - 15);
+      a.x = clamp(a.x - nx * overlap, ARENA_LEFT, ARENA_RIGHT);
+      a.y = clamp(a.y - ny * overlap, ARENA_TOP, ARENA_BOTTOM);
+      b.x = clamp(b.x + nx * overlap, ARENA_LEFT, ARENA_RIGHT);
+      b.y = clamp(b.y + ny * overlap, ARENA_TOP, ARENA_BOTTOM);
     }
   }
 
@@ -378,7 +401,10 @@ export class ArenaRoom {
       attacker.nextAttackAt = now + 420;
     }
     const dist = Math.hypot(target.x - attacker.x, target.y - attacker.y);
-    const range = special ? 128 : 88;
+    attacker.action = special ? "special" : "attack";
+    attacker.actionStartedAt = now;
+    attacker.actionUntil = now + (special ? 420 : 360);
+    const range = special ? 210 : 165;
     attacker.flashUntil = now + 180;
     if (dist > range) {
       state.log.push({ text: `@${attacker.username} swung and missed.`, at: now });
@@ -397,12 +423,15 @@ export class ArenaRoom {
     const p = state.players[role];
     if (!p || now < p.nextDashAt || p.hp <= 0) return;
     p.nextDashAt = now + 1100;
+    p.action = "dash";
+    p.actionStartedAt = now;
+    p.actionUntil = now + 230;
     let dx = Number(p.input?.x || 0);
     let dy = Number(p.input?.y || 0);
     if (dx === 0 && dy === 0) dx = p.role === "challenger" ? 1 : -1;
     const length = Math.hypot(dx, dy) || 1;
-    p.x = clamp(p.x + dx / length * 84, ARENA_MARGIN + 15, MAP_W - ARENA_MARGIN - 15);
-    p.y = clamp(p.y + dy / length * 84, ARENA_MARGIN + 55, MAP_H - ARENA_MARGIN - 15);
+    p.x = clamp(p.x + dx / length * 84, ARENA_LEFT, ARENA_RIGHT);
+    p.y = clamp(p.y + dy / length * 84, ARENA_TOP, ARENA_BOTTOM);
     p.flashUntil = now + 140;
     state.log.push({ text: `@${p.username} dashed.`, at: now });
     this._trimLog(state);

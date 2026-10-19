@@ -26,6 +26,10 @@ const state = {
   keys: new Set(),
   pendingAction: null,
 };
+let liveArena = null;
+let liveArenaPromise = null;
+let liveArenaFailed = false;
+let latestLiveSnapshot = null;
 const alertNode = $("#invite-page-alert");
 const isBattleLobbyPage = window.location.pathname.endsWith("/battle-lobby.html");
 const acceptedStatuses = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
@@ -86,7 +90,7 @@ function renderSummary(invite) {
   const practiceMode = invite.gameMode === "PRACTICE";
   const conditionNode = $("#invite-condition");
   if (conditionNode) conditionNode.textContent = practiceMode
-    ? `${invite.condition} — PROTOTYPE PRACTICE: no Pact NFT or official result.`
+    ? `${invite.condition} - PROTOTYPE PRACTICE: no Pact NFT or official result.`
     : invite.condition;
   const conditionNote = $("#invite-condition-note");
   if (conditionNote && practiceMode) conditionNote.textContent = "Prototype practice only. No NFT is transferred or minted and no official result is recorded. Both players still agree to voluntary, harmless demands.";
@@ -99,7 +103,7 @@ function renderSummary(invite) {
   const pactCard = $("#pact-card");
   if (pactCard && practiceMode) pactCard.hidden = true;
   const conditionHashNode = $("#condition-hash");
-  if (conditionHashNode) conditionHashNode.textContent = invite.termsHash || "—";
+  if (conditionHashNode) conditionHashNode.textContent = invite.termsHash || "Not available";
   const bilateralCard = $("#bilateral-terms-card");
   if (bilateralCard) {
     bilateralCard.hidden = !["TERMS_ACCEPTED", "READY"].includes(invite.status);
@@ -174,8 +178,12 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
   const matchStatus = room?.status || "LOBBY";
   const players = room?.players || {};
   const relevant = Boolean(invite);
-  card.hidden = !relevant;
-  if (!relevant) return;
+  const inviteAccepted = acceptedStatuses.includes(invite?.status);
+  card.hidden = !relevant || !inviteAccepted;
+  if (!relevant || !inviteAccepted) {
+    drawRealtimeArena(room, viewerRole);
+    return;
+  }
 
   const bothReady = Boolean(invite.challenger?.ready && invite.opponent?.ready);
   const bothConnected = Boolean(players.challenger?.connected && players.opponent?.connected);
@@ -218,14 +226,17 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
 
   const renderFighter = (role) => {
     const fighter = players[role] || {};
+    const inviteFighter = role === "challenger" ? invite.challenger : invite.opponent;
+    const tokenId = fighter.tokenId || inviteFighter?.tokenId;
     const hp = Math.max(0, Number(fighter.hp || 0));
     const maxHp = Math.max(1, Number(fighter.maxHp || 100));
     const percent = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
-    $(`#combat-${role}-name`).textContent = fighter.username || (role === "challenger" ? invite.challenger?.username : invite.opponent?.username) || (role === "challenger" ? "Challenger" : "Opponent");
+    const username = fighter.username || inviteFighter?.username || (role === "challenger" ? "Challenger" : "Opponent");
+    $(`#combat-${role}-name`).textContent = `${username}${tokenId ? ` · Chog #${tokenId}` : ""}`;
     $(`#combat-${role}-hp-text`).textContent = fighter.hp == null ? "Waiting" : `${hp} / ${maxHp} HP`;
     $(`#combat-${role}-hp-bar`).style.width = `${fighter.hp == null ? 0 : percent}%`;
     $(`#combat-${role}-dna`).textContent = fighter.tier
-      ? `${fighter.tier} · ${fighter.ability || "Fighter"} · ATK ${fighter.attack || "—"}`
+      ? `${fighter.fighterName || "Chog"} · ${fighter.tier} · ${fighter.ability || "Fighter"} · ATK ${fighter.attack || "n/a"} · DEF ${fighter.defense || "n/a"} · SPD ${fighter.speed || "n/a"}`
       : "Fighter stats load when the match begins";
     $(`#combat-${role}-energy`).textContent = fighter.connected
       ? "Connected to room"
@@ -263,81 +274,40 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
   }
 }
 function drawRealtimeArena(room, viewerRole) {
-  const canvas = $("#realtime-arena");
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
-  ctx.clearRect(0, 0, width, height);
-  const gradient = ctx.createLinearGradient(0, 0, width, height);
-  gradient.addColorStop(0, "#160c2d");
-  gradient.addColorStop(1, "#091b2b");
-  ctx.fillStyle = gradient;
-  ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = "rgba(179,156,255,.12)";
-  ctx.lineWidth = 1;
-  for (let x = 20; x < width; x += 40) {
-    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
-  }
-  for (let y = 20; y < height; y += 40) {
-    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
-  }
-  ctx.strokeStyle = "rgba(255,214,75,.55)";
-  ctx.lineWidth = 3;
-  ctx.strokeRect(18, 18, width - 36, height - 36);
-  ctx.setLineDash([8, 10]);
-  ctx.beginPath(); ctx.moveTo(width / 2, 30); ctx.lineTo(width / 2, height - 30); ctx.stroke();
-  ctx.setLineDash([]);
-  if (!room || room.phase !== "IN_BATTLE" || !room.players?.challenger?.hp && !room.players?.opponent?.hp) {
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffe58a";
-    ctx.font = "800 28px system-ui";
-    ctx.fillText(room?.status === "FINISHED" ? "MATCH COMPLETE" : "LOBBY", width / 2, height / 2 - 8);
-    ctx.fillStyle = "#d1c3ed";
-    ctx.font = "16px system-ui";
-    const sub = room?.status === "FINISHED" ? "Check the match result and Pact status below." : "The arena opens after both players accept the demands and mint the Pact.";
-    ctx.fillText(sub, width / 2, height / 2 + 24);
+  const playfield = $("#arena-playfield");
+  const container = $("#realtime-arena");
+  if (!playfield || !container) return;
+  const live = acceptedStatuses.includes(state.invite?.status)
+    && (room?.status === "FINISHED" || (room?.phase === "IN_BATTLE" && room?.status === "IN_BATTLE"));
+  if (!live) {
+    latestLiveSnapshot = null;
+    liveArenaFailed = false;
+    playfield.hidden = true;
+    if (liveArena) {
+      liveArena.destroy();
+      liveArena = null;
+    }
     return;
   }
-  for (const [role, color, accent] of [["challenger", "#a78bfa", "#e9ddff"], ["opponent", "#ff9c5c", "#ffdfc9"]]) {
-    const p = room.players[role];
-    if (!p || !Number.isFinite(Number(p.x)) || !Number.isFinite(Number(p.y))) continue;
-    const radius = 22;
-    ctx.save();
-    ctx.fillStyle = p.flashUntil > Date.now() ? "#fff2a8" : color;
-    ctx.shadowColor = color;
-    ctx.shadowBlur = p.flashUntil > Date.now() ? 24 : 12;
-    ctx.beginPath(); ctx.arc(p.x, p.y, radius, 0, Math.PI * 2); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = "#130d22";
-    ctx.beginPath(); ctx.arc(p.x - 6, p.y - 3, 3.3, 0, Math.PI * 2); ctx.fill();
-    ctx.beginPath(); ctx.arc(p.x + 6, p.y - 3, 3.3, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = accent; ctx.lineWidth = 2; ctx.stroke();
-    ctx.restore();
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#fff";
-    ctx.font = "700 13px system-ui";
-    ctx.fillText(p.username || role, p.x, p.y - 34);
-    const hpWidth = 78;
-    ctx.fillStyle = "rgba(0,0,0,.5)";
-    ctx.fillRect(p.x - hpWidth / 2, p.y + 30, hpWidth, 7);
-    ctx.fillStyle = color;
-    ctx.fillRect(p.x - hpWidth / 2, p.y + 30, hpWidth * Math.max(0, Number(p.hp) / Math.max(1, Number(p.maxHp))), 7);
-    if (!p.connected) {
-      ctx.fillStyle = "#ffcf66";
-      ctx.font = "10px system-ui";
-      ctx.fillText("RECONNECTING", p.x, p.y + 52);
-    }
+  playfield.hidden = false;
+  latestLiveSnapshot = { room, viewerRole };
+  if (liveArena) {
+    liveArena.setState(room, viewerRole);
+    return;
   }
-  if (room.status === "FINISHED") {
-    ctx.fillStyle = "rgba(4,7,17,.78)";
-    ctx.fillRect(0, height / 2 - 38, width, 76);
-    ctx.textAlign = "center";
-    ctx.fillStyle = "#ffe58a";
-    ctx.font = "900 30px system-ui";
-    const winnerLabel = room.winnerRole === "challenger" ? "Challenger wins" : room.winnerRole === "opponent" ? "Opponent wins" : "Match complete";
-    ctx.fillText(winnerLabel, width / 2, height / 2 + 10);
-  }
+  if (liveArenaPromise || liveArenaFailed) return;
+  liveArenaPromise = import("./liveArena.js")
+    .then(({ createLiveArena }) => {
+      if (!latestLiveSnapshot) return null;
+      liveArena = createLiveArena(container);
+      liveArena.setState(latestLiveSnapshot.room, latestLiveSnapshot.viewerRole);
+      return liveArena;
+    })
+    .catch(() => {
+      liveArenaFailed = true;
+      showAlert("The live arena could not load. Refresh this room after restoring the connection.");
+    })
+    .finally(() => { liveArenaPromise = null; });
 }
 function paintInputFrame() {
   const socket = state.realtimeSocket;
@@ -360,6 +330,16 @@ function paintInputFrame() {
   state.pendingAction = null;
 }
 async function connectRealtime() {
+  if (!acceptedStatuses.includes(state.invite?.status)) {
+    if (state.realtimeSocket) {
+      try { state.realtimeSocket.close(1000, "Invitation not accepted"); } catch { /* connection already closed */ }
+      state.realtimeSocket = null;
+    }
+    if (state.realtimeTimer) clearInterval(state.realtimeTimer);
+    state.realtimeTimer = null;
+    drawRealtimeArena(state.realtimeState, state.invite?.viewerRole);
+    return;
+  }
   if (!isBattleLobbyPage || !state.session || !state.id || state.realtimeConnecting
     || (state.realtimeSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(state.realtimeSocket.readyState))) return;
   const wsBase = String(import.meta.env.VITE_ARENA_REALTIME_URL || "").trim();
@@ -447,8 +427,8 @@ function renderPact(pact) {
   if (conditionStatusNode) {
     conditionStatusNode.textContent = pact?.fulfilledOnchain ? "Fulfilled on Monad"
       : pact?.settledOnchain ? "Winner must confirm completion"
-        : hasWinner && pact?.minted ? "Match finished — settlement pending"
-          : pact?.minted ? "Agreement minted — awaiting battle"
+        : hasWinner && pact?.minted ? "Match finished: settlement pending"
+          : pact?.minted ? "Agreement minted: awaiting battle"
             : "Awaiting Pact mint";
   }
   const configured = Boolean(pact?.configured);

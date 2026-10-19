@@ -1,0 +1,57 @@
+{
+  "health": {
+    "maxHp": 100,
+    "damage": {
+      "basic": 4,
+      "base": 6,
+      "special": 10
+    },
+    "counterDamageMultiplier": 1.5,
+    "minDamage": 1,
+    "counterCap": { "min": 0.85, "max": 1.15 },
+    "defense": {
+      "blockPercentByTier": {
+        "Common": 80,
+        "Uncommon": 85,
+        "Rare": 90,
+        "Epic": 90,
+        "Legendary": 100
+      },
+      "windowMs": 900
+    },
+    "statusDamage": { "burn": 3, "burnTurns": 2 }
+  },
+  "cooldowns": {
+    "basic": 500,
+    "base": 5000,
+    "special": 30000
+  },
+  "energy": {
+    "max": 100,
+    "start": 100,
+    "regenPerSecond": 1,
+    "costPercent": {
+      "basic": 5,
+      "base": 10,
+      "special": 35
+    }
+  },
+  "timing": {
+    "basic": { "startup": 120, "active": 100, "recovery": 220, "activeFrame": 4, "recoveryFrame": 7 },
+    "base": { "startup": 150, "active": 110, "recovery": 280, "activeFrame": 5, "recoveryFrame": 8 },
+    "special": { "startup": 220, "active": 120, "recovery": 420, "activeFrame": 7, "recoveryFrame": 11 },
+    "defense": { "recovery": 180 },
+    "hitstop": { "normal": 45, "heavy": 70 },
+    "inputBufferMs": 150,
+    "hitstunMs": 180,
+    "perfectDefenseWindowMs": 150,
+    "counterWindowMs": 1200,
+    "counterRecoveryBonusMs": 650
+  },
+  "movement": {
+    "walkSpeed": 260,
+    "jumpVelocity": -620,
+    "gravity": 1250,
+    "jumpEvadeWindowMs": 900
+  }
+}

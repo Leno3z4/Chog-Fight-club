@@ -46,7 +46,10 @@ export async function handleRealtimeTicketRequest({ method, url, cookieHeader, e
   if (!wallet || !user.walletAddress || wallet.toLowerCase() !== user.walletAddress.toLowerCase()) {
     throw new RealtimeTicketError("Connect the wallet linked to this challenge.", { status: 403, code: "ROOM_WALLET_MISMATCH" });
   }
-  if (!["PENDING_ACCEPTANCE", "TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(row.status)) {
+  if (row.status === "PENDING_ACCEPTANCE") {
+    throw new RealtimeTicketError("The invited player must accept before anyone can join the realtime room.", { status: 409, code: "INVITE_NOT_ACCEPTED" });
+  }
+  if (!["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(row.status)) {
     throw new RealtimeTicketError("This lobby is no longer active.", { status: 409, code: "ROOM_NOT_ACTIVE" });
   }
   if (row.status === "IN_BATTLE") {

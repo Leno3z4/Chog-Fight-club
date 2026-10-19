@@ -303,6 +303,9 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 .solo-arena-header small{color:var(--club-muted)}
 #realtime-arena,#solo-arena{display:block;width:100%;height:auto;aspect-ratio:16/9;max-height:620px;border:1px solid rgba(163,132,255,.3);border-radius:14px;outline:none;background:#100b20;touch-action:none}
 #realtime-arena:focus,#solo-arena:focus{border-color:rgba(255,213,68,.6)}
+#realtime-arena{overflow:hidden}
+#realtime-arena canvas{display:block;width:100%!important;height:100%!important}
+.arena-playfield[hidden]{display:none!important}
 .solo-health{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:16px 0}
 .solo-health>div>span{display:flex;justify-content:space-between;gap:8px;margin-bottom:7px}
 .solo-health strong{font-size:13px}

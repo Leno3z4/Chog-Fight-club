@@ -3,7 +3,7 @@ import "./style.css";
 const enterButtons = document.querySelectorAll("[data-enter-arena]");
 
 function enterArena() {
-  window.location.assign("/profile.html");
+  window.location.assign("/play.html");
 }
 
 enterButtons.forEach((button) => button.addEventListener("click", enterArena));
