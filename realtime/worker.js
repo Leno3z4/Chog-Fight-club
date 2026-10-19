@@ -1,3 +1,5 @@
+import { isTargetInFront } from "./combatRules.js";
+
 function base64UrlToBytes(value) {
   const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
   const padded = normalized + "=".repeat((4 - normalized.length % 4) % 4);
@@ -401,13 +403,15 @@ export class ArenaRoom {
       attacker.nextAttackAt = now + 420;
     }
     const dist = Math.hypot(target.x - attacker.x, target.y - attacker.y);
+    const targetInFront = isTargetInFront(attacker.x, target.x, attacker.facing);
     attacker.action = special ? "special" : "attack";
     attacker.actionStartedAt = now;
     attacker.actionUntil = now + (special ? 420 : 360);
     const range = special ? 210 : 165;
     attacker.flashUntil = now + 180;
-    if (dist > range) {
-      state.log.push({ text: `@${attacker.username} swung and missed.`, at: now });
+    if (!targetInFront || dist > range) {
+      const reason = targetInFront ? "swung and missed" : "attacked away from their opponent";
+      state.log.push({ text: `@${attacker.username} ${reason}.`, at: now });
       this._trimLog(state);
       return;
     }

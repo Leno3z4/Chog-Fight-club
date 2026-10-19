@@ -22,14 +22,14 @@ const defenderDNA = buildBattleDNA({
 const ordinaryAttacker = createCombatant(attackerDNA);
 const ordinaryDefender = createCombatant(defenderDNA);
 const ordinaryHit = resolveBasicAttack(ordinaryAttacker, ordinaryDefender);
-assert.equal(ordinaryHit.damage, 4, "ordinary basic damage is unchanged");
+assert.equal(ordinaryHit.damage, 7, "basic damage scales from the Legendary Chog attack stat");
 assert.equal(ordinaryHit.counter, false);
 
 const counterAttacker = createCombatant(attackerDNA);
 const counterDefender = createCombatant(defenderDNA);
 assert.equal(grantCounterWindow(counterAttacker), 1200);
 const counterHit = resolveBasicAttack(counterAttacker, counterDefender);
-assert.equal(counterHit.damage, 6, "a 1.5x counter turns a 4 damage basic into 6 damage");
+assert.equal(counterHit.damage, 11, "the 1.5x counter multiplier applies after Battle DNA damage scaling");
 assert.equal(counterHit.counter, true);
 assert.equal(counterHit.damageMultiplier, 1.5);
 assert.equal(counterAttacker.counterWindowMs, 0, "a confirmed hit consumes the counter window");
@@ -63,7 +63,7 @@ const baseAbilityHit = resolveIncomingAttack(abilityAttacker, abilityTarget, {
   damageClass: "base",
   canBeEvaded: true,
 });
-assert.equal(baseAbilityHit.damage, 6);
+assert.ok(baseAbilityHit.damage > 6, "the Legendary base ability gets Battle DNA power scaling");
 assert.equal(baseAbilityHit.abilityId, attackerDNA.abilitySet.base.id, "the opponent's move resolves from its own Battle DNA");
 
 const jumper = createCombatant(defenderDNA);
@@ -76,7 +76,7 @@ const signatureMove = resolveIncomingAttack(signatureAttacker, jumper, {
   canBeEvaded: false,
 });
 assert.equal(signatureMove.evaded, undefined, "a signposted control special cannot be bypassed by jumping");
-assert.equal(signatureMove.damage, 10);
+assert.ok(signatureMove.damage > 10, "the Legendary special gets Battle DNA power scaling");
 assert.equal(signatureMove.abilityId, attackerDNA.abilitySet.special.id);
 
 console.log("Counter mechanics regression checks passed.");

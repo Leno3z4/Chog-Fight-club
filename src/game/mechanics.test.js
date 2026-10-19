@@ -3,6 +3,8 @@ import { buildBattleDNA } from "./battleDNA.js";
 import { AURA_GROUPS, BACKGROUND_GROUPS, resolveTraitGroups } from "./traitGroups.js";
 import {
   canEvadeIncomingAttack,
+  calculateBattleDamage,
+  canHitTargetInFront,
   createCombatant,
   getCounterMultiplier,
   getDefenseBlockPercent,
@@ -100,10 +102,10 @@ updateCooldowns(regenProbe, 1000);
 assert.equal(regenProbe.energy, 51, "energy regenerates at one point per second");
 
 const basicResult = resolveBasicAttack(attacker, defender);
-assert.equal(basicResult.damage, 4, "basic attack must deal exactly 4 HP");
+assert.equal(basicResult.damage, calculateBattleDamage(attacker, "basic"), "basic attack scales with the Chog's Battle DNA attack stat");
 assert.equal(basicResult.energyCost, 5, "basic attack costs 5% energy");
 assert.equal(attacker.energy, 95);
-assert.equal(defender.hp, 96);
+assert.equal(defender.hp, 100 - basicResult.damage);
 assert.equal(isActionReady(attacker, "basic"), false, "basic must enter cooldown");
 assert.equal(getCooldownRemaining(attacker, "basic"), 500);
 updateCooldowns(attacker, 499);
@@ -115,7 +117,7 @@ const baseAttacker = createCombatant(first);
 const baseDefender = createCombatant(water);
 const baseEnergy = baseAttacker.energy;
 const baseResult = resolveBaseAbility(baseAttacker, baseDefender);
-assert.equal(baseResult.damage, 6, "base ability must deal exactly 6 HP");
+assert.equal(baseResult.damage, calculateBattleDamage(baseAttacker, "base", first.abilitySet.base), "base ability uses both Battle DNA attack and trait power");
 assert.equal(baseResult.energyCost, 10, "base ability costs 10% energy");
 assert.equal(baseAttacker.energy, baseEnergy - 10);
 assert.equal(getCooldownRemaining(baseAttacker, "base"), 5000);
@@ -124,7 +126,7 @@ const specialAttacker = createCombatant(first);
 const specialDefender = createCombatant(water);
 const specialEnergy = specialAttacker.energy;
 const specialResult = resolveSpecialAbility(specialAttacker, specialDefender);
-assert.equal(specialResult.damage, 10, "special must deal exactly 10 HP");
+assert.equal(specialResult.damage, calculateBattleDamage(specialAttacker, "special", first.abilitySet.special), "special ability uses Battle DNA attack and ability power");
 assert.equal(specialResult.energyCost, 35, "special costs 35% energy");
 assert.equal(specialAttacker.energy, specialEnergy - 35);
 assert.equal(getCooldownRemaining(specialAttacker, "special"), 30000);
@@ -163,6 +165,17 @@ const evasionResult = resolveIncomingAttack(defender, jumper, {
   canBeEvaded: true,
 });
 assert.equal(evasionResult.evaded, true, "airborne defender must evade an evadable attack");
+assert.equal(canHitTargetInFront(100, 150, 1), true);
+assert.equal(canHitTargetInFront(100, 50, 1), false, "an attack cannot connect with a fighter behind the attacker");
+assert.equal(canHitTargetInFront(100, 50, -1), true);
+assert.ok(first.stats.attack > water.stats.attack, "higher rarity and traits should raise attack power");
+assert.ok(calculateBattleDamage(createCombatant(first), "basic") > calculateBattleDamage(createCombatant(water), "basic"), "higher-attack Battle DNA should deal more basic damage");
+const rarityDamage = ["Common", "Uncommon", "Rare", "Epic", "Legendary"].map((Tier) => {
+  const dna = buildBattleDNA({ ...flameChog, Tier });
+  return calculateBattleDamage(createCombatant(dna), "basic");
+});
+assert.ok(rarityDamage.every((damage, index) => index === 0 || damage >= rarityDamage[index - 1]), "basic attack damage must not decrease as rarity rises");
+assert.ok(rarityDamage.at(-1) > rarityDamage[0], "top rarity must have higher basic damage than Common");
 
 const mover = createCombatant(first);
 move(mover, "left");

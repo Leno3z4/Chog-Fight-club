@@ -1,4 +1,5 @@
 import combatData from "./data/combat.json" with { type: "json" };
+import { isTargetInFront } from "../../realtime/combatRules.js";
 
 export const ACTIONS = {
   BASIC: "basic",
@@ -133,6 +134,10 @@ export function updateMovement(combatant, deltaSeconds) {
   if (combatant.jumpTime === 0) combatant.airborne = false;
 }
 
+export function canHitTargetInFront(attackerX, targetX, facing) {
+  return isTargetInFront(attackerX, targetX, facing);
+}
+
 export function canEvadeIncomingAttack(combatant, attack) {
   return Boolean(combatant.airborne && combatant.evadeWindow > 0 && attack?.canBeEvaded !== false);
 }
@@ -194,8 +199,25 @@ function getDamageProfile(kind) {
   return combatData.health.damage[kind] ?? combatData.health.damage.basic;
 }
 
-function resolveDamageAttack(attacker, defender, damageClass) {
-  const incomingDamage = getDamageProfile(damageClass);
+const BASE_ATTACK_STAT = 20;
+const BASE_ABILITY_POWER = { base: 14, special: 22 };
+
+export function calculateBattleDamage(attacker, damageClass, ability = null) {
+  const baseDamage = getDamageProfile(damageClass);
+  const attackStat = Number(attacker.dna?.stats?.attack ?? BASE_ATTACK_STAT);
+  const attackFactor = clamp(attackStat / BASE_ATTACK_STAT, 0.75, 2.25);
+  const baseline = BASE_ABILITY_POWER[damageClass];
+  const abilityFactor = ability && baseline
+    ? clamp(Number(ability.power || baseline) / baseline, 0.75, 1.75)
+    : attackFactor;
+  const dnaFactor = ability && baseline
+    ? attackFactor * 0.8 + abilityFactor * 0.2
+    : attackFactor;
+  return Math.max(combatData.health.minDamage, Math.round(baseDamage * dnaFactor));
+}
+
+function resolveDamageAttack(attacker, defender, damageClass, ability = null) {
+  const incomingDamage = calculateBattleDamage(attacker, damageClass, ability);
   const counter = (attacker.counterWindowMs ?? 0) > 0;
   const damageMultiplier = counter ? combatData.health.counterDamageMultiplier : 1;
   const result = dealDamage(defender, Math.round(incomingDamage * damageMultiplier));
@@ -254,7 +276,7 @@ export function resolveDefenseAbility(combatant) {
 function resolveAbilityAction(attacker, defender, ability, slot, resourceAlreadySpent) {
   const resource = resourceAlreadySpent ? { energyCost: getEnergyCost(slot), cooldownMs: combatData.cooldowns[slot] } : beginOffensiveAction(attacker, slot);
   const damageClass = slot === "special" ? "special" : "base";
-  const result = resolveDamageAttack(attacker, defender, damageClass);
+  const result = resolveDamageAttack(attacker, defender, damageClass, ability);
 
   if (ability.status === "burn") {
     defender.statuses.burn = combatData.health.statusDamage.burn;
