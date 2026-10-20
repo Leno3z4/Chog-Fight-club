@@ -252,6 +252,7 @@ test("creates a persistent invite in Cloudflare D1 after verifying linked wallet
   });
   assert.equal(result.status, 201);
   assert.equal(result.body.invite.status, "PENDING_ACCEPTANCE");
+  assert.equal(Date.parse(result.body.invite.expiresAt) - Date.parse(result.body.invite.createdAt), 24 * 60 * 60 * 1000);
   assert.equal(result.body.invite.challenger.tokenId, "561");
   assert.equal(result.body.invite.opponent.discordId, opponentId);
   assert.match(result.body.invite.termsHash, /^[0-9a-f]{64}$/);

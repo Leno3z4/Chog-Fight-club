@@ -264,7 +264,19 @@ export async function handleBattleRequest({ method, url, cookieHeader, env, body
   const inviteId = requestUrl.searchParams.get("id") || body.id;
   if (!validId(inviteId)) throw new BattleApiError("A valid challenge ID is required.", { status: 400, code: "INVITE_ID_INVALID" });
   const db = getDb(env);
-  const { invite, isChallenger } = await loadParticipant({ db, inviteId, user });
+  let invite;
+  let isChallenger;
+  if (method === "GET" && user.isAdmin) {
+    const candidate = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(inviteId).first();
+    if (candidate?.status === "DISPUTED") {
+      invite = candidate;
+      isChallenger = candidate.challenger_discord_id === user.discordId;
+    } else {
+      ({ invite, isChallenger } = await loadParticipant({ db, inviteId, user }));
+    }
+  } else {
+    ({ invite, isChallenger } = await loadParticipant({ db, inviteId, user }));
+  }
   let row = await db.prepare("SELECT * FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(inviteId).first();
 
   if (method === "GET") return { status: 200, body: { battle: publicBattle(row, invite, user) } };

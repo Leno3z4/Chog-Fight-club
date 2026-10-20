@@ -1,3 +1,4 @@
+import { DISCONNECT_GRACE_MS, getDisconnectedForfeitRole } from "../server/launchPolicy.js";
 import {
   isTargetInFront,
   isWithinPunchHitbox,
@@ -183,8 +184,10 @@ export class ArenaRoom {
     const player = state.players[claims.role];
     if (!player.connected) state.log.push({ text: `@${player.username} joined the lobby.`, at: Date.now() });
     player.connected = true;
+    player.disconnectedAt = 0;
     this._trimLog(state);
     await this._persist(state, true);
+    await this._scheduleDisconnectAlarm(state);
     this._broadcast(state);
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -209,10 +212,12 @@ export class ArenaRoom {
       const player = state.players[attachment.role];
       if (player) {
         player.connected = true;
+        player.disconnectedAt = 0;
         player.username = attachment.username || player.username;
       }
       await this._resolveMatch(state, Date.now());
       await this._persist(state, true);
+      await this._scheduleDisconnectAlarm(state);
       this._broadcast(state);
       return;
     }
@@ -245,6 +250,7 @@ export class ArenaRoom {
 
       await this._resolveMatch(state, now);
       await this._persist(state, state.status === "FINISHED" || state.phase === "ROUND_OVER");
+      await this._scheduleDisconnectAlarm(state);
       this._broadcast(state);
     }
   }
@@ -260,15 +266,96 @@ export class ArenaRoom {
     const state = await this._readState();
     if (!state?.players?.[attachment.role]) return;
     state.players[attachment.role].connected = false;
+    state.players[attachment.role].disconnectedAt = Date.now();
     state.players[attachment.role].input = { x: 0, y: 0 };
-    state.log.push({ text: `@${state.players[attachment.role].username} disconnected.`, at: Date.now() });
+    state.log.push({ text: state.status === "IN_BATTLE" ? `@${state.players[attachment.role].username} disconnected. They have 30 seconds to reconnect during the match.` : `@${state.players[attachment.role].username} disconnected.`, at: Date.now() });
     this._trimLog(state);
     await this._persist(state, true);
+    await this._scheduleDisconnectAlarm(state);
     this._broadcast(state);
   }
 
   async webSocketError(socket) {
     await this.webSocketClose(socket);
+  }
+
+  async alarm() {
+    let state = await this._readState();
+    const now = Date.now();
+    if (!state || state.status !== "IN_BATTLE") {
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+
+    this._step(state, now);
+    await this._resolveMatch(state, now);
+    if (state.status === "IN_BATTLE") {
+      const disconnectedRole = getDisconnectedForfeitRole(state.players, now, DISCONNECT_GRACE_MS);
+      if (disconnectedRole) {
+        const winnerRole = disconnectedRole === "challenger" ? "opponent" : "challenger";
+        const winner = state.players[winnerRole];
+        state.status = "FINISHED";
+        state.phase = "FINISHED";
+        state.matchDraw = false;
+        state.winnerDiscordId = winner?.discordId || null;
+        state.forfeitRole = disconnectedRole;
+        state.projectiles = [];
+        state.players[disconnectedRole].input = { x: 0, y: 0 };
+        state.players[winnerRole].input = { x: 0, y: 0 };
+        state.log.push({
+          text: `@${state.players[disconnectedRole].username} did not reconnect within 30 seconds. @${winner?.username || "Opponent"} wins by forfeit.`,
+          at: now,
+        });
+        this._trimLog(state);
+        const updatedAt = new Date(now).toISOString();
+        const saved = await this.env.CHOG_DB.prepare("UPDATE chog_battles SET status = 'FINISHED', winner_discord_id = ?1, battle_log = ?2, version = version + 1, updated_at = ?3 WHERE invite_id = ?4 AND status = 'IN_BATTLE'")
+          .bind(state.winnerDiscordId, JSON.stringify(state.log), updatedAt, state.inviteId).run();
+        if (saved?.meta?.changes === 1) {
+          state.inviteStatus = "RESULT_PENDING";
+          await this.env.CHOG_DB.prepare("UPDATE chog_challenge_invites SET status = 'RESULT_PENDING', updated_at = ?1 WHERE id = ?2 AND status = 'IN_BATTLE'")
+            .bind(updatedAt, state.inviteId).run();
+        } else {
+          const invite = await this.env.CHOG_DB.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(state.inviteId).first();
+          const battle = await this.env.CHOG_DB.prepare("SELECT * FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(state.inviteId).first();
+          if (invite && battle) state = await this._refreshState(invite, battle);
+        }
+      }
+    }
+
+    await this._persist(state, true);
+    await this._scheduleDisconnectAlarm(state);
+    this._broadcast(state);
+  }
+
+  async _scheduleDisconnectAlarm(state) {
+    if (!state || state.status !== "IN_BATTLE") {
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+    const now = Date.now();
+    const disconnected = ["challenger", "opponent"]
+      .map((role) => ({ role, player: state.players?.[role] }))
+      .filter(({ player }) => player?.connected === false && Number(player.disconnectedAt) > 0);
+    if (!disconnected.length) {
+      await this.ctx.storage.deleteAlarm();
+      return;
+    }
+
+    const deadlines = disconnected.map(({ player }) => Number(player.disconnectedAt) + DISCONNECT_GRACE_MS);
+    let alarmAt;
+    if (disconnected.length > 1) {
+      const futureDeadlines = deadlines.filter((deadline) => deadline > now);
+      alarmAt = futureDeadlines.length ? Math.min(...futureDeadlines) : now + DISCONNECT_GRACE_MS;
+    } else {
+      alarmAt = deadlines[0];
+    }
+    const scheduledAlarm = await this.ctx.storage.getAlarm();
+    // Do not move a pending deadline later on each 50 ms gameplay input.
+    // When the alarm fires Cloudflare clears it before invoking alarm(), so the
+    // next grace deadline can then be scheduled normally.
+    if (scheduledAlarm === null || scheduledAlarm > alarmAt + 50) {
+      await this.ctx.storage.setAlarm(Math.max(now + 250, alarmAt));
+    }
   }
 
   async _refreshState(invite, battle) {
@@ -402,6 +489,7 @@ export class ArenaRoom {
       roundResultUntil: state.roundResultUntil || 0,
       koRole: state.koRole || null,
       matchDraw: Boolean(state.matchDraw),
+      forfeitRole: state.forfeitRole || null,
       projectiles: (state.projectiles || []).map((projectile) => ({
         id: projectile.id,
         ownerRole: projectile.ownerRole,

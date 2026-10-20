@@ -153,14 +153,61 @@ async function authRoute(request, env) {
   }
 }
 
+async function enforceUserActionLimit(request, env) {
+  const url = new URL(request.url);
+  if (request.method !== "POST" || !["/api/invites", "/api/pacts", "/api/battle", "/api/players"].includes(url.pathname)) return null;
+  const limiter = env.USER_ACTION_LIMITER;
+  if (!limiter || typeof limiter.limit !== "function") return null; // Local/test environments may not bind Cloudflare limiters.
+  try {
+    const auth = await readDiscordSession({ cookieHeader: request.headers.get("Cookie") || "", env });
+    if (!auth.authenticated) return null; // Let the route return its normal authentication error.
+    const discordId = String(auth.user.discordId || "");
+    if (!/^\d{17,20}$/.test(discordId)) return null;
+    const wallet = String(auth.user.walletAddress || "unlinked").toLowerCase();
+    const { success } = await limiter.limit({ key: url.pathname + ":" + discordId + ":" + wallet });
+    if (!success) {
+      return json(
+        { error: "Too many actions in a short period. Wait one minute and try again.", code: "RATE_LIMITED" },
+        429,
+        { "Retry-After": "60" },
+      );
+    }
+  } catch (error) {
+    // A limiter infrastructure failure should be visible to operators but must not lock all players out.
+    console.error("User action rate limiter unavailable", error?.name || "Error");
+  }
+  return null;
+}
+
+async function enforceOwnerLookupLimit(request, env, owner) {
+  const limiter = env.OWNER_LOOKUP_LIMITER;
+  if (!limiter || typeof limiter.limit !== "function" || !/^0x[a-fA-F0-9]{40}$/.test(String(owner || ""))) return null;
+  try {
+    const { success } = await limiter.limit({ key: String(owner).toLowerCase() });
+    if (!success) {
+      return json(
+        { error: "This wallet's Chog roster was requested too often. Wait one minute and retry.", code: "ROSTER_RATE_LIMITED" },
+        429,
+        { "Retry-After": "60" },
+      );
+    }
+  } catch (error) {
+    console.error("Chog roster rate limiter unavailable", error?.name || "Error");
+  }
+  return null;
+}
+
 async function chogsRoute(request, env) {
   if (request.method !== "GET") {
     return json({ error: "Method not allowed.", code: "METHOD_NOT_ALLOWED" }, 405, { Allow: "GET" });
   }
   const url = new URL(request.url);
+  const owner = url.searchParams.get("owner");
+  const limited = await enforceOwnerLookupLimit(request, env, owner);
+  if (limited) return limited;
   try {
     const tokenIds = await findOwnedChogTokenIds({
-      owner: url.searchParams.get("owner"),
+      owner,
       apiKey: env.OPENSEA_API_KEY,
     });
     return json({
@@ -253,13 +300,23 @@ export default {
     const authResponse = await authRoute(request, env);
     if (authResponse) return authResponse;
 
+    const limited = await enforceUserActionLimit(request, env);
+    if (limited) return limited;
+
     const handler = routeHandlers.get(url.pathname);
     if (handler) {
       try {
         return await handler({ request, env, ctx, params: {}, data: {} });
       } catch (error) {
-        console.error("Worker API route failed", error?.code || error?.name || "Error");
-        return json({ error: "The API request failed.", code: error?.code || "INTERNAL_ERROR" }, 500);
+        const providedStatus = Number(error?.status);
+        const status = Number.isInteger(providedStatus) && providedStatus >= 400 && providedStatus <= 599
+          ? providedStatus
+          : 500;
+        if (status >= 500) console.error("Worker API route failed", error?.code || error?.name || "Error");
+        return json({
+          error: status < 500 && error instanceof Error ? error.message : "The API request failed.",
+          code: error?.code || "INTERNAL_ERROR",
+        }, status);
       }
     }
 

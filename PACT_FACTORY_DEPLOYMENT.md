@@ -17,6 +17,12 @@ The application signing/mint/settlement integration is merged into `main`; contr
 
 **The full end-to-end lifecycle has not yet been exercised against this deployed mainnet factory. Do not treat official Pact matches as production-ready until a controlled two-account test passes the full mint → authoritative winner settlement → winner-confirmed fulfilment lifecycle and both `tokenURI()` responses reflect each state change.** This factory is immutable and cannot be upgraded or repaired in place; do not deploy another factory unless that is intentional.
 
+## Result review and immutable-factory limitation
+
+The Cloudflare application now adds a five-minute post-match result-review window. Either participant can submit a bounded dispute reason before settlement; the backend changes the invite to `DISPUTED` and blocks the resolver call. A moderator authorized by `ADMIN_DISCORD_IDS` can dismiss the dispute and restart the five-minute window, but cannot choose a different winner. That preserves the factory's immutable winner rule.
+
+**Important:** the already-deployed factory has no `disputeMatch`, `voidPact`, or `expireFulfillment` transition. Once the resolver settles a Pact, the app cannot use D1 to change the on-chain token metadata or reverse the winner. If a dispute cannot be dismissed safely, leave it unsettled. If a winner disappears after settlement, the receipt can remain pending indefinitely. A full on-chain timeout / neutral-dispute lifecycle requires a new factory version and a separately reviewed deployment; do not redeploy the current factory automatically.
+
 ## Open the source
 
 - [Open source on GitHub](https://github.com/Leno3z4/Chog-Fight-club/blob/main/contracts/ChogBattlePactFactory.sol)

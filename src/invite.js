@@ -34,7 +34,7 @@ let liveArenaFailed = false;
 let latestLiveSnapshot = null;
 const alertNode = $("#invite-page-alert");
 const isBattleLobbyPage = window.location.pathname.endsWith("/battle-lobby.html");
-const acceptedStatuses = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
+const acceptedStatuses = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "ROUND_OVER", "RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
 const PROTOTYPE_FIGHTERS = [
   { tokenId: "prototype:ember", metadata: { name: "Ember", Tier: "Rare", Aura: "Fire", Skin: "Red", Body: "Toad", Eyes: "Angry" } },
   { tokenId: "prototype:tide", metadata: { name: "Tide", Tier: "Uncommon", Aura: "Water", Skin: "Blue", Body: "Toad", Eyes: "Happy" } },
@@ -199,11 +199,15 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
     const won = room?.winnerRole === invite.viewerRole;
     const draw = Boolean(room?.matchDraw || !room?.winnerRole);
     $("#combat-status").textContent = draw ? "MATCH DRAW" : won ? "VICTORY" : "DEFEAT";
-    $("#combat-message").textContent = draw
-      ? "All three rounds are complete and the round score is tied. No winner was declared."
-      : won
-        ? "You won the three-round match. You can now settle the result and later confirm fulfilment of the agreement."
-        : "You lost the three-round match. The declared winner can settle the result before the condition is fulfilled.";
+    $("#combat-message").textContent = room?.forfeitRole
+      ? (room.forfeitRole === invite.viewerRole
+        ? "You forfeited because you did not reconnect within 30 seconds."
+        : `You won by forfeit because @${players[room.forfeitRole]?.username || "your opponent"} did not reconnect within 30 seconds.`)
+      : draw
+        ? "All three rounds are complete and the round score is tied. No winner was declared."
+        : won
+          ? "You won the three-round match. You can now settle the result and later confirm fulfilment of the agreement."
+          : "You lost the three-round match. The declared winner can settle the result before the condition is fulfilled.";
   } else if (phase === "ROUND_OVER") {
     const wins = room?.roundWins || { challenger: 0, opponent: 0 };
     const result = room?.roundWinnerRole
@@ -279,6 +283,8 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
       status: matchStatus === "FINISHED" ? "FINISHED" : phase === "ROUND_OVER" ? "ROUND_OVER" : phase === "IN_BATTLE" ? "IN_BATTLE" : "WAITING_FOR_READY",
       inviteStatus: invite.status,
       youWon: room.winnerRole === invite.viewerRole,
+      winnerDiscordId: room.winnerDiscordId || (room.winnerRole === "challenger" ? invite.challenger?.discordId : room.winnerRole === "opponent" ? invite.opponent?.discordId : null),
+      forfeitRole: room.forfeitRole || null,
       challenger: {
         username: players.challenger?.username || invite.challenger?.username,
         tokenId: invite.challenger?.tokenId,
@@ -443,7 +449,7 @@ function renderPact(pact) {
   state.pact = pact;
   if (!card || !isBattleLobbyPage) return;
   const status = state.invite?.status;
-  const relevant = ["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
+  const relevant = ["READY", "IN_BATTLE", "RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
   card.hidden = !relevant;
   if (!relevant) return;
   const dealNode = $("#pact-deal-text");
@@ -460,8 +466,10 @@ function renderPact(pact) {
   const conditionStatusNode = $("#pact-condition-status");
   const battleFinishedNow = state.battle?.status === "FINISHED";
   const hasWinner = battleFinishedNow && Boolean(state.battle?.winnerDiscordId || state.realtimeState?.winnerRole);
-  const winnerPlayer = hasWinner ? (state.battle.youWon ? viewer(state.invite) : opponent(state.invite)) : null;
-  const loserPlayer = hasWinner ? (state.battle.youWon ? opponent(state.invite) : viewer(state.invite)) : null;
+  const authoritativeWinnerId = state.battle?.winnerDiscordId || (state.realtimeState?.winnerRole === "challenger" ? state.invite?.challenger?.discordId : state.realtimeState?.winnerRole === "opponent" ? state.invite?.opponent?.discordId : "");
+  const winnerIsChallenger = hasWinner && String(authoritativeWinnerId || "") === String(state.invite?.challenger?.discordId || "");
+  const winnerPlayer = hasWinner ? (winnerIsChallenger ? state.invite.challenger : state.invite.opponent) : null;
+  const loserPlayer = hasWinner ? (winnerIsChallenger ? state.invite.opponent : state.invite.challenger) : null;
   if (winnerNode) winnerNode.textContent = winnerPlayer?.username || (hasWinner ? "Winner confirmed" : "Not decided yet");
   if (loserNode) loserNode.textContent = loserPlayer?.username || (hasWinner ? "Loser confirmed" : "Not decided yet");
   if (conditionStatusNode) {
@@ -492,9 +500,53 @@ function renderPact(pact) {
   mintButton.disabled = state.pactBusy || !state.wallet || state.invite?.status !== "READY";
   const battleFinished = state.battle?.status === "FINISHED";
   const isWinner = Boolean(state.battle?.youWon);
+  const resultDisputed = Boolean(pact?.resultDisputed || status === "DISPUTED");
+  const resultReviewPanel = $("#result-review-panel");
+  const resultReviewNote = $("#result-review-note");
+  const disputeDetail = $("#result-dispute-detail");
+  const disputeLabel = $("#result-dispute-label");
+  const disputeReason = $("#result-dispute-reason");
+  const disputeButton = $("#pact-dispute-button");
+  const resolveDisputeButton = $("#pact-resolve-dispute-button");
+  const availableAt = Date.parse(pact?.resultSettlementAvailableAt || "");
+  const reviewRemaining = Number.isFinite(availableAt)
+    ? Math.max(0, availableAt - Date.now())
+    : Math.max(0, Number(pact?.resultReviewRemainingMs || 0));
+  const reviewOpen = !resultDisputed && reviewRemaining > 0;
+  const canReviewResult = battleFinished && minted && !pact.settledOnchain && !pact.settlementPending;
+  if (resultReviewPanel) resultReviewPanel.hidden = !canReviewResult;
+  if (resultReviewNote) {
+    resultReviewNote.textContent = resultDisputed
+      ? "Settlement is paused because a participant flagged the result. An authorized moderator must review it."
+      : reviewOpen
+        ? "Settlement is locked during the five-minute review window. Time remaining: " + Math.ceil(reviewRemaining / 1000) + " seconds."
+        : "The review window is closed. Either participant can still flag an issue until the winner submits settlement.";
+  }
+  if (disputeDetail) {
+    disputeDetail.hidden = !resultDisputed;
+    disputeDetail.textContent = resultDisputed
+      ? "Dispute from " + (pact?.resultDispute?.byUsername || "a participant") + ": " + (pact?.resultDispute?.reason || "Reason not available.")
+      : "";
+  }
+  if (disputeLabel) disputeLabel.hidden = resultDisputed;
+  if (disputeReason) {
+    disputeReason.hidden = resultDisputed;
+    disputeReason.disabled = state.pactBusy || !canReviewResult || resultDisputed;
+  }
+  if (disputeButton) {
+    disputeButton.hidden = !canReviewResult || resultDisputed;
+    disputeButton.disabled = state.pactBusy;
+  }
+  if (resolveDisputeButton) {
+    resolveDisputeButton.hidden = !resultDisputed || !pact?.canModerateResult;
+    resolveDisputeButton.disabled = state.pactBusy;
+  }
   const settleButton = $("#pact-settle-button");
   settleButton.hidden = !(battleFinished && isWinner && minted && !pact.settledOnchain && !pact.settlementPending);
-  settleButton.disabled = state.pactBusy;
+  settleButton.disabled = state.pactBusy || resultDisputed || reviewOpen;
+  settleButton.textContent = resultDisputed ? "Settlement paused — dispute open"
+    : reviewOpen ? "Result review · " + Math.ceil(reviewRemaining / 1000) + "s"
+      : "Settle match result ↗";
   const fulfillButton = $("#pact-fulfill-button");
   fulfillButton.hidden = !(battleFinished && isWinner && pact.settledOnchain && !pact.fulfilledOnchain);
   fulfillButton.disabled = state.pactBusy;
@@ -513,6 +565,11 @@ function renderPact(pact) {
   } else if (pact.fulfilledOnchain) {
     $("#pact-sign-status").textContent = "Condition fulfilled on-chain. Both soulbound receipts now show the final outcome.";
   }
+  if (resultDisputed) {
+    $("#pact-sign-status").textContent = "This result is disputed. Settlement remains blocked until an authorized moderator reviews the dispute. The recorded winner cannot be rewritten by the deployed factory.";
+  } else if (reviewOpen && minted && battleFinished) {
+    $("#pact-sign-status").textContent = "The match result is recorded. A five-minute review window must finish before the winner can settle it on-chain.";
+  }
   updateBilateralControls();
   const tx = $("#pact-tx-status");
   tx.hidden = !minted;
@@ -529,7 +586,7 @@ async function loadPact() {
     if (state.realtimeState) renderBattle(state.realtimeState);
     return;
   }
-  if (!["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(state.invite.status)) return;
+  if (!["READY", "IN_BATTLE", "RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(state.invite.status)) return;
   const payload = await requestJson(`/api/pacts?id=${encodeURIComponent(state.id)}`);
   renderPact(payload.pact);
   if (state.realtimeState) renderBattle(state.realtimeState);
@@ -712,7 +769,21 @@ async function loadInvite() {
     return;
   }
   if (isBattleLobbyPage) {
-    await connectRealtime();
+    const finishedPactStatuses = ["RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
+    if (finishedPactStatuses.includes(payload.invite.status)) {
+      // Finished/disputed matches no longer need a realtime ticket. Close any
+      // existing socket so the room does not keep a needless live connection.
+      if (state.realtimeSocket) {
+        try { state.realtimeSocket.close(1000, "Match result review"); } catch { /* already closed */ }
+        state.realtimeSocket = null;
+      }
+      if (state.realtimeTimer) clearInterval(state.realtimeTimer);
+      state.realtimeTimer = null;
+      const battlePayload = await requestJson("/api/battle?id=" + encodeURIComponent(state.id));
+      state.battle = battlePayload.battle;
+    } else {
+      await connectRealtime();
+    }
     if (acceptedStatuses.includes(payload.invite.status) && payload.invite.gameMode !== "PRACTICE") await loadPact();
     if (state.realtimeState) renderBattle(state.realtimeState);
   }
@@ -793,6 +864,32 @@ $("#pact-sign-button").addEventListener("click", async () => {
 $("#pact-mint-button").addEventListener("click", mintCurrentPact);
 $("#pact-settle-button").addEventListener("click", async () => {
   try { await postPactAction("settle"); } catch (error) { showAlert(error?.message || "Could not settle the match result."); }
+});
+$("#pact-dispute-button")?.addEventListener("click", async () => {
+  const reason = $("#result-dispute-reason")?.value || "";
+  try {
+    await postPactAction("disputeResult", { reason });
+    if ($("#result-dispute-reason")) $("#result-dispute-reason").value = "";
+    await loadInvite();
+    showAlert("Settlement is paused while the result dispute is reviewed.", "success");
+  } catch (error) {
+    showAlert(error?.message || "Could not flag the match result.");
+  }
+});
+$("#pact-resolve-dispute-button")?.addEventListener("click", async () => {
+  const confirmed = window.confirm("Dismiss this dispute and uphold the existing server-recorded winner? This restarts the five-minute review window; it does not change the on-chain winner.");
+  if (!confirmed) return;
+  try {
+    const updatedPact = await postPactAction("resolveDispute", { resolution: "uphold" });
+    if (state.invite) {
+      state.invite = { ...state.invite, status: "RESULT_PENDING", updatedAt: new Date().toISOString() };
+      renderSummary(state.invite);
+    }
+    if (updatedPact) renderPact(updatedPact);
+    showAlert("Dispute dismissed. The review window has restarted.", "success");
+  } catch (error) {
+    showAlert(error?.message || "Could not resolve the result dispute.");
+  }
 });
 $("#pact-fulfill-button").addEventListener("click", async () => {
   if (!state.wallet || !state.pact?.pactId) return showAlert("Connect your linked winner wallet first.");

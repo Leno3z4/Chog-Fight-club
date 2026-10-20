@@ -80,6 +80,18 @@
               <strong id="pact-condition-status">Awaiting battle</strong>
             </section>
           </div>
+          <section id="result-review-panel" class="pact-result-review" hidden aria-live="polite">
+            <h3>Result review</h3>
+            <p id="result-review-note" class="lobby-note">The recorded result has a five-minute review window before settlement.</p>
+            <blockquote id="result-dispute-detail" hidden></blockquote>
+            <label id="result-dispute-label" for="result-dispute-reason">Flag a result concern before on-chain settlement</label>
+            <textarea id="result-dispute-reason" rows="3" maxlength="500" placeholder="Explain what looks wrong (10–500 characters). Do not include links or private evidence." autocomplete="off"></textarea>
+            <div class="lobby-actions">
+              <button id="pact-dispute-button" class="outline-button" type="button">Pause settlement &amp; flag result</button>
+              <button id="pact-resolve-dispute-button" class="outline-button" type="button" hidden>Moderator: uphold recorded result</button>
+            </div>
+            <p class="lobby-note">An open dispute pauses settlement. Because the deployed Pact factory is immutable, moderators cannot rewrite or void an on-chain winner; an unresolved dispute stays paused.</p>
+          </section>
           <div class="lobby-actions">
             <button id="pact-sign-button" class="discord-button" type="button">Sign agreement ↗</button>
             <button id="pact-mint-button" class="outline-button" type="button" hidden>Mint Pact NFTs ↗</button>

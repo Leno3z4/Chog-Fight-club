@@ -13,6 +13,9 @@ Chog Battle Arena is a Discord-gated 2D/2.5D Chog fighting game. Vercel serves t
 - Two-player EIP-712 signing of the exact written deal; mint verification; winner settlement; winner-confirmed fulfilment.
 - Paired soulbound Pact receipts. Chog NFTs are referenced and ownership-checked; they are never transferred or approved by this app.
 - Contract-generated Pact metadata containing the public deal, each player's role, winner, loser, and condition status.
+- 24-hour expiry for unanswered invitations, per-account action throttling, owner-based Chog roster lookup limits, and privacy-conscious Worker observability.
+- A five-minute post-match review window and a pre-settlement dispute lock; an authorized moderator may dismiss a dispute but cannot rewrite the immutable on-chain winner.
+- A 30-second reconnection grace period for a single disconnected player during a live match, followed by a server-recorded forfeit.
 
 ## Live deployment architecture
 
@@ -60,6 +63,10 @@ Deployment instructions: [`PACT_FACTORY_DEPLOYMENT.md`](./PACT_FACTORY_DEPLOYMEN
 The contract is already deployed and immutable on Monad mainnet. The full mint → real-time match settlement → winner-confirmed fulfilment flow still needs an end-to-end test against this deployed factory before official matches should be treated as production-ready. Do not redeploy another factory unless that is intentional.
 
 The contract generates metadata on-chain through `tokenURI()`. Settlement writes the winner to contract storage; the winner must then submit `confirmFulfillment` after the agreed off-chain task is done. The next `tokenURI()` response reflects those values without uploading a replacement metadata file. NFT marketplaces may cache metadata and can take time to refresh.
+
+## Launch boundaries
+
+The application safeguards listed above are implemented. Remaining launch work is the controlled two-account test of the live arena and deployed Pact lifecycle, plus the visual/art pass. The current mainnet Pact factory is immutable: it cannot record an on-chain dispute, void a minted Pact, or expire a post-settlement fulfilment claim if the winner disappears. The app blocks settlement during an open off-chain dispute, but a dispute that cannot be safely dismissed must remain unsettled. A future factory version is required if those unsupported states must be reflected in NFT metadata.
 
 ## Development and validation
 
