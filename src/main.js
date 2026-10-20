@@ -1322,21 +1322,31 @@ class ArenaScene extends Phaser.Scene {
     const state = this.playerCharacter.stateMachine.currentName;
     const attack = this.playerCharacter.attack;
     const readyPose = this.getPlayerReadyPose(time, rig.phase);
+    if (state !== CHARACTER_STATES.DEFEATED) rig.koStartedAt = 0;
     if (attack && ATTACK_STATES.has(state)) return this.getAttackPose(attack, state, time, rig.phase, readyPose);
     if (state === CHARACTER_STATES.DEFEATED) {
+      if (!rig.koStartedAt) rig.koStartedAt = time || 1;
+      const koAge = Math.max(0, time - rig.koStartedAt);
+      const fall = easeInOutCubic(koAge / 420);
+      const settle = Math.exp(-Math.max(0, koAge - 420) / 240);
       return {
         ...readyPose,
-        leadArmRotation: -0.1,
-        rearArmRotation: 0.15,
-        leadArmLowerRotation: 0.35,
-        rearArmLowerRotation: -0.25,
-        leadLegRotation: -0.45,
-        rearLegRotation: 0.38,
-        leadLegLowerRotation: 0.65,
-        rearLegLowerRotation: -0.6,
-        torsoRotation: 0.22,
-        torsoY: 12,
-        headRotation: 0.16,
+        // A short staged fall and settle makes the KO readable without
+        // changing the authoritative round result or character collision.
+        leadArmRotation: -0.1 - fall * 0.10,
+        rearArmRotation: 0.15 + fall * 0.11,
+        leadArmLowerRotation: 0.35 + fall * 0.15,
+        rearArmLowerRotation: -0.25 - fall * 0.15,
+        leadLegRotation: -0.45 - fall * 0.06,
+        rearLegRotation: 0.38 + fall * 0.05,
+        leadLegLowerRotation: 0.65 + fall * 0.12,
+        rearLegLowerRotation: -0.6 - fall * 0.12,
+        torsoRotation: 0.22 + fall * 0.14,
+        torsoX: -fall * 3,
+        torsoY: 12 + fall * 4 - (1 - settle) * 1.5,
+        headRotation: 0.16 + fall * 0.08,
+        headX: fall * 1.5,
+        headY: fall * 2,
       };
     }
     if (state === CHARACTER_STATES.HITSTUN) {
@@ -1417,21 +1427,29 @@ class ArenaScene extends Phaser.Scene {
   getOpponentRigPose(time) {
     const rig = this.opponentVisual.rig;
     if (this.opponentCombatant?.hp <= 0) {
+      if (!rig.koStartedAt) rig.koStartedAt = time || 1;
+      const koAge = Math.max(0, time - rig.koStartedAt);
+      const fall = easeInOutCubic(koAge / 420);
+      const settle = Math.exp(-Math.max(0, koAge - 420) / 240);
       return {
         ...BASE_RIG_POSE,
-        leadArmRotation: -0.1,
-        rearArmRotation: 0.15,
-        leadArmLowerRotation: 0.35,
-        rearArmLowerRotation: -0.25,
-        leadLegRotation: -0.45,
-        rearLegRotation: 0.38,
-        leadLegLowerRotation: 0.65,
-        rearLegLowerRotation: -0.6,
-        torsoRotation: 0.22,
-        torsoY: 12,
-        headRotation: 0.16,
+        leadArmRotation: -0.1 - fall * 0.10,
+        rearArmRotation: 0.15 + fall * 0.11,
+        leadArmLowerRotation: 0.35 + fall * 0.15,
+        rearArmLowerRotation: -0.25 - fall * 0.15,
+        leadLegRotation: -0.45 - fall * 0.06,
+        rearLegRotation: 0.38 + fall * 0.05,
+        leadLegLowerRotation: 0.65 + fall * 0.12,
+        rearLegLowerRotation: -0.6 - fall * 0.12,
+        torsoRotation: 0.22 + fall * 0.14,
+        torsoX: -fall * 3,
+        torsoY: 12 + fall * 4 - (1 - settle) * 1.5,
+        headRotation: 0.16 + fall * 0.08,
+        headX: fall * 1.5,
+        headY: fall * 2,
       };
     }
+    rig.koStartedAt = 0;
     if (this.incomingAttack) {
       const pattern = this.incomingAttack;
       const elapsed = Phaser.Math.Clamp(pattern.telegraphMs - pattern.timeLeft, 0, pattern.telegraphMs);
