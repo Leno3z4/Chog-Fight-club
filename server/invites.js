@@ -4,6 +4,7 @@ import { inviteExpiryAt, isPendingInviteExpired } from "./launchPolicy.js";
 const CHOG_CONTRACT = "0xc96d31f8626c6d03fae5dcd3d61e3fb9f4a73763";
 const DEFAULT_RPC = "https://rpc.monad.xyz";
 const ACTIVE_STATUSES = ["PENDING_ACCEPTANCE", "TERMS_ACCEPTED", "READY"];
+const PENDING_DEMAND = "__PENDING_LOBBY_DEMAND__";
 
 export class InviteApiError extends Error {
   constructor(message, { status = 500, code = "INVITE_ERROR" } = {}) {
@@ -55,6 +56,9 @@ function cleanCondition(value) {
     throw new InviteApiError("Write the condition both players must agree to.", { status: 400, code: "CONDITION_REQUIRED" });
   }
   const text = value.trim().replace(/\s+/g, " ");
+  if (text === PENDING_DEMAND) {
+    throw new InviteApiError("Write your own demand in the lobby.", { status: 400, code: "CONDITION_REQUIRED" });
+  }
   if (text.length < 5 || text.length > 500) {
     throw new InviteApiError("The condition must be between 5 and 500 characters.", { status: 400, code: "CONDITION_LENGTH" });
   }
@@ -102,29 +106,32 @@ async function assertOwnsChog({ owner, tokenId, env, fetchImpl = fetch }) {
 
 function presentInvite(row, currentDiscordId) {
   const expired = isPendingInviteExpired(row);
+  const pendingDemand = row.condition_text === PENDING_DEMAND;
+  const challengerDemand = pendingDemand ? "" : (row.condition_text || "");
+  const opponentDemand = row.opponent_demand_text || "";
   return {
     id: row.id,
     challenger: {
       discordId: row.challenger_discord_id,
       username: row.challenger_username,
-      wallet: row.challenger_wallet,
-      tokenId: row.challenger_token_id,
+      wallet: row.challenger_wallet || null,
+      tokenId: row.challenger_token_id || null,
       termsAccepted: Boolean(row.challenger_terms_accepted),
       ready: Boolean(row.challenger_ready),
     },
     opponent: {
       discordId: row.opponent_discord_id,
       username: row.opponent_username,
-      wallet: row.opponent_wallet,
-      tokenId: row.opponent_token_id,
+      wallet: row.opponent_wallet || null,
+      tokenId: row.opponent_token_id || null,
       termsAccepted: Boolean(row.opponent_terms_accepted),
       ready: Boolean(row.opponent_ready),
     },
-    condition: row.condition_text,
+    condition: challengerDemand,
     gameMode: row.game_mode === "PRACTICE" ? "PRACTICE" : "OFFICIAL",
-    challengerDemand: row.condition_text,
-    opponentDemand: row.opponent_demand_text || "",
-    termsHash: row.terms_hash,
+    challengerDemand,
+    opponentDemand,
+    termsHash: challengerDemand && opponentDemand ? row.terms_hash : "",
     status: expired ? "EXPIRED" : row.status,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -158,54 +165,51 @@ async function conditionalUpdate({ env, sql, values, conflictCode = "INVITE_STAT
   return result;
 }
 
-async function createInvite({ user, body, env, origin, fetchImpl }) {
+async function createInvite({ user, body, env, origin }) {
   const db = getDb(env);
-  if (!user.walletAddress) throw new InviteApiError("Link your wallet before creating an invitation.", { status: 409, code: "WALLET_NOT_LINKED" });
   const requestedDiscordId = String(body.opponentDiscordId ?? "").trim();
-  const requestedUsername = normalizeDiscordUsername(body.opponentUsername);
-  let opponentDiscordId = "";
-  let opponentName = "";
+  const rawUsername = String(body.opponentUsername ?? "").trim();
+  const requestedUsername = normalizeDiscordUsername(rawUsername);
+  let opponentDiscordId = "anyone";
+  let opponentName = "Anyone with this link";
 
-  if (validDiscordId(requestedDiscordId)) {
-    if (requestedDiscordId === user.discordId) throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
-    const opponent = await db.prepare(
-      "SELECT discord_id, username, display_name FROM chog_players WHERE discord_id = ?1 LIMIT 1"
-    ).bind(requestedDiscordId).first();
-    if (!opponent) {
-      throw new InviteApiError(
-        "That selected player is no longer in the Arena directory. Search again and select the username result.",
-        { status: 404, code: "PLAYER_NOT_REGISTERED" },
-      );
+  // Targeting someone is optional. With no target, the link can be shared anywhere
+  // and the first eligible person who accepts it claims the invitation.
+  if (requestedDiscordId || rawUsername) {
+    if (validDiscordId(requestedDiscordId)) {
+      if (requestedDiscordId === user.discordId) {
+        throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
+      }
+      const opponent = await db.prepare(
+        "SELECT discord_id, username, display_name FROM chog_players WHERE discord_id = ?1 LIMIT 1"
+      ).bind(requestedDiscordId).first();
+      if (!opponent) {
+        throw new InviteApiError(
+          "That selected player is no longer in the Arena directory. Search again and select the username result.",
+          { status: 404, code: "PLAYER_NOT_REGISTERED" },
+        );
+      }
+      opponentDiscordId = requestedDiscordId;
+      opponentName = String(opponent.display_name || opponent.username || "Discord player");
+    } else {
+      if (requestedDiscordId) {
+        throw new InviteApiError("Select a player from the username results, or clear the field to make a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
+      }
+      if (!requestedUsername) {
+        throw new InviteApiError("Choose a valid Discord username from the results, or leave the field empty to create a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
+      }
+      if (requestedUsername === normalizeDiscordUsername(user.discordUsername)) {
+        throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
+      }
+      opponentDiscordId = `username:${requestedUsername}`;
+      opponentName = `@${requestedUsername}`;
     }
-    opponentDiscordId = requestedDiscordId;
-    opponentName = String(opponent.display_name || opponent.username || "Discord player");
-  } else {
-    if (!requestedUsername) {
-      throw new InviteApiError("Select a player from search or choose a valid Discord username to invite.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
-    }
-    if (requestedUsername === normalizeDiscordUsername(user.discordUsername)) {
-      throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
-    }
-    // Unregistered usernames can be invited. Their Discord identity is bound on acceptance.
-    opponentDiscordId = `username:${requestedUsername}`;
-    opponentName = `@${requestedUsername}`;
   }
 
   const practiceMode = body.gameMode === "PRACTICE";
   if (practiceMode && !user.isAdmin) {
     throw new InviteApiError("Prototype multiplayer is available only to the Arena owner for testing.", { status: 403, code: "PRACTICE_MODE_FORBIDDEN" });
   }
-  const tokenId = practiceMode
-    ? validPrototypeFighter(body.challengerTokenId)
-    : String(body.challengerTokenId ?? "");
-  if (!tokenId) {
-    throw new InviteApiError(practiceMode ? "Choose Ember, Tide, or Volt for the prototype fighter." : "Choose a valid Chog token.", { status: 400, code: "CHALLENGER_FIGHTER_INVALID" });
-  }
-  const condition = cleanCondition(body.condition);
-  if (body.agreeToCondition !== true) {
-    throw new InviteApiError("Confirm that the condition is voluntary, harmless, and will be shown publicly if a Pact NFT is minted.", { status: 400, code: "TERMS_NOT_ACKNOWLEDGED" });
-  }
-  if (!practiceMode) await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
 
   const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
   const recent = await db.prepare(
@@ -221,14 +225,17 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     game_mode: practiceMode ? "PRACTICE" : "OFFICIAL",
     challenger_discord_id: user.discordId,
     challenger_username: user.username,
-    challenger_wallet: user.walletAddress.toLowerCase(),
-    challenger_token_id: tokenId,
+    // Empty fighter fields are deliberate until both players enter the lobby.
+    challenger_wallet: "",
+    challenger_token_id: "",
     opponent_discord_id: opponentDiscordId,
     opponent_username: opponentName,
     opponent_wallet: null,
     opponent_token_id: null,
-    condition_text: condition,
-    terms_hash: await hashText(condition),
+    // This internal placeholder satisfies the legacy D1 schema; it is never presented
+    // as a player demand and cannot be accepted as final terms.
+    condition_text: PENDING_DEMAND,
+    terms_hash: await hashText(PENDING_DEMAND),
     challenger_terms_accepted: 0,
     challenger_terms_accepted_at: now.toISOString(),
     opponent_terms_accepted: 0,
@@ -238,7 +245,6 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     status: "PENDING_ACCEPTANCE",
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
-    // Invitations expire automatically after 24 hours if they remain unaccepted.
     expires_at: inviteExpiryAt(now),
   };
 
@@ -262,7 +268,6 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     inviteUrl: new URL(`/invite.html?id=${encodeURIComponent(invite.id)}`, origin).toString(),
   };
 }
-
 export async function handleInviteRequest({
   method, url, cookieHeader = "", env, body = {}, origin, fetchImpl = fetch,
 }) {
@@ -277,7 +282,8 @@ export async function handleInviteRequest({
     if (id) {
       if (!validUuid(id)) throw new InviteApiError("Invalid invitation ID.", { status: 400, code: "INVITE_ID_INVALID" });
       const row = await getInvite({ env, id });
-      const isParticipant = [row.challenger_discord_id, row.opponent_discord_id].includes(user.discordId) || isUsernameInviteFor(row, user);
+      const isGenericRecipient = row.opponent_discord_id === "anyone" && row.status === "PENDING_ACCEPTANCE" && user.discordId !== row.challenger_discord_id;
+      const isParticipant = [row.challenger_discord_id, row.opponent_discord_id].includes(user.discordId) || isUsernameInviteFor(row, user) || isGenericRecipient;
       if (!isParticipant && !(user.isAdmin && row.status === "DISPUTED")) {
         throw new InviteApiError("This invitation belongs to another Discord account.", { status: 403, code: "INVITE_FORBIDDEN" });
       }
@@ -313,31 +319,25 @@ export async function handleInviteRequest({
   const row = await getInvite({ env, id });
   const isChallenger = user.discordId === row.challenger_discord_id;
   const isUsernameClaim = isUsernameInviteFor(row, user);
-  const isOpponent = user.discordId === row.opponent_discord_id || isUsernameClaim;
+  const isGenericClaim = row.opponent_discord_id === "anyone" && row.status === "PENDING_ACCEPTANCE" && user.discordId !== row.challenger_discord_id;
+  const isOpponent = user.discordId === row.opponent_discord_id || isUsernameClaim || isGenericClaim;
   if (!isChallenger && !isOpponent) throw new InviteApiError("This invitation belongs to another Discord account.", { status: 403, code: "INVITE_FORBIDDEN" });
 
   if (body.action === "accept") {
-    if (!isOpponent) throw new InviteApiError("Only the challenged player can accept this invitation.", { status: 403, code: "INVITE_ACTION_FORBIDDEN" });
+    if (!isOpponent) throw new InviteApiError("Only the intended recipient can accept this invitation.", { status: 403, code: "INVITE_ACTION_FORBIDDEN" });
     if (row.status !== "PENDING_ACCEPTANCE" || isPendingInviteExpired(row)) {
       throw new InviteApiError("This invitation is no longer accepting responses.", { status: 409, code: "INVITE_NOT_PENDING" });
     }
-    if (!user.walletAddress) throw new InviteApiError("Link your wallet before accepting the challenge.", { status: 409, code: "WALLET_NOT_LINKED" });
-    if (body.agreeToCondition !== true) throw new InviteApiError("Read and explicitly accept the proposed condition before accepting.", { status: 400, code: "TERMS_NOT_ACKNOWLEDGED" });
-
-    const practiceMode = row.game_mode === "PRACTICE";
-    const tokenId = practiceMode ? validPrototypeFighter(body.opponentTokenId) : String(body.opponentTokenId ?? "");
-    if (!tokenId) throw new InviteApiError(practiceMode ? "Choose Ember, Tide, or Volt for your prototype fighter." : "Choose a valid Chog token.", { status: 400, code: "OPPONENT_FIGHTER_INVALID" });
-    if (!practiceMode) await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
     const now = new Date().toISOString();
     const updated = await conditionalUpdate({
       env,
       sql: `UPDATE chog_challenge_invites SET
-        opponent_discord_id = ?1, opponent_username = ?2, opponent_wallet = ?3, opponent_token_id = ?4,
+        opponent_discord_id = ?1, opponent_username = ?2, opponent_wallet = NULL, opponent_token_id = NULL,
         opponent_terms_accepted = 0, opponent_terms_accepted_at = NULL,
-        status = 'TERMS_ACCEPTED', updated_at = ?5
-        WHERE id = ?6 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?7
+        status = 'TERMS_ACCEPTED', updated_at = ?3
+        WHERE id = ?4 AND status = 'PENDING_ACCEPTANCE' AND opponent_discord_id = ?5 AND challenger_discord_id <> ?1
         RETURNING *`,
-      values: [user.discordId, user.username, user.walletAddress.toLowerCase(), tokenId, now, id, row.opponent_discord_id],
+      values: [user.discordId, user.username, now, id, row.opponent_discord_id],
     });
     return { status: 200, body: { invite: presentInvite(updated, user.discordId) }, headers: { "Cache-Control": "no-store" } };
   }
@@ -362,7 +362,48 @@ export async function handleInviteRequest({
     return { status: 200, body: { invite: presentInvite(updated, user.discordId) }, headers: { "Cache-Control": "no-store" } };
   }
 
+  if (body.action === "selectFighter") {
+    if (!["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id || row.pact_tx_hash
+      || row.challenger_pact_signature || row.opponent_pact_signature) {
+      throw new InviteApiError("Choose a Chog after joining the lobby and before the Pact is signed.", { status: 409, code: "FIGHTER_SELECTION_LOCKED" });
+    }
+    if (!user.walletAddress) {
+      throw new InviteApiError("Connect and verify the wallet linked to your Discord account before saving a Chog.", { status: 409, code: "WALLET_NOT_LINKED" });
+    }
+    const practiceMode = row.game_mode === "PRACTICE";
+    const tokenId = practiceMode ? validPrototypeFighter(body.tokenId) : String(body.tokenId ?? "");
+    if (!tokenId) {
+      throw new InviteApiError(practiceMode ? "Choose Ember, Tide, or Volt for prototype practice." : "Choose a valid Chog token.", { status: 400, code: "FIGHTER_INVALID" });
+    }
+    if (!practiceMode) await assertOwnsChog({ owner: user.walletAddress, tokenId, env, fetchImpl });
+    const walletColumn = isChallenger ? "challenger_wallet" : "opponent_wallet";
+    const tokenColumn = isChallenger ? "challenger_token_id" : "opponent_token_id";
+    const now = new Date().toISOString();
+    const updated = await conditionalUpdate({
+      env,
+      sql: `UPDATE chog_challenge_invites SET
+        ${walletColumn} = ?1, ${tokenColumn} = ?2,
+        challenger_terms_accepted = 0, challenger_terms_accepted_at = ?3,
+        opponent_terms_accepted = 0, opponent_terms_accepted_at = NULL,
+        challenger_ready = 0, opponent_ready = 0, status = 'TERMS_ACCEPTED', updated_at = ?3
+        WHERE id = ?4 AND status IN ('TERMS_ACCEPTED','READY') AND pact_id IS NULL AND pact_tx_hash IS NULL
+          AND challenger_pact_signature IS NULL AND opponent_pact_signature IS NULL
+          AND (challenger_discord_id = ?5 OR opponent_discord_id = ?5)
+        RETURNING *`,
+      values: [user.walletAddress.toLowerCase(), tokenId, now, id, user.discordId],
+      conflictCode: "FIGHTER_SELECTION_CONFLICT",
+    });
+    return {
+      status: 200,
+      body: { invite: presentInvite(updated, user.discordId), notice: "Your Chog is saved to this lobby. It will not be transferred." },
+      headers: { "Cache-Control": "no-store" },
+    };
+  }
+
   if (body.action === "saveDemand") {
+    if (!row.challenger_wallet || !row.challenger_token_id || !row.opponent_wallet || !row.opponent_token_id) {
+      throw new InviteApiError("Both players must choose and save their Chogs before writing conditions.", { status: 409, code: "CHOGS_NOT_SELECTED" });
+    }
     const expectedWallet = isChallenger ? row.challenger_wallet : row.opponent_wallet;
     if (!expectedWallet || !user.walletAddress || expectedWallet.toLowerCase() !== user.walletAddress.toLowerCase()) {
       throw new InviteApiError("Connect the wallet linked to this challenge before editing your demand.", { status: 403, code: "INVITE_WALLET_MISMATCH" });
@@ -395,6 +436,12 @@ export async function handleInviteRequest({
   }
 
   if (body.action === "acceptTerms") {
+    if (!row.challenger_wallet || !row.challenger_token_id || !row.opponent_wallet || !row.opponent_token_id) {
+      throw new InviteApiError("Both players must choose and save their Chogs before accepting the demands.", { status: 409, code: "CHOGS_NOT_SELECTED" });
+    }
+    if (row.condition_text === PENDING_DEMAND || !String(row.opponent_demand_text || "").trim()) {
+      throw new InviteApiError("Both players must write and save their demands before accepting the terms.", { status: 409, code: "DEMANDS_NOT_READY" });
+    }
     const expectedWallet = isChallenger ? row.challenger_wallet : row.opponent_wallet;
     if (!expectedWallet || !user.walletAddress || expectedWallet.toLowerCase() !== user.walletAddress.toLowerCase()) {
       throw new InviteApiError("Connect the wallet linked to this challenge before accepting the demands.", { status: 403, code: "INVITE_WALLET_MISMATCH" });
