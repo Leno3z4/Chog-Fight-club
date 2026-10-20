@@ -8,7 +8,7 @@ import { StateMachine } from "./game/stateMachine.js";
 import { InputBuffer } from "./game/inputBuffer.js";
 import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
-import { applyChogPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
   beginOffensiveAction,
@@ -1327,27 +1327,8 @@ class ArenaScene extends Phaser.Scene {
     if (state === CHARACTER_STATES.DEFEATED) {
       if (!rig.koStartedAt) rig.koStartedAt = time || 1;
       const koAge = Math.max(0, time - rig.koStartedAt);
-      const fall = easeInOutCubic(koAge / 420);
-      const settle = Math.exp(-Math.max(0, koAge - 420) / 240);
-      return {
-        ...readyPose,
-        // A short staged fall and settle makes the KO readable without
-        // changing the authoritative round result or character collision.
-        leadArmRotation: -0.1 - fall * 0.10,
-        rearArmRotation: 0.15 + fall * 0.11,
-        leadArmLowerRotation: 0.35 + fall * 0.15,
-        rearArmLowerRotation: -0.25 - fall * 0.15,
-        leadLegRotation: -0.45 - fall * 0.06,
-        rearLegRotation: 0.38 + fall * 0.05,
-        leadLegLowerRotation: 0.65 + fall * 0.12,
-        rearLegLowerRotation: -0.6 - fall * 0.12,
-        torsoRotation: 0.22 + fall * 0.14,
-        torsoX: -fall * 3,
-        torsoY: 12 + fall * 4 - (1 - settle) * 1.5,
-        headRotation: 0.16 + fall * 0.08,
-        headX: fall * 1.5,
-        headY: fall * 2,
-      };
+      // Shared with the online renderer so both modes use the same fall arc.
+      return createChogKnockoutPose(readyPose, koAge);
     }
     if (state === CHARACTER_STATES.HITSTUN) {
       const duration = Math.max(1, combatData.timing.hitstunMs);
@@ -1429,25 +1410,7 @@ class ArenaScene extends Phaser.Scene {
     if (this.opponentCombatant?.hp <= 0) {
       if (!rig.koStartedAt) rig.koStartedAt = time || 1;
       const koAge = Math.max(0, time - rig.koStartedAt);
-      const fall = easeInOutCubic(koAge / 420);
-      const settle = Math.exp(-Math.max(0, koAge - 420) / 240);
-      return {
-        ...BASE_RIG_POSE,
-        leadArmRotation: -0.1 - fall * 0.10,
-        rearArmRotation: 0.15 + fall * 0.11,
-        leadArmLowerRotation: 0.35 + fall * 0.15,
-        rearArmLowerRotation: -0.25 - fall * 0.15,
-        leadLegRotation: -0.45 - fall * 0.06,
-        rearLegRotation: 0.38 + fall * 0.05,
-        leadLegLowerRotation: 0.65 + fall * 0.12,
-        rearLegLowerRotation: -0.6 - fall * 0.12,
-        torsoRotation: 0.22 + fall * 0.14,
-        torsoX: -fall * 3,
-        torsoY: 12 + fall * 4 - (1 - settle) * 1.5,
-        headRotation: 0.16 + fall * 0.08,
-        headX: fall * 1.5,
-        headY: fall * 2,
-      };
+      return createChogKnockoutPose(BASE_RIG_POSE, koAge);
     }
     rig.koStartedAt = 0;
     if (this.incomingAttack) {
