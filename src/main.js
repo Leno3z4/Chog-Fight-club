@@ -60,7 +60,11 @@ const OPPONENT_METADATA = {
 
 const BASE_RIG_POSE = {
   leadArmRotation: -0.82, rearArmRotation: -0.48,
+  // Bend at the elbows so the fists sit forward instead of hanging below
+  // the shoulders or stretching the arms into a straight line.
+  leadArmLowerRotation: -0.75, rearArmLowerRotation: -0.82,
   leadLegRotation: -0.08, rearLegRotation: 0.10,
+  leadLegLowerRotation: 0, rearLegLowerRotation: 0,
   torsoRotation: 0, headRotation: 0,
   leadArmX: 3, leadArmY: 0, rearArmX: -2, rearArmY: 0,
   leadLegX: 6, leadLegY: 0, rearLegX: -6, rearLegY: 0,
