@@ -351,7 +351,7 @@ opponentSearch.addEventListener("input", () => {
   state.selectedOpponent = null;
   opponentIdInput.value = "";
   opponentUsernameTarget.value = "";
-  opponentSelected.textContent = "Choose a player from the results.";
+  opponentSelected.textContent = "No target selected. Anyone with the link can accept it.";
   opponentSelected.dataset.kind = "";
   if (playerSearchTimer) window.clearTimeout(playerSearchTimer);
   const query = opponentSearch.value.trim().replace(/^@/, "");
@@ -380,7 +380,7 @@ opponentResults.addEventListener("click", (event) => {
   });
 });
 
-$("#go-to-chogs").addEventListener("click", () => setPanel("chogs"));
+$("#go-to-chogs")?.addEventListener("click", () => setPanel("chogs"));
 $("#prototype-multiplayer-toggle")?.addEventListener("change", updatePracticeForm);
 updatePracticeForm();
 $("#create-invite-form").addEventListener("submit", async (event) => {
@@ -390,18 +390,12 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
   const button = $("#create-invite-button");
   resultNode.hidden = true;
   button.disabled = true;
-  status.textContent = "Verifying your Chog and saving the invitation…";
+  status.textContent = "Creating your invitation link…";
   status.dataset.kind = "info";
   try {
-    if (!state.account || !state.session?.walletAddress || state.account.toLowerCase() !== state.session.walletAddress.toLowerCase()) {
-      throw new Error("Connect and sign your wallet-link message before creating a challenge.");
-    }
-    const practiceMode = isPrototypePracticeSelected();
-    if (practiceMode && !state.session?.isAdmin) throw new Error("Prototype practice is restricted to the Arena owner.");
-    if (!practiceMode && !state.selectedTokenId) throw new Error("Choose your main Chog in My Chogs first.");
-    const challengerTokenId = practiceMode ? $("#prototype-main-fighter").value : String(state.selectedTokenId);
-    if (!state.selectedOpponent || !opponentUsernameTarget.value || (!opponentIdInput.value && !state.selectedOpponent.unregistered)) {
-      throw new Error("Search for a player and select them from the results first.");
+    const selectedOpponent = state.selectedOpponent;
+    if (opponentSearch.value.trim() && !selectedOpponent) {
+      throw new Error("Choose a username from the results, or clear the field to create a link for anyone.");
     }
     const response = await fetch("/api/invites", {
       method: "POST",
@@ -409,24 +403,27 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json", accept: "application/json" },
       body: JSON.stringify({
         action: "create",
-        opponentDiscordId: opponentIdInput.value,
-        opponentUsername: opponentUsernameTarget.value,
-        gameMode: practiceMode ? "PRACTICE" : "OFFICIAL",
-        challengerTokenId,
-        condition: $("#invite-condition").value,
-        agreeToCondition: $("#invite-condition-agree").checked,
+        opponentDiscordId: selectedOpponent?.discordId || "",
+        opponentUsername: selectedOpponent?.username || "",
+        gameMode: "OFFICIAL",
       }),
     });
     const payload = await response.json().catch(() => ({}));
-    if (!response.ok || !payload.inviteUrl) throw new Error(payload.error || "Invitation could not be created.");
-    status.textContent = `Invitation saved for @${state.selectedOpponent?.username || "your opponent"}.`;
+    if (!response.ok || !payload.inviteUrl || !payload.invite?.id) {
+      throw new Error(payload.error || "Invitation link could not be created.");
+    }
+    const inviteUrl = payload.inviteUrl;
+    const targeted = Boolean(selectedOpponent);
+    status.textContent = targeted
+      ? `Invitation link created for @${selectedOpponent.username}. Copy it and send it to them.`
+      : "Shareable invitation link created. Anyone with the link can accept it.";
     status.dataset.kind = "success";
-    resultNode.innerHTML = `<strong>Challenge created · ${escapeHtml(payload.invite.status.replaceAll("_"," "))}</strong><a href="${escapeHtml(payload.inviteUrl)}">${escapeHtml(payload.inviteUrl)}</a><br /><button type="button" class="copy-invite-link" id="copy-created-invite">Copy invitation link</button> <a class="copy-invite-link" href="/battle-lobby.html?id=${encodeURIComponent(payload.invite.id)}">Wait in lobby</a>`;
+    resultNode.innerHTML = `<strong>Invitation link ready</strong><p>${targeted ? "This link is for the selected player." : "Anyone with this link can accept the invitation."} Copy it and send it in Discord, Telegram, or wherever you chat.</p><a class="created-invite-url" href="${escapeHtml(inviteUrl)}">${escapeHtml(inviteUrl)}</a><div class="created-invite-actions"><button type="button" class="copy-invite-link" id="copy-created-invite">Copy invitation link</button><a class="copy-invite-link" href="/battle-lobby.html?id=${encodeURIComponent(payload.invite.id)}">Open lobby</a></div>`;
     resultNode.hidden = false;
     $("#copy-created-invite").addEventListener("click", async () => {
       try {
-        await navigator.clipboard.writeText(payload.inviteUrl);
-        $("#copy-created-invite").textContent = "Copied";
+        await navigator.clipboard.writeText(inviteUrl);
+        $("#copy-created-invite").textContent = "Copied ✓";
       } catch {
         status.textContent = "Copy was blocked. Select the invitation URL above and copy it manually.";
         status.dataset.kind = "error";
@@ -438,9 +435,10 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
     opponentUsernameTarget.value = "";
     opponentResults.hidden = true;
     state.selectedOpponent = null;
-    opponentSelected.textContent = "Choose another player to send a challenge.";
+    opponentSelected.textContent = "No target selected. Anyone with the link can accept it.";
+    opponentSelected.dataset.kind = "";
   } catch (error) {
-    status.textContent = error?.message || "Invitation could not be created.";
+    status.textContent = error?.message || "Invitation link could not be created.";
     status.dataset.kind = "error";
   } finally {
     button.disabled = false;
