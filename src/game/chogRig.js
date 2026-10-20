@@ -7,10 +7,11 @@ const LAYER_ORDER = [
   "right-upper-leg", "left-upper-leg",
   "right-lower-leg", "left-lower-leg",
   "right-foot", "left-foot",
-  // The rear arm sits behind the torso, which covers the shoulder seam.
-  "left-upper-arm", "left-lower-arm", "left-hand",
+  // Rear arm segments tuck behind the torso; its fist remains visible in front.
+  "left-upper-arm", "left-lower-arm",
   "body",
-  // Lead arm and hand sit in front of the torso.
+  "left-hand",
+  // Lead arm and fist sit in front of the torso.
   "right-upper-arm", "right-lower-arm", "right-hand",
   "head", "eyes", "mouth",
 ];
