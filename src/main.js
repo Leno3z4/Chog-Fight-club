@@ -8,7 +8,7 @@ import { StateMachine } from "./game/stateMachine.js";
 import { InputBuffer } from "./game/inputBuffer.js";
 import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
-import { applyChogPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
   beginOffensiveAction,
@@ -1322,22 +1322,13 @@ class ArenaScene extends Phaser.Scene {
     const state = this.playerCharacter.stateMachine.currentName;
     const attack = this.playerCharacter.attack;
     const readyPose = this.getPlayerReadyPose(time, rig.phase);
+    if (state !== CHARACTER_STATES.DEFEATED) rig.koStartedAt = 0;
     if (attack && ATTACK_STATES.has(state)) return this.getAttackPose(attack, state, time, rig.phase, readyPose);
     if (state === CHARACTER_STATES.DEFEATED) {
-      return {
-        ...readyPose,
-        leadArmRotation: -0.1,
-        rearArmRotation: 0.15,
-        leadArmLowerRotation: 0.35,
-        rearArmLowerRotation: -0.25,
-        leadLegRotation: -0.45,
-        rearLegRotation: 0.38,
-        leadLegLowerRotation: 0.65,
-        rearLegLowerRotation: -0.6,
-        torsoRotation: 0.22,
-        torsoY: 12,
-        headRotation: 0.16,
-      };
+      if (!rig.koStartedAt) rig.koStartedAt = time || 1;
+      const koAge = Math.max(0, time - rig.koStartedAt);
+      // Shared with the online renderer so both modes use the same fall arc.
+      return createChogKnockoutPose(readyPose, koAge);
     }
     if (state === CHARACTER_STATES.HITSTUN) {
       const duration = Math.max(1, combatData.timing.hitstunMs);
@@ -1417,21 +1408,11 @@ class ArenaScene extends Phaser.Scene {
   getOpponentRigPose(time) {
     const rig = this.opponentVisual.rig;
     if (this.opponentCombatant?.hp <= 0) {
-      return {
-        ...BASE_RIG_POSE,
-        leadArmRotation: -0.1,
-        rearArmRotation: 0.15,
-        leadArmLowerRotation: 0.35,
-        rearArmLowerRotation: -0.25,
-        leadLegRotation: -0.45,
-        rearLegRotation: 0.38,
-        leadLegLowerRotation: 0.65,
-        rearLegLowerRotation: -0.6,
-        torsoRotation: 0.22,
-        torsoY: 12,
-        headRotation: 0.16,
-      };
+      if (!rig.koStartedAt) rig.koStartedAt = time || 1;
+      const koAge = Math.max(0, time - rig.koStartedAt);
+      return createChogKnockoutPose(BASE_RIG_POSE, koAge);
     }
+    rig.koStartedAt = 0;
     if (this.incomingAttack) {
       const pattern = this.incomingAttack;
       const elapsed = Phaser.Math.Clamp(pattern.telegraphMs - pattern.timeLeft, 0, pattern.telegraphMs);

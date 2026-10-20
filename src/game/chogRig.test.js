@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { applyChogPose, createChogVisual } from "./chogRig.js";
+import { applyChogPose, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual } from "./chogRig.js";
 
 class FakeObject {
   constructor(x = 0, y = 0, texture = "") {
@@ -185,3 +185,81 @@ assert.ok(
 );
 
 console.log("Separated Chog asset alignment and segmented rig checks passed.");
+
+
+// Pose-space limits apply at the shared rig boundary, protecting both solo and
+// online rendering while leaving normal authored animation values untouched.
+const boundedPose = clampChogPose({
+  leadArmRotation: -999,
+  rearArmRotation: 999,
+  leadArmLowerRotation: -999,
+  leadLegRotation: 999,
+  rearLegLowerRotation: -999,
+  torsoRotation: 999,
+  headRotation: -999,
+  leadArmX: 999,
+  leadLegY: -999,
+  torsoX: 999,
+  headY: -999,
+  rearArmY: Number.NaN,
+});
+for (const [key, range] of Object.entries(CHOG_POSE_LIMITS)) {
+  if (!(key in boundedPose)) continue;
+  assert.ok(boundedPose[key] >= range.min && boundedPose[key] <= range.max, `${key} should stay inside its rig-space limit`);
+  assert.ok(Number.isFinite(boundedPose[key]), `${key} should never produce a non-finite transform`);
+}
+assert.equal(boundedPose.leadArmRotation, CHOG_POSE_LIMITS.leadArmRotation.min);
+assert.equal(boundedPose.rearArmRotation, CHOG_POSE_LIMITS.rearArmRotation.max);
+assert.equal(boundedPose.torsoRotation, CHOG_POSE_LIMITS.torsoRotation.max);
+assert.equal(boundedPose.rearArmY, 0, "non-finite pose inputs should fall back to neutral");
+
+const limitedRig = createChogVisual(scene, 0, 0, false).rig;
+applyChogPose(limitedRig, {
+  leadArmRotation: 500,
+  leadArmLowerRotation: -500,
+  leadLegRotation: -500,
+  rearLegLowerRotation: 500,
+  torsoRotation: 500,
+  headRotation: -500,
+  torsoX: 500,
+});
+assert.equal(limitedRig.parts["right-upper-arm"].image.rotation, CHOG_POSE_LIMITS.torsoRotation.max + CHOG_POSE_LIMITS.leadArmRotation.max);
+assert.equal(limitedRig.parts["right-lower-arm"].image.rotation,
+  CHOG_POSE_LIMITS.torsoRotation.max + CHOG_POSE_LIMITS.leadArmRotation.max + CHOG_POSE_LIMITS.leadArmLowerRotation.min);
+assert.equal(limitedRig.torso.rotation, CHOG_POSE_LIMITS.torsoRotation.max);
+assert.equal(limitedRig.torso.x - limitedRig.rest.torso.x, CHOG_POSE_LIMITS.torsoX.max);
+assert.ok(Number.isFinite(limitedRig.parts["left-foot"].image.x) && Number.isFinite(limitedRig.parts["left-foot"].image.y), "clamped poses should keep foot transforms numeric");
+
+const normalPose = clampChogPose({
+  leadArmRotation: -0.82,
+  leadArmLowerRotation: -0.75,
+  leadLegRotation: -0.08,
+  rearLegRotation: 0.1,
+  torsoRotation: 0,
+  headRotation: 0,
+  leadArmX: 3,
+});
+assert.deepEqual(normalPose, {
+  leadArmRotation: -0.82,
+  leadArmLowerRotation: -0.75,
+  leadLegRotation: -0.08,
+  rearLegRotation: 0.1,
+  torsoRotation: 0,
+  headRotation: 0,
+  leadArmX: 3,
+}, "typical authored poses should remain unchanged");
+
+
+// Solo and online modes share one staged KO pose arc. The start should be
+// controlled but not instantly collapsed; later frames settle into the final
+// pose, and all returned values remain inside the same rig bounds.
+const koStart = createChogKnockoutPose(normalPose, 0);
+const koMid = createChogKnockoutPose(normalPose, 210);
+const koSettled = createChogKnockoutPose(normalPose, 1200);
+assert.equal(koStart.torsoRotation, 0.22);
+assert.ok(koMid.torsoRotation > koStart.torsoRotation, "KO should develop a visible fall rather than jump to the final pose");
+assert.ok(koSettled.torsoRotation > koMid.torsoRotation, "KO should complete its fall arc");
+const limitedKoRig = createChogVisual(scene, 0, 0, false).rig;
+applyChogPose(limitedKoRig, koSettled);
+assert.ok(Number.isFinite(limitedKoRig.parts["right-hand"].image.x));
+assert.ok(Number.isFinite(limitedKoRig.parts["left-foot"].image.y));

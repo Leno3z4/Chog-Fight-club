@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BootScene } from "./bootScene.js";
-import { applyChogPose, createChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -22,6 +22,7 @@ const ACCENTS = { challenger: 0xffc94a, opponent: 0xa98aff };
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
+
 
 class OnlineBootScene extends BootScene {
   create() {
@@ -150,6 +151,9 @@ class LiveArenaScene extends Phaser.Scene {
       maxEnergy: 100,
       jumpHeight: 0,
       stridePhase: role === "challenger" ? 0 : 1.7,
+      strideDistance: 0,
+      gaitBlend: 0,
+      koStartedAt: 0,
     };
   }
 
@@ -183,7 +187,16 @@ class LiveArenaScene extends Phaser.Scene {
       fighter.attack = Number(source.attack || 20);
       fighter.defense = Number(source.defense || 14);
       fighter.speed = Number(source.speed || 14);
-      fighter.hp = Number(source.hp ?? 100);
+      const nextHp = Number(source.hp ?? 100);
+      if (nextHp <= 0 && fighter.hp > 0) {
+        fighter.koStartedAt = Date.now();
+      } else if (nextHp > 0) {
+        fighter.koStartedAt = 0;
+      } else if (!fighter.koStartedAt) {
+        // A player may reconnect after the KO transition already happened.
+        fighter.koStartedAt = Date.now();
+      }
+      fighter.hp = nextHp;
       fighter.maxHp = Number(source.maxHp ?? 100);
       fighter.energy = Number(source.energy ?? 100);
       fighter.maxEnergy = Number(source.maxEnergy ?? 100);
@@ -239,34 +252,44 @@ class LiveArenaScene extends Phaser.Scene {
       root.y = Phaser.Math.Linear(root.y, fighter.targetY - fighter.jumpHeight, blend);
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
       root.setDepth(100 + root.y);
-      const moved = Math.hypot(root.x - fromX, root.y - fromY) > 0.2;
-      const stridePhase = now * 0.0065 + fighter.stridePhase;
+      const horizontalTravel = Math.abs(root.x - fromX);
+      const moved = horizontalTravel > 0.2;
+      fighter.strideDistance += horizontalTravel;
+      const gaitTarget = moved ? 1 : 0;
+      fighter.gaitBlend += (gaitTarget - fighter.gaitBlend) * (1 - Math.exp(-delta / 90));
+      const gait = clamp(fighter.gaitBlend, 0, 1);
+      // Advance the step cycle from horizontal travel rather than wall-clock
+      // time. This prevents legs cycling while stationary and adapts naturally
+      // to different network interpolation speeds.
+      const stridePhase = fighter.strideDistance * (Math.PI * 2 / 150) + fighter.stridePhase;
       const stride = Math.sin(stridePhase);
-      const leadLift = Math.max(0, stride) ** 2;
-      const rearLift = Math.max(0, -stride) ** 2;
+      const leadLift = Math.max(0, stride) ** 2 * gait;
+      const rearLift = Math.max(0, -stride) ** 2 * gait;
       const bodyBob = 0.5 - Math.cos(2 * stridePhase) * 0.5;
+      const idlePhase = now * 0.002 + fighter.stridePhase;
+      const idleWave = Math.sin(idlePhase) * (1 - gait);
       const guard = {
         ...GUARD,
         // Keep both hands at face height during footwork; the legs and hips
         // carry most of the motion instead of letting the arms swing loosely.
-        leadArmRotation: GUARD.leadArmRotation - (moved ? stride * 0.045 : Math.sin(now * 0.002 + fighter.stridePhase) * 0.018),
-        rearArmRotation: GUARD.rearArmRotation + (moved ? stride * 0.035 : Math.sin(now * 0.002 + fighter.stridePhase) * 0.012),
-        leadArmLowerRotation: GUARD.leadArmLowerRotation + (moved ? stride * 0.025 : 0),
-        rearArmLowerRotation: GUARD.rearArmLowerRotation - (moved ? stride * 0.02 : 0),
+        leadArmRotation: GUARD.leadArmRotation - stride * 0.045 * gait - idleWave * 0.018,
+        rearArmRotation: GUARD.rearArmRotation + stride * 0.035 * gait + idleWave * 0.012,
+        leadArmLowerRotation: GUARD.leadArmLowerRotation + stride * 0.025 * gait,
+        rearArmLowerRotation: GUARD.rearArmLowerRotation - stride * 0.02 * gait,
         leadArmY: -1 - leadLift * 1.1,
         rearArmY: -1 - rearLift * 1.1,
-        leadLegRotation: moved ? stride * 0.21 : Math.sin(now * 0.002 + fighter.stridePhase) * 0.012,
-        rearLegRotation: moved ? -stride * 0.21 : -Math.sin(now * 0.002 + fighter.stridePhase) * 0.012,
-        leadLegLowerRotation: moved ? -stride * 0.10 + leadLift * 0.20 : 0,
-        rearLegLowerRotation: moved ? stride * 0.10 + rearLift * 0.20 : 0,
-        leadLegX: moved ? stride * 4 : 0,
-        rearLegX: moved ? -stride * 4 : 0,
-        leadLegY: moved ? -leadLift * 3 : 0,
-        rearLegY: moved ? -rearLift * 3 : 0,
-        torsoRotation: moved ? -stride * 0.04 : Math.sin(now * 0.002 + fighter.stridePhase) * 0.014,
-        torsoX: moved ? stride * 1.2 : 0,
-        torsoY: moved ? -bodyBob * 2 : -Math.max(0, Math.sin(now * 0.002 + fighter.stridePhase)) * 1.2,
-        headRotation: moved ? stride * 0.016 : 0,
+        leadLegRotation: stride * 0.21 * gait + Math.sin(idlePhase) * 0.012 * (1 - gait),
+        rearLegRotation: -stride * 0.21 * gait - Math.sin(idlePhase) * 0.012 * (1 - gait),
+        leadLegLowerRotation: (-stride * 0.10 + Math.max(0, stride) ** 2 * 0.20) * gait,
+        rearLegLowerRotation: (stride * 0.10 + Math.max(0, -stride) ** 2 * 0.20) * gait,
+        leadLegX: stride * 4 * gait,
+        rearLegX: -stride * 4 * gait,
+        leadLegY: -leadLift * 3,
+        rearLegY: -rearLift * 3,
+        torsoRotation: -stride * 0.04 * gait + Math.sin(idlePhase) * 0.014 * (1 - gait),
+        torsoX: stride * 1.2 * gait,
+        torsoY: -bodyBob * 2 * gait - Math.max(0, Math.sin(idlePhase)) * 1.2 * (1 - gait),
+        headRotation: stride * 0.016 * gait,
       };
       let pose = guard;
       const actionAge = now - fighter.actionStartedAt;
@@ -275,20 +298,9 @@ class LiveArenaScene extends Phaser.Scene {
       let rearCrossStriking = false;
 
       if (fighter.hp <= 0) {
-        pose = {
-          ...guard,
-          leadArmRotation: -0.12,
-          rearArmRotation: 0.16,
-          leadArmLowerRotation: 0.36,
-          rearArmLowerRotation: -0.25,
-          leadLegRotation: -0.42,
-          rearLegRotation: 0.38,
-          leadLegLowerRotation: 0.62,
-          rearLegLowerRotation: -0.58,
-          torsoRotation: 0.22,
-          torsoY: 12,
-          headRotation: 0.15,
-        };
+        const koAge = Math.max(0, now - (fighter.koStartedAt || now));
+        // Match the solo fall arc; knockout state itself is still server-owned.
+        pose = createChogKnockoutPose(guard, koAge);
       } else if (fighter.action === "jump" && activeAction) {
         pose = {
           ...guard,
