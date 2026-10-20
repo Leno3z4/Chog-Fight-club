@@ -1,4 +1,5 @@
 import { readDiscordSession } from "./discordAuth.js";
+import { inviteExpiryAt, isPendingInviteExpired } from "./launchPolicy.js";
 
 const CHOG_CONTRACT = "0xc96d31f8626c6d03fae5dcd3d61e3fb9f4a73763";
 const DEFAULT_RPC = "https://rpc.monad.xyz";
@@ -100,7 +101,7 @@ async function assertOwnsChog({ owner, tokenId, env, fetchImpl = fetch }) {
 }
 
 function presentInvite(row, currentDiscordId) {
-  const expired = row.status === "PENDING_ACCEPTANCE" && row.expires_at && Date.parse(row.expires_at) <= Date.now();
+  const expired = isPendingInviteExpired(row);
   return {
     id: row.id,
     challenger: {
@@ -136,7 +137,7 @@ async function getInvite({ env, id }) {
   const db = getDb(env);
   const row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
   if (!row) throw new InviteApiError("Invitation not found.", { status: 404, code: "INVITE_NOT_FOUND" });
-  if (row.status === "PENDING_ACCEPTANCE" && row.expires_at && Date.parse(row.expires_at) <= Date.now()) {
+  if (isPendingInviteExpired(row)) {
     await db.prepare(
       "UPDATE chog_challenge_invites SET status = 'EXPIRED', updated_at = ?1 WHERE id = ?2 AND status = 'PENDING_ACCEPTANCE'"
     ).bind(new Date().toISOString(), id).run();
@@ -237,8 +238,8 @@ async function createInvite({ user, body, env, origin, fetchImpl }) {
     status: "PENDING_ACCEPTANCE",
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
-    // Pending invites persist until accepted, declined, or cancelled; no automatic expiry.
-    expires_at: null,
+    // Invitations expire automatically after 24 hours if they remain unaccepted.
+    expires_at: inviteExpiryAt(now),
   };
 
   await db.prepare(
@@ -316,7 +317,7 @@ export async function handleInviteRequest({
 
   if (body.action === "accept") {
     if (!isOpponent) throw new InviteApiError("Only the challenged player can accept this invitation.", { status: 403, code: "INVITE_ACTION_FORBIDDEN" });
-    if (row.status !== "PENDING_ACCEPTANCE" || Date.parse(row.expires_at) <= Date.now()) {
+    if (row.status !== "PENDING_ACCEPTANCE" || isPendingInviteExpired(row)) {
       throw new InviteApiError("This invitation is no longer accepting responses.", { status: 409, code: "INVITE_NOT_PENDING" });
     }
     if (!user.walletAddress) throw new InviteApiError("Link your wallet before accepting the challenge.", { status: 409, code: "WALLET_NOT_LINKED" });
