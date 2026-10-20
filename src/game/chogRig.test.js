@@ -37,6 +37,15 @@ const scene = {
 const visual = createChogVisual(scene, 320, 400, false);
 const rig = visual.rig;
 assert.equal(Object.keys(rig.parts).length, 16, "all separated Chog layers should be rigged");
+const layerNames = visual.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
+assert.ok(layerNames.indexOf("left-upper-arm") > layerNames.indexOf("body"), "the rear upper arm should remain visible over the torso");
+assert.ok(layerNames.indexOf("left-lower-arm") > layerNames.indexOf("body"), "the rear forearm should remain visible over the torso");
+for (const hand of ["left-hand", "right-hand"]) {
+  const handIndex = layerNames.indexOf(hand);
+  assert.ok(handIndex > layerNames.indexOf("left-lower-arm"), `${hand} should render above the rear forearm`);
+  assert.ok(handIndex > layerNames.indexOf("right-lower-arm"), `${hand} should render above the lead forearm`);
+  assert.ok(handIndex < layerNames.indexOf("head"), `${hand} should remain behind the head`);
+}
 for (const name of [
   "body", "head", "eyes", "mouth",
   "left-upper-arm", "left-lower-arm", "left-hand",

@@ -7,12 +7,12 @@ const LAYER_ORDER = [
   "right-upper-leg", "left-upper-leg",
   "right-lower-leg", "left-lower-leg",
   "right-foot", "left-foot",
-  // Rear arm segments tuck behind the torso; its fist remains visible in front.
-  "left-upper-arm", "left-lower-arm",
   "body",
-  "left-hand",
-  // Lead arm and fist sit in front of the torso.
-  "right-upper-arm", "right-lower-arm", "right-hand",
+  // Keep the torso-obscured rear arm visible across the body silhouette.
+  "left-upper-arm", "left-lower-arm",
+  // Both fists render above the forearms so an overlapping arm cannot hide them.
+  "right-upper-arm", "right-lower-arm",
+  "left-hand", "right-hand",
   "head", "eyes", "mouth",
 ];
 
