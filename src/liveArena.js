@@ -6,10 +6,14 @@ const WIDTH = 960;
 const HEIGHT = 540;
 const SCALE = 0.66;
 const GUARD = {
-  leadArmRotation: -2.24,
-  rearArmRotation: -2.42,
+  leadArmRotation: -0.82,
+  rearArmRotation: -0.48,
+  leadArmLowerRotation: -0.75,
+  rearArmLowerRotation: -0.82,
   leadLegRotation: 0,
   rearLegRotation: 0,
+  leadLegLowerRotation: 0,
+  rearLegLowerRotation: 0,
   torsoRotation: 0,
   headRotation: 0,
 };
