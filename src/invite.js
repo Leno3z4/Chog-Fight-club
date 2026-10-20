@@ -761,7 +761,14 @@ async function loadInvite() {
     return;
   }
   if (isBattleLobbyPage) {
-    await connectRealtime();
+    const finishedPactStatuses = ["RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
+    if (finishedPactStatuses.includes(payload.invite.status)) {
+      // Finished/disputed matches no longer need a realtime ticket; fetch the authoritative result directly.
+      const battlePayload = await requestJson("/api/battle?id=" + encodeURIComponent(state.id));
+      state.battle = battlePayload.battle;
+    } else {
+      await connectRealtime();
+    }
     if (acceptedStatuses.includes(payload.invite.status) && payload.invite.gameMode !== "PRACTICE") await loadPact();
     if (state.realtimeState) renderBattle(state.realtimeState);
   }
