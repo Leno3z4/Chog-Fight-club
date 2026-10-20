@@ -26,6 +26,8 @@ jobs:
         run: |
           find api functions server src -name '*.js' -print0 | xargs -0 -n1 node --check
           node --check realtime/worker.js
+      - name: Validate API Cloudflare Worker bundle and bindings
+        run: npx wrangler deploy --config wrangler.jsonc --dry-run
       - name: Validate real-time Cloudflare Worker bundle and bindings
         run: npx wrangler deploy --config realtime/wrangler.jsonc --dry-run
       - name: Validate Cloudflare D1 migration
