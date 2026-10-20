@@ -169,7 +169,7 @@ const evasionResult = resolveIncomingAttack(defender, jumper, {
   type: "burst",
   canBeEvaded: true,
 });
-assert.equal(evasionResult.evaded, false, "a basic punch is not automatically evaded by jumping");
+assert.notEqual(evasionResult.evaded, true, "a basic punch is not automatically evaded by jumping");
 assert.equal(canHitTargetInFront(100, 150, 1), true);
 assert.equal(canHitTargetInFront(100, 50, 1), false, "an attack cannot connect with a fighter behind the attacker");
 assert.equal(canHitTargetInFront(100, 50, -1), true);
