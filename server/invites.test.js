@@ -115,12 +115,30 @@ class MockD1 {
   }
   async updateReturning(sql, v) {
     if (sql.includes("opponent_terms_accepted = 0") && sql.includes("opponent_discord_id = ?1")) {
-      const row = this.rows.get(v[5]);
-      if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[6]) return null;
+      const row = this.rows.get(v[3]);
+      if (!row || row.status !== "PENDING_ACCEPTANCE" || row.opponent_discord_id !== v[4] || row.challenger_discord_id === v[0]) return null;
       Object.assign(row, {
-        opponent_discord_id: v[0], opponent_username: v[1], opponent_wallet: v[2], opponent_token_id: v[3],
-        opponent_terms_accepted: 0, opponent_terms_accepted_at: null, status: "TERMS_ACCEPTED", updated_at: v[4],
+        opponent_discord_id: v[0], opponent_username: v[1], opponent_wallet: null, opponent_token_id: null,
+        opponent_terms_accepted: 0, opponent_terms_accepted_at: null, status: "TERMS_ACCEPTED", updated_at: v[2],
       });
+      return clone(row);
+    }
+    if (sql.includes("opponent_terms_accepted_at = NULL") && sql.includes("status = 'TERMS_ACCEPTED'") && (sql.includes("challenger_token_id = ?2") || sql.includes("opponent_token_id = ?2"))) {
+      const row = this.rows.get(v[3]);
+      if (!row || !["TERMS_ACCEPTED", "READY"].includes(row.status) || row.pact_id || row.pact_tx_hash
+        || row.challenger_pact_signature || row.opponent_pact_signature
+        || ![row.challenger_discord_id, row.opponent_discord_id].includes(v[4])) return null;
+      const side = sql.includes("challenger_token_id = ?2") ? "challenger" : "opponent";
+      row[side + "_wallet"] = v[0];
+      row[side + "_token_id"] = v[1];
+      row.challenger_terms_accepted = 0;
+      row.challenger_terms_accepted_at = v[2];
+      row.opponent_terms_accepted = 0;
+      row.opponent_terms_accepted_at = null;
+      row.challenger_ready = 0;
+      row.opponent_ready = 0;
+      row.status = "TERMS_ACCEPTED";
+      row.updated_at = v[2];
       return clone(row);
     }
     if (sql.includes("SET status = 'DECLINED'")) {
