@@ -84,7 +84,7 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   const joints = rig.joints[side];
   const upperPoseKey = side === "left" ? "leadArm" : "rearArm";
   const upperAngle = pose[`${upperPoseKey}Rotation`] ?? 0;
-  const lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? 0;
+  const lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? (upperAngle * 0.18);
   const upperX = pose[`${upperPoseKey}X`] ?? 0;
   const upperY = pose[`${upperPoseKey}Y`] ?? 0;
 
@@ -96,8 +96,10 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   // Transform the elbow with the upper arm, then extend the forearm from
   // that transformed elbow. The old code transformed the wrist from the
   // original elbow again, which made the hand drift away during movement.
-  const elbowLocal = transformPoint(joints.elbow, upper.rest, upperAngle, upperX, upperY);
+  const elbowLocal = transformPoint(joints.elbow, upper.rest, upperAngle);
   const elbow = worldJoint(elbowLocal, torsoOrigin, torsoAngle, torsoX, torsoY);
+  elbow.x += upperX;
+  elbow.y += upperY;
   movePart(lower, elbow, torsoAngle + upperAngle + lowerAngle);
 
   const forearmAngle = torsoAngle + upperAngle + lowerAngle;
@@ -130,8 +132,10 @@ function placeLeg(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
 
   // The knee follows the hip rotation; the ankle is then extended from the
   // moved knee using the lower-leg angle. This keeps both joints connected.
-  const kneeLocal = transformPoint(joints.knee, upper.rest, upperAngle, upperX, upperY);
+  const kneeLocal = transformPoint(joints.knee, upper.rest, upperAngle);
   const knee = worldJoint(kneeLocal, torsoOrigin, torsoAngle, torsoX, torsoY);
+  knee.x += upperX;
+  knee.y += upperY;
   movePart(lower, knee, torsoAngle + upperAngle + lowerAngle);
 
   const lowerLegAngle = torsoAngle + upperAngle + lowerAngle;
