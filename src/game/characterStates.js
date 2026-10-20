@@ -29,11 +29,15 @@ class WalkState extends CharacterState {
 
 class JumpState extends CharacterState {
   enter(character) {
+    const jump = engineJump(character.combatant);
+    if (!jump.started) {
+      character.stateMachine.change(CHARACTER_STATES.IDLE);
+      return;
+    }
     character.scene.markPerfectJump();
-    engineJump(character.combatant);
     character.scene.player.setVelocityY(combatData.movement.jumpVelocity);
     character.scene.showStatus("JUMP: EVADE WINDOW");
-    character.scene.createDust(character.scene.player.x, character.scene.FLOOR_Y - 3);
+    character.scene.createDust(character.scene.player.x, character.scene.floorY - 3);
   }
 
   update(character) {
@@ -49,12 +53,13 @@ class AttackStartupState extends CharacterState {
   enter(character, payload) {
     character.attack = payload.attack;
     character.attack.elapsed = 0;
+    const visualScale = character.scene.fighterScale ?? 1;
     const moveName = payload.attack.moveName ?? (payload.attack.slot === "basic" ? "Basic Attack" : `${payload.attack.slot} Ability`);
     character.scene.showStatus(`${moveName.toUpperCase()}: CHARGING`);
     character.scene.tweens.add({
       targets: character.scene.playerVisual,
-      scaleX: 1.08 * payload.attack.facing,
-      scaleY: 0.94,
+      scaleX: 1.08 * visualScale * payload.attack.facing,
+      scaleY: 0.94 * visualScale,
       duration: payload.attack.timing.startup,
       ease: "Quad.easeOut",
     });
