@@ -460,8 +460,9 @@ function renderPact(pact) {
   const conditionStatusNode = $("#pact-condition-status");
   const battleFinishedNow = state.battle?.status === "FINISHED";
   const hasWinner = battleFinishedNow && Boolean(state.battle?.winnerDiscordId || state.realtimeState?.winnerRole);
-  const winnerPlayer = hasWinner ? (state.battle.youWon ? viewer(state.invite) : opponent(state.invite)) : null;
-  const loserPlayer = hasWinner ? (state.battle.youWon ? opponent(state.invite) : viewer(state.invite)) : null;
+  const winnerIsChallenger = hasWinner && String(state.battle?.winnerDiscordId || "") === String(state.invite?.challenger?.discordId || "");
+  const winnerPlayer = hasWinner ? (winnerIsChallenger ? state.invite.challenger : state.invite.opponent) : null;
+  const loserPlayer = hasWinner ? (winnerIsChallenger ? state.invite.opponent : state.invite.challenger) : null;
   if (winnerNode) winnerNode.textContent = winnerPlayer?.username || (hasWinner ? "Winner confirmed" : "Not decided yet");
   if (loserNode) loserNode.textContent = loserPlayer?.username || (hasWinner ? "Loser confirmed" : "Not decided yet");
   if (conditionStatusNode) {
