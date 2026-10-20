@@ -223,12 +223,12 @@ applyChogPose(limitedRig, {
   headRotation: -500,
   torsoX: 500,
 });
-assert.equal(limitedRig.parts["right-upper-arm"].image.rotation, CHOG_POSE_LIMITS.leadArmRotation.max);
+assert.equal(limitedRig.parts["right-upper-arm"].image.rotation, CHOG_POSE_LIMITS.torsoRotation.max + CHOG_POSE_LIMITS.leadArmRotation.max);
 assert.equal(limitedRig.parts["right-lower-arm"].image.rotation,
-  CHOG_POSE_LIMITS.leadArmRotation.max + CHOG_POSE_LIMITS.leadArmLowerRotation.min);
+  CHOG_POSE_LIMITS.torsoRotation.max + CHOG_POSE_LIMITS.leadArmRotation.max + CHOG_POSE_LIMITS.leadArmLowerRotation.min);
 assert.equal(limitedRig.torso.rotation, CHOG_POSE_LIMITS.torsoRotation.max);
 assert.equal(limitedRig.torso.x - limitedRig.rest.torso.x, CHOG_POSE_LIMITS.torsoX.max);
-assert.ok(limitedRig.parts["left-foot"].image.x !== Number.NaN, "clamped poses should keep foot transforms numeric");
+assert.ok(Number.isFinite(limitedRig.parts["left-foot"].image.x) && Number.isFinite(limitedRig.parts["left-foot"].image.y), "clamped poses should keep foot transforms numeric");
 
 const normalPose = clampChogPose({
   leadArmRotation: -0.82,
