@@ -10,6 +10,7 @@ const LAYER_ORDER = [
   "right-arm",
   "head",
   "eyes",
+  "mouth",
   "nose",
 ];
 
@@ -22,6 +23,7 @@ const PIVOTS = {
   "right-arm": [240, 238],
   head: [270, 222],
   eyes: [270, 222],
+  mouth: [270, 222],
   nose: [270, 222],
 };
 
@@ -62,7 +64,7 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     leadLeg: layers["left-leg"],
     rearLeg: layers["right-leg"],
     torso: layers.body,
-    headParts: [layers.head, layers.eyes, layers.nose],
+    headParts: [layers.head, layers.eyes, layers.mouth, layers.nose],
     tintLayers: Object.values(layers),
     rest,
     phase: mirrored ? 1.7 : 0,
