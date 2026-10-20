@@ -26,6 +26,9 @@ test("only pending invitations expire, and expiry is inclusive", () => {
   assert.equal(isPendingInviteExpired({ status: "PENDING_ACCEPTANCE", expires_at }, Date.parse(expires_at) - 1), false);
   assert.equal(isPendingInviteExpired({ status: "TERMS_ACCEPTED", expires_at }, Date.parse(expires_at) + 1), false);
   assert.equal(isPendingInviteExpired({ status: "PENDING_ACCEPTANCE", expires_at: null }, Date.now()), false);
+  const created_at = "2026-10-20T12:00:00.000Z";
+  assert.equal(isPendingInviteExpired({ status: "PENDING_ACCEPTANCE", expires_at: null, created_at }, Date.parse("2026-10-21T11:59:59.999Z")), false);
+  assert.equal(isPendingInviteExpired({ status: "PENDING_ACCEPTANCE", expires_at: null, created_at }, Date.parse("2026-10-21T12:00:00.000Z")), true);
 });
 
 test("result settlement has a five-minute review window and fails closed on invalid timestamps", () => {

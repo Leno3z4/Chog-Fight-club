@@ -10,8 +10,13 @@ export function inviteExpiryAt(createdAt = Date.now()) {
 }
 
 export function isPendingInviteExpired(row, now = Date.now()) {
-  if (row?.status !== "PENDING_ACCEPTANCE" || !row.expires_at) return false;
-  const expiry = Date.parse(row.expires_at);
+  if (row?.status !== "PENDING_ACCEPTANCE") return false;
+  const explicitExpiry = Date.parse(row.expires_at || "");
+  const createdAt = Date.parse(row.created_at || "");
+  // Older pending rows may have null expires_at; derive their deadline from creation.
+  const expiry = Number.isFinite(explicitExpiry)
+    ? explicitExpiry
+    : Number.isFinite(createdAt) ? createdAt + INVITE_EXPIRY_MS : Number.NaN;
   return Number.isFinite(expiry) && expiry <= now;
 }
 
