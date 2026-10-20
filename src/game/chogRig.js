@@ -55,6 +55,35 @@ export function clampChogPose(pose = {}) {
   return safePose;
 }
 
+
+/**
+ * Shared knockout presentation for solo and live modes.
+ * elapsedMs is presentation time only; the game/server still decides the KO.
+ */
+export function createChogKnockoutPose(basePose = {}, elapsedMs = 0) {
+  const age = Math.max(0, Number.isFinite(Number(elapsedMs)) ? Number(elapsedMs) : 0);
+  const progress = clamp(age / 420, 0, 1);
+  const fall = 1 - ((1 - progress) ** 3);
+  const settle = Math.exp(-Math.max(0, age - 420) / 240);
+  return {
+    ...basePose,
+    leadArmRotation: -0.1 - fall * 0.10,
+    rearArmRotation: 0.15 + fall * 0.11,
+    leadArmLowerRotation: 0.35 + fall * 0.15,
+    rearArmLowerRotation: -0.25 - fall * 0.15,
+    leadLegRotation: -0.45 - fall * 0.06,
+    rearLegRotation: 0.38 + fall * 0.05,
+    leadLegLowerRotation: 0.65 + fall * 0.12,
+    rearLegLowerRotation: -0.6 - fall * 0.12,
+    torsoRotation: 0.22 + fall * 0.14,
+    torsoX: -fall * 3,
+    torsoY: 12 + fall * 4 - (1 - settle) * 1.5,
+    headRotation: 0.16 + fall * 0.08,
+    headX: fall * 1.5,
+    headY: fall * 2,
+  };
+}
+
 const LAYER_ORDER = [
   // Rear leg segments first; the lower leg then foot overlap the joint.
   "right-upper-leg", "left-upper-leg",
