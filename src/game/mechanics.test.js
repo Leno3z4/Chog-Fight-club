@@ -107,11 +107,11 @@ assert.equal(basicResult.energyCost, 5, "basic attack costs 5% energy");
 assert.equal(attacker.energy, 95);
 assert.equal(defender.hp, 100 - basicResult.damage);
 assert.equal(isActionReady(attacker, "basic"), false, "basic must enter cooldown");
-assert.equal(getCooldownRemaining(attacker, "basic"), 500);
-updateCooldowns(attacker, 499);
+assert.equal(getCooldownRemaining(attacker, "basic"), 1000);
+updateCooldowns(attacker, 999);
 assert.equal(isActionReady(attacker, "basic"), false);
 updateCooldowns(attacker, 1);
-assert.equal(isActionReady(attacker, "basic"), true, "basic cooldown must be 0.5 seconds");
+assert.equal(isActionReady(attacker, "basic"), true, "punch cooldown must be one second");
 
 const baseAttacker = createCombatant(first);
 const baseDefender = createCombatant(water);
@@ -157,14 +157,19 @@ assert.equal(legendaryHit.blockPercent, 100);
 const jumper = createCombatant(first);
 const jumpResult = jump(jumper);
 assert.equal(jumpResult.started, true);
-assert.equal(canEvadeIncomingAttack(jumper, { canBeEvaded: true }), true);
+assert.equal(canEvadeIncomingAttack(jumper, { canBeEvaded: true }), false, "jumping alone does not grant automatic evasion");
+assert.equal(canEvadeIncomingAttack(jumper, {
+  projectile: true,
+  projectileOverlapsHitbox: true,
+  canBeEvaded: true,
+}), true, "a jump evades a projectile only when it intersects the hurtbox");
 const evasionResult = resolveIncomingAttack(defender, jumper, {
   action: "opponent-basic",
   damageClass: "basic",
   type: "burst",
   canBeEvaded: true,
 });
-assert.equal(evasionResult.evaded, true, "airborne defender must evade an evadable attack");
+assert.equal(evasionResult.evaded, false, "a basic punch is not automatically evaded by jumping");
 assert.equal(canHitTargetInFront(100, 150, 1), true);
 assert.equal(canHitTargetInFront(100, 50, 1), false, "an attack cannot connect with a fighter behind the attacker");
 assert.equal(canHitTargetInFront(100, 50, -1), true);
