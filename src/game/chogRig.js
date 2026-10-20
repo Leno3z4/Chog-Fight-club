@@ -3,13 +3,14 @@ const RENDER_SIZE = 250;
 const SCALE = RENDER_SIZE / SOURCE_SIZE;
 
 const LAYER_ORDER = [
-  // Legs sit behind the torso. On each limb, the proximal section is added
-  // first so the lower section and hand/foot overlap the joint cleanly.
-  "right-foot", "left-foot",
-  "right-lower-leg", "left-lower-leg",
+  // Rear leg segments first; the lower leg then foot overlap the joint.
   "right-upper-leg", "left-upper-leg",
+  "right-lower-leg", "left-lower-leg",
+  "right-foot", "left-foot",
+  // The rear arm sits behind the torso, which covers the shoulder seam.
   "left-upper-arm", "left-lower-arm", "left-hand",
   "body",
+  // Lead arm and hand sit in front of the torso.
   "right-upper-arm", "right-lower-arm", "right-hand",
   "head", "eyes", "mouth",
 ];
