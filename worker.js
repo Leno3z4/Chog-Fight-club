@@ -162,7 +162,7 @@ async function enforceUserActionLimit(request, env) {
     const auth = await readDiscordSession({ cookieHeader: request.headers.get("Cookie") || "", env });
     if (!auth.authenticated) return null; // Let the route return its normal authentication error.
     const discordId = String(auth.user.discordId || "");
-    if (!/^\\d{17,20}$/.test(discordId)) return null;
+    if (!/^\d{17,20}$/.test(discordId)) return null;
     const wallet = String(auth.user.walletAddress || "unlinked").toLowerCase();
     const { success } = await limiter.limit({ key: url.pathname + ":" + discordId + ":" + wallet });
     if (!success) {
