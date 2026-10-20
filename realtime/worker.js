@@ -1,4 +1,9 @@
-import { isTargetInFront } from "./combatRules.js";
+import {
+  isTargetInFront,
+  isWithinPunchHitbox,
+  projectileOverlapsFighter,
+  projectileIsDodgedByJump,
+} from "./combatRules.js";
 
 function base64UrlToBytes(value) {
   const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
@@ -65,6 +70,15 @@ const MAP_H = 540;
 const ARENA_MARGIN = 42;
 const MIN_FIGHTER_DISTANCE = 132;
 const MAX_LOG = 60;
+const TOTAL_ROUNDS = 3;
+const ROUND_TIME_MS = 60_000;
+const ROUND_INTERMISSION_MS = 2_200;
+const BASIC_DOUBLE_TAP_MS = 260;
+const BASIC_COOLDOWN_MS = 1_000;
+const BASE_COOLDOWN_MS = 5_000;
+const SPECIAL_COOLDOWN_MS = 30_000;
+const DASH_COOLDOWN_MS = 1_100;
+const JUMP_COOLDOWN_MS = 850;
 const ARENA_LEFT = 100;
 const ARENA_RIGHT = MAP_W - 100;
 const ARENA_TOP = 192;
@@ -96,6 +110,8 @@ function fighterFromDna({ id, username, role, dna, hp, connected, x, y, tokenId 
     vy: 0,
     hp: clamp(Number(hp ?? maxHp), 0, maxHp),
     maxHp,
+    energy: 100,
+    maxEnergy: 100,
     attack: clamp(Number(stats.attack || 20), 5, 45),
     defense: clamp(Number(stats.defense || 14), 0, 40),
     speed: clamp(Number(stats.speed || 14), 8, 28),
@@ -107,8 +123,14 @@ function fighterFromDna({ id, username, role, dna, hp, connected, x, y, tokenId 
     input: { x: 0, y: 0 },
     facing: role === "challenger" ? 1 : -1,
     nextAttackAt: 0,
+    nextBaseAt: 0,
     nextSpecialAt: 0,
     nextDashAt: 0,
+    nextJumpAt: 0,
+    jumpStartedAt: 0,
+    jumpUntil: 0,
+    jumpHeight: 0,
+    landedPunchWindows: [],
     flashUntil: 0,
   };
 }
