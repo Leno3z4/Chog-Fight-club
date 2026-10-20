@@ -22,7 +22,7 @@
     "statusDamage": { "burn": 3, "burnTurns": 2 }
   },
   "cooldowns": {
-    "basic": 500,
+    "basic": 1000,
     "base": 5000,
     "special": 30000
   },
