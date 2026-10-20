@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { applyChogPose, clampChogPose, CHOG_POSE_LIMITS, createChogVisual } from "./chogRig.js";
+import { applyChogPose, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual } from "./chogRig.js";
 
 class FakeObject {
   constructor(x = 0, y = 0, texture = "") {
@@ -248,3 +248,18 @@ assert.deepEqual(normalPose, {
   headRotation: 0,
   leadArmX: 3,
 }, "typical authored poses should remain unchanged");
+
+
+// Solo and online modes share one staged KO pose arc. The start should be
+// controlled but not instantly collapsed; later frames settle into the final
+// pose, and all returned values remain inside the same rig bounds.
+const koStart = createChogKnockoutPose(normalPose, 0);
+const koMid = createChogKnockoutPose(normalPose, 210);
+const koSettled = createChogKnockoutPose(normalPose, 1200);
+assert.equal(koStart.torsoRotation, 0.22);
+assert.ok(koMid.torsoRotation > koStart.torsoRotation, "KO should develop a visible fall rather than jump to the final pose");
+assert.ok(koSettled.torsoRotation > koMid.torsoRotation, "KO should complete its fall arc");
+const limitedKoRig = createChogVisual(scene, 0, 0, false).rig;
+applyChogPose(limitedKoRig, koSettled);
+assert.ok(Number.isFinite(limitedKoRig.parts["right-hand"].image.x));
+assert.ok(Number.isFinite(limitedKoRig.parts["left-foot"].image.y));
