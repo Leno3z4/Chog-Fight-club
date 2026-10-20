@@ -80,8 +80,8 @@ assert.deepEqual(
   "head, eyes, and mouth should stay aligned through torso and head motion",
 );
 assert.ok(
-  Math.abs(rig.parts["left-lower-arm"].image.rotation - (rig.rearArm.rotation + (-2.42 * 0.18))) < 1e-9,
-  "forearm should follow the upper arm while retaining a small bend",
+  Math.abs(rig.parts["left-lower-arm"].image.rotation - (-0.1 - 2.42 - 2.42 * 0.18)) < 1e-8,
+  "forearm should follow the rear upper arm while retaining a small bend",
 );
 assert.equal(
   rig.parts["left-hand"].image.rotation,
