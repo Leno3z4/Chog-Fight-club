@@ -12,7 +12,7 @@ The condition/pact NFTs are a separate collection controlled by the game's own c
 
 1. **Identity link.** Each player connects a Monad wallet and signs a one-time wallet challenge. They separately connect Discord through OAuth. The server stores the verified Discord-user-to-wallet association. A Discord name supplied by the browser is not proof of identity.
 2. **Create challenge.** A challenger chooses a Discord-linked opponent, selects one of their own verified Chogs, and writes a proposed condition.
-3. **Review and accept.** The opponent sees the exact text, public visibility warning, expiry, and selected fighters; chooses their own Chog; then explicitly accepts the exact terms. Reject, cancel, or expire before acceptance means no pact NFT is minted.
+3. **Review and accept.** The opponent sees the exact text, public visibility warning, 24-hour invitation expiry, and selected fighters; chooses their own Chog; then explicitly accepts the exact terms. Reject, cancel, or expire before acceptance means no Pact NFT is minted.
 4. **Lock the pact.** Both players sign the same `challengeId + termsHash + selected token IDs + expiry`. The contract records the immutable terms hash and a content URI to the written terms, then mints one role-specific Pact NFT to each participant. Neither NFT is a Chog.
 5. **Fight.** The game starts only after both wallets and the pact state are checked again. The fight records which two Chog token IDs were selected, but does not transfer them.
 6. **Settle the result.** A trusted, auditable match resolver records the winner only after the match result has been validated. The Pact NFT metadata then reveals the outcome and the agreed condition.
@@ -48,13 +48,13 @@ The contract owner should not have an unrestricted "set winner", "edit terms", o
 
 ## Result integrity
 
-The real-time multiplayer room is hosted by a Cloudflare Durable Object, which owns movement, cooldowns, damage, match state, and the winner recorded to D1. Browser input is not trusted as a result by itself. The configured resolver submits the on-chain result from the server-recorded match. This remains a trusted-server design—not a cryptographic proof of fair play—so before meaningful wagers, the resolver path needs an independent security review, replay protection, monitoring, a defined disconnect/timeout outcome, and a dispute process. Never describe the result as trustless.
+The real-time multiplayer room is hosted by a Cloudflare Durable Object, which owns movement, cooldowns, damage, match state, and the winner recorded to D1. Browser input is not trusted as a result by itself. The configured resolver submits the on-chain result from the server-recorded match. The app enforces a five-minute post-match review window; either participant can open an off-chain dispute before settlement, which blocks settlement until an authorized moderator dismisses the dispute. This remains a trusted-server design—not a cryptographic proof of fair play. Before meaningful stakes, the resolver path still needs an independent security review and the deployed immutable contract's limits around post-settlement disputes and winner non-response must be accepted or addressed in a future factory version. Never describe the result as trustless.
 
 ## Conditions and safety
 
 Both players must approve the exact text; no silent edits after acceptance. Reject or moderate dangerous, illegal, harassing, privacy-invasive, or non-consensual conditions. The easiest safe first version limits conditions to voluntary, harmless tasks (for example, posting a silly but non-abusive public message) and makes public visibility clear before signature.
 
-A winner-only completion button matches the product idea, but can leave the loser marked unfulfilled if the winner disappears or acts unfairly. Before production, add a timeout/dispute path such as mutual confirmation, a neutral moderator, or an appeal window. Do not give the admin wallet unrestricted discretion.
+A winner-only completion button can leave the loser marked unfulfilled if the winner disappears or acts unfairly. The pre-settlement review/dispute path is implemented off-chain. The deployed immutable factory cannot transition a minted Pact to EXPIRED or DISPUTED, and it cannot change fulfillment status without the winner confirming it. This post-settlement limitation must remain explicit until a new factory supports a bounded timeout and neutral review path; do not imply that off-chain D1 status changes update NFT metadata. Do not give the admin wallet unrestricted discretion.
 
 ## Discord and wallet security
 
@@ -72,4 +72,4 @@ A winner-only completion button matches the product idea, but can leave the lose
 4. Pact contract and role-specific Pact NFTs, initially with no token wagering.
 5. Authoritative match result resolution and metadata reveal.
 6. Fulfilment claim + winner confirmation and pending/fulfilled display.
-7. Security review, abuse controls, monitoring, and demo/e2e tests.
+7. Rate limits, structured observability, pre-settlement review/dispute controls, and lobby expiry are implemented. Remaining launch checks are an independent security review and the two-account demo/e2e lifecycle test.
