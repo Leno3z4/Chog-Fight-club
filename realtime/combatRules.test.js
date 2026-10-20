@@ -44,6 +44,7 @@ assert.match(state.log.at(-1).text, /attacked away from their opponent/);
 state.players.opponent.x = 240;
 state.players.challenger.nextBaseAt = 0;
 const hpBeforeProjectile = state.players.opponent.hp;
+state.players.challenger.energy = 100;
 room._attack(state, "challenger", "base");
 assert.equal(state.players.opponent.hp, hpBeforeProjectile, "a base move travels as a projectile instead of dealing instant damage");
 assert.equal(state.projectiles.length, 1, "the server creates a physical projectile");
