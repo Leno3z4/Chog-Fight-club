@@ -2,6 +2,59 @@ const SOURCE_SIZE = 1024;
 const RENDER_SIZE = 250;
 const SCALE = RENDER_SIZE / SOURCE_SIZE;
 
+/**
+ * Defensive, stylized pose-space limits for this sprite rig.
+ *
+ * These values are animation tuning bounds (radians and local scene units),
+ * not medical ranges of motion. The limits are intentionally wider than the
+ * authored poses so a new animation can express itself without letting a bad
+ * input or one-off keyframe fling a limb out of its socket.
+ */
+export const CHOG_POSE_LIMITS = Object.freeze({
+  leadArmRotation: { min: -2.65, max: 1.05 },
+  rearArmRotation: { min: -2.65, max: 1.05 },
+  leadArmLowerRotation: { min: -1.5, max: 2.0 },
+  rearArmLowerRotation: { min: -1.5, max: 2.0 },
+  leadLegRotation: { min: -1.45, max: 1.35 },
+  rearLegRotation: { min: -1.45, max: 1.35 },
+  leadLegLowerRotation: { min: -1.7, max: 1.7 },
+  rearLegLowerRotation: { min: -1.7, max: 1.7 },
+  torsoRotation: { min: -0.48, max: 0.48 },
+  headRotation: { min: -0.3, max: 0.3 },
+  leadArmX: { min: -24, max: 24 },
+  rearArmX: { min: -24, max: 24 },
+  leadArmY: { min: -14, max: 14 },
+  rearArmY: { min: -14, max: 14 },
+  leadLegX: { min: -18, max: 18 },
+  rearLegX: { min: -18, max: 18 },
+  leadLegY: { min: -12, max: 12 },
+  rearLegY: { min: -12, max: 12 },
+  torsoX: { min: -20, max: 20 },
+  torsoY: { min: -20, max: 20 },
+  headX: { min: -10, max: 10 },
+  headY: { min: -10, max: 10 },
+});
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+/**
+ * Clamp authored local pose values once at the rig boundary. Both online and
+ * solo modes use applyChogPose, so every pose gets the same safety constraints.
+ */
+export function clampChogPose(pose = {}) {
+  const safePose = { ...pose };
+  for (const [key, range] of Object.entries(CHOG_POSE_LIMITS)) {
+    if (!(key in safePose)) continue;
+    const value = Number(safePose[key]);
+    safePose[key] = Number.isFinite(value)
+      ? clamp(value, range.min, range.max)
+      : 0;
+  }
+  return safePose;
+}
+
 const LAYER_ORDER = [
   // Rear leg segments first; the lower leg then foot overlap the joint.
   "right-upper-leg", "left-upper-leg",
@@ -221,9 +274,10 @@ export function createChogVisual(scene, x, y, mirrored = false) {
 
 export function applyChogPose(rig, pose) {
   if (!rig) return;
-  const torsoAngle = pose.torsoRotation ?? 0;
-  const torsoX = pose.torsoX ?? 0;
-  const torsoY = pose.torsoY ?? 0;
+  const safePose = clampChogPose(pose);
+  const torsoAngle = safePose.torsoRotation ?? 0;
+  const torsoX = safePose.torsoX ?? 0;
+  const torsoY = safePose.torsoY ?? 0;
   const torsoOrigin = rig.rest.torso;
 
   movePart(rig.parts.body, {
@@ -231,16 +285,16 @@ export function applyChogPose(rig, pose) {
     y: torsoOrigin.y + torsoY,
   }, torsoAngle);
 
-  placeArm(rig, "left", pose, torsoOrigin, torsoAngle, torsoX, torsoY);
-  placeArm(rig, "right", pose, torsoOrigin, torsoAngle, torsoX, torsoY);
-  placeLeg(rig, "left", pose, torsoOrigin, torsoAngle, torsoX, torsoY);
-  placeLeg(rig, "right", pose, torsoOrigin, torsoAngle, torsoX, torsoY);
+  placeArm(rig, "left", safePose, torsoOrigin, torsoAngle, torsoX, torsoY);
+  placeArm(rig, "right", safePose, torsoOrigin, torsoAngle, torsoX, torsoY);
+  placeLeg(rig, "left", safePose, torsoOrigin, torsoAngle, torsoX, torsoY);
+  placeLeg(rig, "right", safePose, torsoOrigin, torsoAngle, torsoX, torsoY);
 
   const headAnchor = worldJoint(rig.rest.head, torsoOrigin, torsoAngle, torsoX, torsoY);
   for (const facePart of rig.faceParts) {
-    facePart.x = headAnchor.x + (pose.headX ?? 0);
-    facePart.y = headAnchor.y + (pose.headY ?? 0);
-    facePart.rotation = torsoAngle + (pose.headRotation ?? 0);
+    facePart.x = headAnchor.x + (safePose.headX ?? 0);
+    facePart.y = headAnchor.y + (safePose.headY ?? 0);
+    facePart.rotation = torsoAngle + (safePose.headRotation ?? 0);
   }
 }
 
