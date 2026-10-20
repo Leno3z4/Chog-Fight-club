@@ -84,7 +84,7 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   const joints = rig.joints[side];
   const upperPoseKey = side === "left" ? "leadArm" : "rearArm";
   const upperAngle = pose[`${upperPoseKey}Rotation`] ?? 0;
-  const lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? (upperAngle * 0.18);
+  const lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? 0;
   const upperX = pose[`${upperPoseKey}X`] ?? 0;
   const upperY = pose[`${upperPoseKey}Y`] ?? 0;
 
@@ -93,17 +93,23 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   shoulder.y += upperY;
   movePart(upper, shoulder, torsoAngle + upperAngle);
 
-  const elbowLocal = layeredJoint(joints.elbow, upper.rest, upperAngle);
+  // Transform the elbow with the upper arm, then extend the forearm from
+  // that transformed elbow. The old code transformed the wrist from the
+  // original elbow again, which made the hand drift away during movement.
+  const elbowLocal = transformPoint(joints.elbow, upper.rest, upperAngle, upperX, upperY);
   const elbow = worldJoint(elbowLocal, torsoOrigin, torsoAngle, torsoX, torsoY);
-  elbow.x += upperX;
-  elbow.y += upperY;
   movePart(lower, elbow, torsoAngle + upperAngle + lowerAngle);
 
-  const wristLocal = layeredJoint(joints.wrist, joints.elbow, upperAngle + lowerAngle);
-  const wrist = worldJoint(wristLocal, torsoOrigin, torsoAngle, torsoX, torsoY);
-  wrist.x += upperX;
-  wrist.y += upperY;
-  movePart(hand, wrist, torsoAngle + upperAngle + lowerAngle);
+  const forearmAngle = torsoAngle + upperAngle + lowerAngle;
+  const wristVectorX = joints.wrist.x - joints.elbow.x;
+  const wristVectorY = joints.wrist.y - joints.elbow.y;
+  const cos = Math.cos(forearmAngle);
+  const sin = Math.sin(forearmAngle);
+  const wrist = {
+    x: elbow.x + wristVectorX * cos - wristVectorY * sin,
+    y: elbow.y + wristVectorX * sin + wristVectorY * cos,
+  };
+  movePart(hand, wrist, forearmAngle);
 }
 
 function placeLeg(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
@@ -122,17 +128,22 @@ function placeLeg(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   hip.y += upperY;
   movePart(upper, hip, torsoAngle + upperAngle);
 
-  const kneeLocal = layeredJoint(joints.knee, upper.rest, upperAngle);
+  // The knee follows the hip rotation; the ankle is then extended from the
+  // moved knee using the lower-leg angle. This keeps both joints connected.
+  const kneeLocal = transformPoint(joints.knee, upper.rest, upperAngle, upperX, upperY);
   const knee = worldJoint(kneeLocal, torsoOrigin, torsoAngle, torsoX, torsoY);
-  knee.x += upperX;
-  knee.y += upperY;
   movePart(lower, knee, torsoAngle + upperAngle + lowerAngle);
 
-  const ankleLocal = layeredJoint(joints.ankle, joints.knee, upperAngle + lowerAngle);
-  const ankle = worldJoint(ankleLocal, torsoOrigin, torsoAngle, torsoX, torsoY);
-  ankle.x += upperX;
-  ankle.y += upperY;
-  movePart(foot, ankle, torsoAngle + upperAngle + lowerAngle);
+  const lowerLegAngle = torsoAngle + upperAngle + lowerAngle;
+  const ankleVectorX = joints.ankle.x - joints.knee.x;
+  const ankleVectorY = joints.ankle.y - joints.knee.y;
+  const cos = Math.cos(lowerLegAngle);
+  const sin = Math.sin(lowerLegAngle);
+  const ankle = {
+    x: knee.x + ankleVectorX * cos - ankleVectorY * sin,
+    y: knee.y + ankleVectorX * sin + ankleVectorY * cos,
+  };
+  movePart(foot, ankle, lowerLegAngle);
 }
 
 export function createChogVisual(scene, x, y, mirrored = false) {
