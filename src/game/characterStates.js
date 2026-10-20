@@ -51,9 +51,14 @@ class AttackStartupState extends CharacterState {
     character.attack.elapsed = 0;
     const moveName = payload.attack.moveName ?? (payload.attack.slot === "basic" ? "Basic Attack" : `${payload.attack.slot} Ability`);
     character.scene.showStatus(`${moveName.toUpperCase()}: CHARGING`);
+    const visual = character.scene.playerVisual;
+    const facing = payload.attack.facing < 0 ? -1 : 1;
+    // Flip the sign immediately, then tween only within that sign. Tweening
+    // from +scaleX to -scaleX crosses zero and collapses the rig into a sliver.
+    visual.scaleX = Math.max(0.01, Math.abs(visual.scaleX)) * facing;
     character.scene.tweens.add({
-      targets: character.scene.playerVisual,
-      scaleX: 1.08 * payload.attack.facing,
+      targets: visual,
+      scaleX: 1.08 * facing,
       scaleY: 0.94,
       duration: payload.attack.timing.startup,
       ease: "Quad.easeOut",
