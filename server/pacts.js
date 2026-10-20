@@ -244,7 +244,15 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
   const id = requestUrl.searchParams.get("id") || body.id;
   if (!validId(id)) throw new PactApiError("A valid challenge ID is required.", { status: 400, code: "INVITE_ID_INVALID" });
   const db = getDb(env);
-  let { row, isChallenger } = await getParticipant({ db, id, user });
+  let row;
+  let isChallenger;
+  if (method === "POST" && body.action === "resolveDispute" && user.isAdmin) {
+    row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
+    if (!row) throw new PactApiError("Challenge not found.", { status: 404, code: "INVITE_NOT_FOUND" });
+    isChallenger = row.challenger_discord_id === user.discordId;
+  } else {
+    ({ row, isChallenger } = await getParticipant({ db, id, user }));
+  }
   if (row.game_mode === "PRACTICE") {
     if (method === "GET") {
       return {
