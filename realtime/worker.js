@@ -292,6 +292,16 @@ export class ArenaRoom {
       };
     }
     state.inviteStatus = invite.status;
+    state.totalRounds = TOTAL_ROUNDS;
+    state.roundTimeMs = ROUND_TIME_MS;
+    state.round = Number.isFinite(state.round) ? state.round : (isStarted ? 1 : 0);
+    state.roundWins ||= { challenger: 0, opponent: 0 };
+    state.projectiles ||= [];
+    state.timeRemainingMs = Number.isFinite(state.timeRemainingMs) ? state.timeRemainingMs : ROUND_TIME_MS;
+    state.roundWinnerRole ??= null;
+    state.koRole ??= null;
+    state.roundResultUntil ||= 0;
+    state.matchDraw ??= false;
     state.players.challenger.discordId = invite.challenger_discord_id;
     state.players.challenger.username = invite.challenger_username || "Challenger";
     state.players.opponent.discordId = invite.opponent_discord_id;
@@ -306,6 +316,16 @@ export class ArenaRoom {
       if (!Number.isFinite(player.actionStartedAt)) player.actionStartedAt = 0;
       if (!Number.isFinite(player.actionUntil)) player.actionUntil = 0;
       if (!Number.isFinite(player.facing)) player.facing = role === "challenger" ? 1 : -1;
+      if (!Number.isFinite(player.energy)) player.energy = 100;
+      if (!Number.isFinite(player.maxEnergy)) player.maxEnergy = 100;
+      if (!Number.isFinite(player.jumpHeight)) player.jumpHeight = 0;
+      if (!Number.isFinite(player.jumpUntil)) player.jumpUntil = 0;
+      if (!Number.isFinite(player.nextAttackAt)) player.nextAttackAt = 0;
+      if (!Number.isFinite(player.nextBaseAt)) player.nextBaseAt = 0;
+      if (!Number.isFinite(player.nextSpecialAt)) player.nextSpecialAt = 0;
+      if (!Number.isFinite(player.nextDashAt)) player.nextDashAt = 0;
+      if (!Number.isFinite(player.nextJumpAt)) player.nextJumpAt = 0;
+      if (!Array.isArray(player.landedPunchWindows)) player.landedPunchWindows = [];
     }
     if (isStarted && state.phase === "LOBBY" && battle.status === "IN_BATTLE") {
       const challengerDna = parseJSON(battle.challenger_dna, {});
@@ -324,7 +344,18 @@ export class ArenaRoom {
       state.status = "IN_BATTLE";
       state.startedAt = Date.now();
       state.lastTick = Date.now();
-      state.log.push({ text: "The live battle has started. Move, dash, and attack in real time.", at: Date.now() });
+      state.round = 1;
+      state.totalRounds = TOTAL_ROUNDS;
+      state.roundTimeMs = ROUND_TIME_MS;
+      state.timeRemainingMs = ROUND_TIME_MS;
+      state.roundStartedAt = Date.now();
+      state.roundWins = { challenger: 0, opponent: 0 };
+      state.roundWinnerRole = null;
+      state.roundResultUntil = 0;
+      state.koRole = null;
+      state.matchDraw = false;
+      state.projectiles = [];
+      state.log.push({ text: "Round 1/3 begins. Each round lasts 60 seconds.", at: Date.now() });
     } else if (battle?.status === "FINISHED") {
       state.phase = "FINISHED";
       state.status = "FINISHED";
