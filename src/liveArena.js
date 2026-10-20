@@ -190,22 +190,39 @@ class LiveArenaScene extends Phaser.Scene {
       if (!fighter) continue;
       const root = fighter.root;
       const fromX = root.x;
+      const fromY = root.y;
       root.x = Phaser.Math.Linear(root.x, fighter.targetX, blend);
       root.y = Phaser.Math.Linear(root.y, fighter.targetY, blend);
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
       root.setDepth(100 + root.y);
-      const moved = Math.abs(root.x - fromX) > 0.2;
-      const stride = Math.sin(now * 0.0065 + fighter.stridePhase);
+      const moved = Math.hypot(root.x - fromX, root.y - fromY) > 0.2;
+      const stridePhase = now * 0.0065 + fighter.stridePhase;
+      const stride = Math.sin(stridePhase);
+      const leadLift = Math.max(0, stride) ** 2;
+      const rearLift = Math.max(0, -stride) ** 2;
+      const bodyBob = 0.5 - Math.cos(2 * stridePhase) * 0.5;
       const guard = {
         ...GUARD,
-        leadArmRotation: GUARD.leadArmRotation - (moved ? stride * 0.035 : 0),
-        rearArmRotation: GUARD.rearArmRotation + (moved ? stride * 0.035 : 0),
-        leadLegRotation: moved ? stride * 0.1 : 0,
-        rearLegRotation: moved ? -stride * 0.1 : 0,
-        leadLegX: moved ? stride * 5 : 0,
-        rearLegX: moved ? -stride * 5 : 0,
-        torsoRotation: moved ? -stride * 0.015 : 0,
-        torsoY: moved ? -(0.5 - Math.cos(2 * (now * 0.0065 + fighter.stridePhase)) * 0.5) * 1.2 : 0,
+        // Keep both hands at face height during footwork; the legs and hips
+        // carry most of the motion instead of letting the arms swing loosely.
+        leadArmRotation: GUARD.leadArmRotation - (moved ? stride * 0.045 : Math.sin(now * 0.002 + fighter.stridePhase) * 0.018),
+        rearArmRotation: GUARD.rearArmRotation + (moved ? stride * 0.035 : Math.sin(now * 0.002 + fighter.stridePhase) * 0.012),
+        leadArmLowerRotation: GUARD.leadArmLowerRotation + (moved ? stride * 0.025 : 0),
+        rearArmLowerRotation: GUARD.rearArmLowerRotation - (moved ? stride * 0.02 : 0),
+        leadArmY: -1 - leadLift * 1.1,
+        rearArmY: -1 - rearLift * 1.1,
+        leadLegRotation: moved ? stride * 0.21 : Math.sin(now * 0.002 + fighter.stridePhase) * 0.012,
+        rearLegRotation: moved ? -stride * 0.21 : -Math.sin(now * 0.002 + fighter.stridePhase) * 0.012,
+        leadLegLowerRotation: moved ? -stride * 0.10 + leadLift * 0.20 : 0,
+        rearLegLowerRotation: moved ? stride * 0.10 + rearLift * 0.20 : 0,
+        leadLegX: moved ? stride * 4 : 0,
+        rearLegX: moved ? -stride * 4 : 0,
+        leadLegY: moved ? -leadLift * 3 : 0,
+        rearLegY: moved ? -rearLift * 3 : 0,
+        torsoRotation: moved ? -stride * 0.04 : Math.sin(now * 0.002 + fighter.stridePhase) * 0.014,
+        torsoX: moved ? stride * 1.2 : 0,
+        torsoY: moved ? -bodyBob * 2 : -Math.max(0, Math.sin(now * 0.002 + fighter.stridePhase)) * 1.2,
+        headRotation: moved ? stride * 0.016 : 0,
       };
       let pose = guard;
       const actionAge = now - fighter.actionStartedAt;
@@ -216,26 +233,39 @@ class LiveArenaScene extends Phaser.Scene {
         pose = {
           ...guard,
           leadArmRotation: GUARD.leadArmRotation - pulse * (heavy ? 1.05 : 0.68),
+          // The elbow straightens into the jab and folds back on recovery.
+          leadArmLowerRotation: GUARD.leadArmLowerRotation + pulse * (heavy ? 1.66 : 1.62),
           leadArmX: pulse * (heavy ? 16 : 11),
-          rearArmRotation: GUARD.rearArmRotation + pulse * 0.035,
-          leadLegRotation: -pulse * (heavy ? 0.07 : 0.045),
-          rearLegRotation: pulse * (heavy ? 0.1 : 0.07),
+          leadArmY: -pulse * 2,
+          rearArmRotation: GUARD.rearArmRotation - pulse * 0.065,
+          rearArmLowerRotation: GUARD.rearArmLowerRotation - pulse * 0.10,
+          rearArmY: -pulse * 2,
+          leadLegRotation: -pulse * (heavy ? 0.10 : 0.065),
+          rearLegRotation: pulse * (heavy ? 0.12 : 0.085),
+          leadLegLowerRotation: pulse * 0.12,
+          rearLegLowerRotation: -pulse * 0.08,
           leadLegX: pulse * 6,
           rearLegX: -pulse * 3,
-          torsoRotation: -pulse * (heavy ? 0.1 : 0.07),
-          torsoX: pulse * (heavy ? 6 : 4),
-          headRotation: -pulse * 0.02,
+          torsoRotation: -pulse * (heavy ? 0.13 : 0.095),
+          torsoX: pulse * (heavy ? 7 : 4.5),
+          torsoY: -pulse * (heavy ? 3 : 1.5),
+          headRotation: -pulse * 0.025,
         };
       } else if (fighter.action === "dash" && actionAge >= 0 && actionAge < duration) {
         const pulse = Math.sin(Math.PI * clamp(actionAge / duration, 0, 1));
         pose = {
           ...guard,
-          leadArmRotation: GUARD.leadArmRotation - pulse * 0.18,
-          rearArmRotation: GUARD.rearArmRotation + pulse * 0.12,
-          torsoRotation: -pulse * 0.09,
+          leadArmRotation: GUARD.leadArmRotation - pulse * 0.12,
+          rearArmRotation: GUARD.rearArmRotation - pulse * 0.06,
+          leadArmLowerRotation: GUARD.leadArmLowerRotation - pulse * 0.08,
+          rearArmLowerRotation: GUARD.rearArmLowerRotation - pulse * 0.08,
+          torsoRotation: -pulse * 0.11,
           torsoX: pulse * 7,
-          leadLegRotation: -pulse * 0.12,
-          rearLegRotation: pulse * 0.14,
+          torsoY: pulse * 3,
+          leadLegRotation: -pulse * 0.16,
+          rearLegRotation: pulse * 0.18,
+          leadLegLowerRotation: pulse * 0.35,
+          rearLegLowerRotation: -pulse * 0.30,
         };
       }
       if (fighter.flashUntil > now) {
