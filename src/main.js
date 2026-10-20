@@ -161,6 +161,7 @@ class ArenaScene extends Phaser.Scene {
 
     this.floor = this.physics.add.staticImage(this.arenaWidth / 2, this.floorY + (this.arenaHeight - this.floorY) / 2, "floor");
     this.floor.setDisplaySize(this.arenaWidth, this.arenaHeight - this.floorY).refreshBody();
+    this.floor.setAlpha(0); // Collider only; the arena graphics draw the visible ground.
     this.floorCollider = this.physics.add.collider(this.player, this.floor);
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -958,28 +959,47 @@ class ArenaScene extends Phaser.Scene {
     const floorY = this.floorY;
     const bg = this.arenaBackground ?? this.add.graphics();
     bg.clear();
+
+    // Keep the sky, distant treeline and floor visually distinct. The old
+    // oversized circular trees made the whole backdrop look like repeating
+    // columns behind the fighters.
     bg.fillGradientStyle(0x9bc9e8, 0x9bc9e8, 0xd8eff7, 0xd8eff7, 1);
     bg.fillRect(0, 0, width, height);
-    bg.fillStyle(0x6d9b70, 0.34);
-    const horizon = floorY * 0.49;
-    const radius = height * 0.125;
-    const spacing = Math.max(110, width / 8);
-    for (let x = spacing / 2; x < width + spacing; x += spacing) {
-      bg.fillCircle(x, horizon, radius);
-      bg.fillRect(x - 18, horizon, 36, Math.max(80, floorY - horizon - 55));
+
+    bg.fillStyle(0x85b3a1, 0.15);
+    bg.fillEllipse(width * 0.22, floorY * 0.78, width * 0.62, floorY * 0.42);
+    bg.fillEllipse(width * 0.78, floorY * 0.8, width * 0.66, floorY * 0.38);
+
+    const horizon = floorY * 0.55;
+    const treePositions = [0.04, 0.15, 0.28, 0.42, 0.58, 0.72, 0.86, 0.97];
+    for (let i = 0; i < treePositions.length; i += 1) {
+      const x = width * treePositions[i];
+      const radius = height * ([0.045, 0.052, 0.04, 0.048][i % 4]);
+      const canopyY = horizon + (i % 3) * 8;
+      bg.fillStyle(0x6d9b70, 0.25);
+      bg.fillRect(x - 7, canopyY + radius * 0.45, 14, Math.max(45, floorY - canopyY - radius * 0.35));
+      bg.fillCircle(x, canopyY, radius);
+      bg.fillCircle(x - radius * 0.62, canopyY + radius * 0.28, radius * 0.72);
+      bg.fillCircle(x + radius * 0.58, canopyY + radius * 0.25, radius * 0.78);
     }
+
     bg.fillStyle(0xcfe3a4, 1);
     bg.fillRect(0, floorY - 2, width, height - floorY + 2);
     bg.fillStyle(0x92b66c, 1);
-    bg.fillRect(0, floorY, width, 20);
+    bg.fillRect(0, floorY, width, 12);
     this.arenaBackground = bg;
+
     const arenaGlow = this.arenaGlow ?? this.add.graphics();
     arenaGlow.clear();
     arenaGlow.fillStyle(0xffffff, 0.11);
     arenaGlow.fillEllipse(width / 2, floorY - 3, Math.min(1050, width * 0.85), height * 0.25);
     this.arenaGlow = arenaGlow;
     if (!this.arenaLabel) {
-      this.arenaLabel = this.add.text(0, 0, "TRAINING ARENA", { fontFamily: "system-ui, sans-serif", fontSize: "14px", color: "#16324A" }).setOrigin(0.5);
+      this.arenaLabel = this.add.text(0, 0, "TRAINING ARENA", {
+        fontFamily: "system-ui, sans-serif",
+        fontSize: "14px",
+        color: "#16324A",
+      }).setOrigin(0.5);
     }
     this.arenaLabel.setPosition(width / 2, height * 0.21);
   }
