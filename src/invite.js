@@ -108,8 +108,12 @@ function renderSummary(invite) {
   const conditionHashNode = $("#condition-hash");
   if (conditionHashNode) conditionHashNode.textContent = invite.termsHash || "Not available";
   const bilateralCard = $("#bilateral-terms-card");
+  const bothFightersSelected = Boolean(
+    invite.challenger?.wallet && invite.challenger?.tokenId
+    && invite.opponent?.wallet && invite.opponent?.tokenId
+  );
   if (bilateralCard) {
-    bilateralCard.hidden = !["TERMS_ACCEPTED", "READY"].includes(invite.status);
+    bilateralCard.hidden = !["TERMS_ACCEPTED", "READY"].includes(invite.status) || !bothFightersSelected;
     $("#challenger-demand-text").textContent = invite.challengerDemand || invite.challenger?.demand || "Waiting for the challenger to write a demand…";
     $("#opponent-demand-text").textContent = invite.opponentDemand || invite.opponent?.demand || "Waiting for the opponent to write a demand…";
     $("#challenger-demand-acceptance").textContent = invite.challenger?.termsAccepted ? "Accepted ✓" : "Not accepted";
@@ -679,7 +683,14 @@ function updateBilateralControls() {
   const otherDemand = isChallenger ? (invite.opponentDemand || "") : (invite.challengerDemand || "");
   const ownAccepted = Boolean(isChallenger ? invite.challenger?.termsAccepted : invite.opponent?.termsAccepted);
   const signaturesStarted = Boolean(state.pact?.challengerSigned || state.pact?.opponentSigned);
-  const locked = Boolean(state.pact?.minted || signaturesStarted || invite.pactMinted || !["TERMS_ACCEPTED", "READY"].includes(invite.status));
+  const bothFightersSelected = Boolean(
+    invite.challenger?.wallet && invite.challenger?.tokenId
+    && invite.opponent?.wallet && invite.opponent?.tokenId
+  );
+  const locked = Boolean(
+    !bothFightersSelected || state.pact?.minted || signaturesStarted || invite.pactMinted
+    || !["TERMS_ACCEPTED", "READY"].includes(invite.status)
+  );
   own.disabled = locked;
   save.disabled = locked || state.busy || own.value.trim().length < 5 || own.value.trim() === saved.trim();
   accept.disabled = locked || state.busy || state.pactBusy || own.value.trim().length < 5
