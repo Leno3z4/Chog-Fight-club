@@ -771,7 +771,14 @@ async function loadInvite() {
   if (isBattleLobbyPage) {
     const finishedPactStatuses = ["RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
     if (finishedPactStatuses.includes(payload.invite.status)) {
-      // Finished/disputed matches no longer need a realtime ticket; fetch the authoritative result directly.
+      // Finished/disputed matches no longer need a realtime ticket. Close any
+      // existing socket so the room does not keep a needless live connection.
+      if (state.realtimeSocket) {
+        try { state.realtimeSocket.close(1000, "Match result review"); } catch { /* already closed */ }
+        state.realtimeSocket = null;
+      }
+      if (state.realtimeTimer) clearInterval(state.realtimeTimer);
+      state.realtimeTimer = null;
       const battlePayload = await requestJson("/api/battle?id=" + encodeURIComponent(state.id));
       state.battle = battlePayload.battle;
     } else {
