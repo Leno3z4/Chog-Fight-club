@@ -191,19 +191,35 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
   const bothConnected = Boolean(players.challenger?.connected && players.opponent?.connected);
   const startButton = $("#combat-start");
   const pactSatisfied = invite.gameMode === "PRACTICE" || Boolean(state.pact?.minted);
-  startButton.hidden = !(invite.status === "READY" && bothReady && bothConnected && pactSatisfied && phase !== "IN_BATTLE" && matchStatus !== "FINISHED");
+  startButton.hidden = !(invite.status === "READY" && bothReady && bothConnected && pactSatisfied && !["IN_BATTLE", "ROUND_OVER"].includes(phase) && matchStatus !== "FINISHED");
   startButton.disabled = state.battleBusy || state.realtimeConnecting;
   startButton.textContent = state.battleBusy ? "Entering arena…" : "Enter live arena ↗";
 
   if (matchStatus === "FINISHED") {
     const won = room?.winnerRole === invite.viewerRole;
-    $("#combat-status").textContent = won ? "VICTORY" : "MATCH OVER";
-    $("#combat-message").textContent = won
-      ? "You won. The winner can now settle the result and later confirm fulfilment of the agreement."
-      : "The match is over. The winner must settle the result before the condition can be marked fulfilled.";
+    const draw = Boolean(room?.matchDraw || !room?.winnerRole);
+    $("#combat-status").textContent = draw ? "MATCH DRAW" : won ? "VICTORY" : "DEFEAT";
+    $("#combat-message").textContent = draw
+      ? "All three rounds are complete and the round score is tied. No winner was declared."
+      : won
+        ? "You won the three-round match. You can now settle the result and later confirm fulfilment of the agreement."
+        : "You lost the three-round match. The declared winner can settle the result before the condition is fulfilled.";
+  } else if (phase === "ROUND_OVER") {
+    const wins = room?.roundWins || { challenger: 0, opponent: 0 };
+    const result = room?.roundWinnerRole
+      ? (room.roundWinnerRole === invite.viewerRole ? "YOU WIN" : "OPPONENT WINS")
+      : "ROUND DRAW";
+    $("#combat-status").textContent = room?.koRole ? "K.O.!" : "ROUND OVER";
+    $("#combat-message").textContent = result + " · ROUND " + room.round + "/3 · SCORE "
+      + (wins.challenger || 0) + "-" + (wins.opponent || 0) + " · NEXT ROUND IN A MOMENT";
   } else if (phase === "IN_BATTLE") {
     $("#combat-status").textContent = state.realtimeSocket?.readyState === WebSocket.OPEN ? "LIVE" : "RECONNECTING";
-    $("#combat-message").textContent = "Real-time combat is live. Move freely, time your attacks, and dash to avoid hits.";
+    const wins = room?.roundWins || { challenger: 0, opponent: 0 };
+    const seconds = Math.ceil(Math.max(0, Number(room?.timeRemainingMs ?? 60000)) / 1000);
+    $("#combat-message").textContent = "ROUND " + (room?.round || 1) + "/3 · "
+      + String(Math.floor(seconds / 60)).padStart(2, "0") + ":" + String(seconds % 60).padStart(2, "0")
+      + " · SCORE " + (wins.challenger || 0) + "-" + (wins.opponent || 0)
+      + " · Punch: double-tap Space · Q: base projectile · E: special projectile · J: jump";
   } else if (invite.status === "PENDING_ACCEPTANCE") {
     $("#combat-status").textContent = "WAITING FOR RIVAL";
     $("#combat-message").textContent = `You are in the lobby. Waiting for @${invite.opponent?.username || "your rival"} to join.`;
@@ -237,12 +253,17 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
     $(`#combat-${role}-name`).textContent = `${username}${tokenId ? ` · Chog #${tokenId}` : ""}`;
     $(`#combat-${role}-hp-text`).textContent = fighter.hp == null ? "Waiting" : `${hp} / ${maxHp} HP`;
     $(`#combat-${role}-hp-bar`).style.width = `${fighter.hp == null ? 0 : percent}%`;
+    const energyValue = Math.max(0, Math.round(Number(fighter.energy ?? 0)));
+    const maxEnergy = Math.max(1, Math.round(Number(fighter.maxEnergy ?? 100)));
+    const energyPercent = Math.max(0, Math.min(100, Math.round((energyValue / maxEnergy) * 100)));
+    const mpBar = document.getElementById("combat-" + role + "-mp-bar");
+    if (mpBar) mpBar.style.width = (fighter.energy == null ? 0 : energyPercent) + "%";
     $(`#combat-${role}-dna`).textContent = fighter.tier
       ? `${fighter.fighterName || "Chog"} · ${fighter.tier} · ${fighter.ability || "Fighter"} · ATK ${fighter.attack || "n/a"} · DEF ${fighter.defense || "n/a"} · SPD ${fighter.speed || "n/a"}`
       : "Fighter stats load when the match begins";
-    $(`#combat-${role}-energy`).textContent = fighter.connected
-      ? "Connected to room"
-      : (phase === "IN_BATTLE" ? "Reconnecting…" : "In lobby");
+    const connectionStatus = fighter.connected ? "Connected" : (phase === "IN_BATTLE" || phase === "ROUND_OVER" ? "Reconnecting…" : "In lobby");
+    const energyText = fighter.energy == null ? connectionStatus : "MP " + energyValue + "/" + maxEnergy + " · " + connectionStatus;
+    document.getElementById("combat-" + role + "-energy").textContent = energyText;
   };
   renderFighter("challenger");
   renderFighter("opponent");
@@ -255,7 +276,7 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
   if (room) {
     const invite = state.invite;
     state.battle = {
-      status: matchStatus === "FINISHED" ? "FINISHED" : phase === "IN_BATTLE" ? "IN_BATTLE" : "WAITING_FOR_READY",
+      status: matchStatus === "FINISHED" ? "FINISHED" : phase === "ROUND_OVER" ? "ROUND_OVER" : phase === "IN_BATTLE" ? "IN_BATTLE" : "WAITING_FOR_READY",
       inviteStatus: invite.status,
       youWon: room.winnerRole === invite.viewerRole,
       challenger: {
@@ -280,7 +301,7 @@ function drawRealtimeArena(room, viewerRole) {
   const container = $("#realtime-arena");
   if (!playfield || !container) return;
   const live = acceptedStatuses.includes(state.invite?.status)
-    && (room?.status === "FINISHED" || (room?.phase === "IN_BATTLE" && room?.status === "IN_BATTLE"));
+    && (room?.status === "FINISHED" || (["IN_BATTLE", "ROUND_OVER"].includes(room?.phase) && room?.status === "IN_BATTLE"));
   if (!live) {
     latestLiveSnapshot = null;
     liveArenaFailed = false;
@@ -438,7 +459,7 @@ function renderPact(pact) {
   const loserNode = $("#pact-loser-text");
   const conditionStatusNode = $("#pact-condition-status");
   const battleFinishedNow = state.battle?.status === "FINISHED";
-  const hasWinner = battleFinishedNow && Boolean(state.battle?.winnerDiscordId);
+  const hasWinner = battleFinishedNow && Boolean(state.battle?.winnerDiscordId || state.realtimeState?.winnerRole);
   const winnerPlayer = hasWinner ? (state.battle.youWon ? viewer(state.invite) : opponent(state.invite)) : null;
   const loserPlayer = hasWinner ? (state.battle.youWon ? opponent(state.invite) : viewer(state.invite)) : null;
   if (winnerNode) winnerNode.textContent = winnerPlayer?.username || (hasWinner ? "Winner confirmed" : "Not decided yet");
