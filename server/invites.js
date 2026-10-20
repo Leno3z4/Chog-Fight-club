@@ -277,7 +277,8 @@ export async function handleInviteRequest({
     if (id) {
       if (!validUuid(id)) throw new InviteApiError("Invalid invitation ID.", { status: 400, code: "INVITE_ID_INVALID" });
       const row = await getInvite({ env, id });
-      if (![row.challenger_discord_id, row.opponent_discord_id].includes(user.discordId) && !isUsernameInviteFor(row, user)) {
+      const isParticipant = [row.challenger_discord_id, row.opponent_discord_id].includes(user.discordId) || isUsernameInviteFor(row, user);
+      if (!isParticipant && !(user.isAdmin && row.status === "DISPUTED")) {
         throw new InviteApiError("This invitation belongs to another Discord account.", { status: 403, code: "INVITE_FORBIDDEN" });
       }
       return { status: 200, body: { invite: presentInvite(row, user.discordId) }, headers: { "Cache-Control": "private, no-store" } };
