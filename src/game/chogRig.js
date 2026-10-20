@@ -14,8 +14,7 @@ const LAYER_ORDER = [
   "head", "eyes", "mouth",
 ];
 
-// Each PNG is a full-size transparent canvas. Pivots are coordinates on
-// that shared canvas; offsets close the small gaps left between cutout parts.
+// The PNGs have different pixel dimensions, but their artwork shares one normalized canvas.
 const PARTS = {
   // All the source images represent the same 1024-unit character canvas,
   // even though some PNGs were exported at 768px or 3000px. Pivots therefore
@@ -170,19 +169,19 @@ export function createChogVisual(scene, x, y, mirrored = false) {
   const rest = {
     torso: parts.body.rest,
     head: parts.head.rest,
-    leadArm: parts["left-upper-arm"].rest,
-    rearArm: parts["right-upper-arm"].rest,
-    leadLeg: parts["left-upper-leg"].rest,
-    rearLeg: parts["right-upper-leg"].rest,
+    leadArm: parts["right-upper-arm"].rest,
+    rearArm: parts["left-upper-arm"].rest,
+    leadLeg: parts["right-upper-leg"].rest,
+    rearLeg: parts["left-upper-leg"].rest,
   };
 
   const rig = {
     root, shadow, parts,
     layers: Object.fromEntries(Object.entries(parts).map(([name, part]) => [name, part.image])),
-    leadArm: parts["left-upper-arm"].image,
-    rearArm: parts["right-upper-arm"].image,
-    leadLeg: parts["left-upper-leg"].image,
-    rearLeg: parts["right-upper-leg"].image,
+    leadArm: parts["right-upper-arm"].image,
+    rearArm: parts["left-upper-arm"].image,
+    leadLeg: parts["right-upper-leg"].image,
+    rearLeg: parts["left-upper-leg"].image,
     torso: parts.body.image,
     headParts: [parts.head.image, parts.eyes.image, parts.mouth.image],
     faceParts: [parts.head.image, parts.eyes.image, parts.mouth.image],
