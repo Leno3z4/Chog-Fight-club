@@ -1,3 +1,5 @@
+export const DISCONNECT_GRACE_MS = 30 * 1000;
+
 export const INVITE_EXPIRY_MS = 24 * 60 * 60 * 1000;
 export const RESULT_REVIEW_WINDOW_MS = 5 * 60 * 1000;
 
@@ -54,4 +56,19 @@ export function appendBattleLog(serialized, event, maxEntries = 200) {
   const entries = readBattleLog(serialized);
   entries.push(event);
   return JSON.stringify(entries.slice(-maxEntries));
+}
+
+export function getDisconnectedForfeitRole(players, now = Date.now(), graceMs = DISCONNECT_GRACE_MS) {
+  if (!players || !Number.isFinite(now) || !Number.isFinite(graceMs) || graceMs < 0) return null;
+  const roles = ["challenger", "opponent"];
+  const expired = roles.filter((role) => {
+    const player = players[role];
+    const disconnectedAt = Number(player?.disconnectedAt);
+    return player?.connected === false && Number.isFinite(disconnectedAt)
+      && disconnectedAt > 0 && now - disconnectedAt >= graceMs;
+  });
+  if (expired.length !== 1) return null;
+  const role = expired[0];
+  const otherRole = role === "challenger" ? "opponent" : "challenger";
+  return players[otherRole]?.connected === true ? role : null;
 }
