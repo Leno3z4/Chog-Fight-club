@@ -6,11 +6,19 @@
   "workers_dev": true,
   "durable_objects": {
     "bindings": [
-      { "name": "ARENA_ROOMS", "class_name": "ArenaRoom" }
+      {
+        "name": "ARENA_ROOMS",
+        "class_name": "ArenaRoom"
+      }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["ArenaRoom"] }
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "ArenaRoom"
+      ]
+    }
   ],
   "d1_databases": [
     {
@@ -21,5 +29,16 @@
   ],
   "vars": {
     "ARENA_FRONTEND_ORIGIN": "https://chog-fight-club.vercel.app"
+  },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+    "redact_query_string": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 0.5,
+      "invocation_logs": true,
+      "persist": true
+    }
   }
 }
