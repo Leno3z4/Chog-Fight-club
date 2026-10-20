@@ -707,17 +707,21 @@ class ArenaScene extends Phaser.Scene {
     const bodyBob = 0.5 - (Math.cos(2 * stridePhase) * 0.5);
     return {
       ...BASE_RIG_POSE,
-      leadArmRotation: BASE_RIG_POSE.leadArmRotation - (stride * 0.11),
-      rearArmRotation: BASE_RIG_POSE.rearArmRotation + (stride * 0.11),
-      leadLegRotation: BASE_RIG_POSE.leadLegRotation + stride * 0.11,
-      rearLegRotation: BASE_RIG_POSE.rearLegRotation - stride * 0.11,
-      leadLegX: BASE_RIG_POSE.leadLegX + stride * 6,
-      rearLegX: BASE_RIG_POSE.rearLegX - stride * 6,
-      leadLegY: -leadLift * 4,
-      rearLegY: -rearLift * 4,
-      torsoRotation: -stride * 0.025,
-      headRotation: stride * 0.012,
-      torsoY: -bodyBob * 2,
+      // The supplied walk sheet uses arms at the sides rather than the idle
+      // guard, with the arm swing countering the leading leg.  Keep the knee
+      // and ankle in a straight chain; the asset's existing knee overlap is
+      // the cleanest walking silhouette.
+      leadArmRotation: -0.06 + stride * 0.18,
+      rearArmRotation: 0.06 - stride * 0.18,
+      leadArmLowerRotation: 0.08 - stride * 0.12,
+      rearArmLowerRotation: -0.08 + stride * 0.12,
+      leadLegRotation: BASE_RIG_POSE.leadLegRotation + stride * 0.28,
+      rearLegRotation: BASE_RIG_POSE.rearLegRotation - stride * 0.28,
+      leadLegY: -leadLift * 3,
+      rearLegY: -rearLift * 3,
+      torsoRotation: -stride * 0.035,
+      headRotation: stride * 0.018,
+      torsoY: -bodyBob * 3,
     };
   }
 
@@ -740,6 +744,9 @@ class ArenaScene extends Phaser.Scene {
 
     if (attack.slot === "basic") {
       action.leadArmRotation -= 0.65;
+      // A basic attack should finish as the reference's straight lead punch,
+      // not inherit the guard's curled elbow.
+      action.leadArmLowerRotation = 0.86;
       action.leadArmX += 12;
       action.rearArmRotation += 0.08;
       action.torsoRotation = -0.09;
@@ -830,11 +837,17 @@ class ArenaScene extends Phaser.Scene {
         ...readyPose,
         leadArmRotation: readyPose.leadArmRotation - 0.18,
         rearArmRotation: readyPose.rearArmRotation + 0.16,
-        leadLegRotation: -0.18,
-        rearLegRotation: 0.16,
-        leadLegY: -3,
-        rearLegY: -2,
+        // Bring the knees together beneath the torso, then fold the lower
+        // legs back down. This follows the tucked-airborne silhouette in the
+        // supplied jump sheet instead of spreading two rigid legs apart.
+        leadLegRotation: -1.0,
+        rearLegRotation: 0.85,
+        leadLegLowerRotation: 1.0,
+        rearLegLowerRotation: -1.4,
+        leadLegY: -5,
+        rearLegY: -4,
         torsoRotation: -0.04,
+        torsoY: -3,
       };
     }
     if (rig.landingUntil > time) {

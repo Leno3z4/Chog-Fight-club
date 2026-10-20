@@ -80,8 +80,8 @@ assert.deepEqual(
   "head, eyes, and mouth should stay aligned through torso and head motion",
 );
 assert.ok(
-  Math.abs(rig.parts["left-lower-arm"].image.rotation - (-0.1 - 2.42 - 2.42 * 0.18)) < 1e-8,
-  "forearm should follow the rear upper arm while retaining a small bend",
+  Math.abs(rig.parts["left-lower-arm"].image.rotation - (-0.1 - 2.42)) < 1e-8,
+  "forearm should follow the rear upper arm without inventing an elbow bend",
 );
 assert.equal(
   rig.parts["left-hand"].image.rotation,
@@ -112,7 +112,7 @@ const elbowWorld = transform(elbowLocal, rig.rest.torso, -0.1, 4, -3);
 const wristVector = rotateVector(
   rig.joints.left.wrist.x - rig.joints.left.elbow.x,
   rig.joints.left.wrist.y - rig.joints.left.elbow.y,
-  -0.1 - 2.42 + (-2.42 * 0.18),
+  -0.1 - 2.42,
 );
 assert.ok(
   Math.abs(rig.parts["left-hand"].image.x - elbowWorld.x - wristVector.x) < 1e-9
@@ -141,5 +141,38 @@ const expectedX = origin.x + (dx * Math.cos(-0.1)) - (dy * Math.sin(-0.1)) + 4;
 const expectedY = origin.y + (dx * Math.sin(-0.1)) + (dy * Math.cos(-0.1)) - 3;
 assert.ok(Math.abs(rig.leadArm.x - expectedX) < 1e-9, "shoulder joint should follow torso rotation and translation");
 assert.ok(Math.abs(rig.leadArm.y - expectedY) < 1e-9, "shoulder joint should follow torso rotation and translation");
+
+// The punch reference finishes with the lead forearm almost level with the
+// shoulder. The lower-arm angle must be explicit so its wrist does not curl
+// upward when the upper arm rotates forward.
+const jabRig = createChogVisual(scene, 0, 0, false).rig;
+applyChogPose(jabRig, {
+  leadArmRotation: -1.47,
+  leadArmLowerRotation: 0.86,
+});
+const jabElbow = jabRig.parts["right-lower-arm"].image;
+const jabFist = jabRig.parts["right-hand"].image;
+assert.ok(jabFist.x > jabElbow.x, "the lead fist should extend in front of the elbow for a jab");
+assert.ok(Math.abs(jabFist.y - jabElbow.y) < 3, "the lead forearm should finish almost level for a jab");
+
+// Compare the airborne reference pose to the resting lower-body anchors. A
+// jump tucks both knees upward; it must not leave two straight legs spread
+// beneath the torso.
+const restRig = createChogVisual(scene, 0, 0, false).rig;
+applyChogPose(restRig, { leadLegRotation: -0.08, rearLegRotation: 0.1 });
+const jumpRig = createChogVisual(scene, 0, 0, false).rig;
+applyChogPose(jumpRig, {
+  leadLegRotation: -1,
+  leadLegLowerRotation: 1,
+  rearLegRotation: 0.85,
+  rearLegLowerRotation: -1.4,
+  leadLegY: -5,
+  rearLegY: -4,
+});
+assert.ok(
+  jumpRig.parts["right-lower-leg"].image.y < restRig.parts["right-lower-leg"].image.y - 12
+  && jumpRig.parts["left-lower-leg"].image.y < restRig.parts["left-lower-leg"].image.y - 8,
+  "the jump pose should raise both knees into a tucked silhouette",
+);
 
 console.log("Separated Chog asset alignment and segmented rig checks passed.");

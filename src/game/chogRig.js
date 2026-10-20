@@ -94,7 +94,10 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   const joints = rig.joints[side];
   const upperPoseKey = side === "right" ? "leadArm" : "rearArm";
   const upperAngle = pose[`${upperPoseKey}Rotation`] ?? 0;
-  const lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? (upperAngle * 0.18);
+  // Elbow articulation is authored by each pose.  Inferring a bend from the
+  // shoulder angle made any pose that did not explicitly set this value curl
+  // the forearm unpredictably, which is especially visible in a straight jab.
+  const lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? 0;
   const upperX = pose[`${upperPoseKey}X`] ?? 0;
   const upperY = pose[`${upperPoseKey}Y`] ?? 0;
 
