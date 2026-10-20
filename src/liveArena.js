@@ -109,6 +109,8 @@ class LiveArenaScene extends Phaser.Scene {
     const y = 265;
     const root = createChogVisual(this, x, y, role === "opponent");
     root.setScale((role === "opponent" ? -1 : 1) * SCALE, SCALE);
+    root.rig.defaultLayerOrder = [...root.list];
+    root.rig.rearCrossInFront = false;
     root.setDepth(100 + y);
     const accent = ACCENTS[role];
     const name = this.add.text(x, y - 146, "", {
@@ -269,31 +271,90 @@ class LiveArenaScene extends Phaser.Scene {
       let pose = guard;
       const actionAge = now - fighter.actionStartedAt;
       const duration = Math.max(1, fighter.actionUntil - fighter.actionStartedAt);
-      if ((fighter.action === "attack" || fighter.action === "special") && actionAge >= 0 && actionAge < duration) {
-        const pulse = Math.sin(Math.PI * clamp(actionAge / duration, 0, 1));
-        const heavy = fighter.action === "special";
+      const activeAction = actionAge >= 0 && actionAge < duration;
+      let rearCrossStriking = false;
+
+      if (fighter.hp <= 0) {
         pose = {
           ...guard,
-          leadArmRotation: GUARD.leadArmRotation - pulse * (heavy ? 1.05 : 0.68),
-          // The elbow straightens into the jab and folds back on recovery.
+          leadArmRotation: -0.12,
+          rearArmRotation: 0.16,
+          leadArmLowerRotation: 0.36,
+          rearArmLowerRotation: -0.25,
+          leadLegRotation: -0.42,
+          rearLegRotation: 0.38,
+          leadLegLowerRotation: 0.62,
+          rearLegLowerRotation: -0.58,
+          torsoRotation: 0.22,
+          torsoY: 12,
+          headRotation: 0.15,
+        };
+      } else if (fighter.action === "jump" && activeAction) {
+        pose = {
+          ...guard,
+          leadArmRotation: GUARD.leadArmRotation - 0.08,
+          rearArmRotation: GUARD.rearArmRotation + 0.06,
+          leadLegRotation: -0.95,
+          rearLegRotation: 0.78,
+          leadLegLowerRotation: 0.88,
+          rearLegLowerRotation: -1.20,
+          leadLegY: -5,
+          rearLegY: -4,
+          torsoRotation: -0.025,
+          torsoY: -2,
+        };
+      } else if ((fighter.action === "attack" || fighter.action === "base" || fighter.action === "special") && activeAction) {
+        const pulse = Math.sin(Math.PI * clamp(actionAge / duration, 0, 1));
+        const heavy = fighter.action === "special" || fighter.action === "base";
+        pose = {
+          ...guard,
+          // Single taps are one right-hand jab, with the elbow straightening
+          // and folding back as a boxer returns to guard.
+          leadArmRotation: GUARD.leadArmRotation - pulse * (heavy ? 0.82 : 0.72),
           leadArmLowerRotation: GUARD.leadArmLowerRotation + pulse * (heavy ? 1.66 : 1.62),
-          leadArmX: pulse * (heavy ? 16 : 11),
+          leadArmX: pulse * (heavy ? 16 : 15),
           leadArmY: -pulse * 2,
           rearArmRotation: GUARD.rearArmRotation - pulse * 0.065,
           rearArmLowerRotation: GUARD.rearArmLowerRotation - pulse * 0.10,
           rearArmY: -pulse * 2,
-          leadLegRotation: -pulse * (heavy ? 0.10 : 0.065),
-          rearLegRotation: pulse * (heavy ? 0.12 : 0.085),
+          leadLegRotation: -pulse * (heavy ? 0.10 : 0.12),
+          rearLegRotation: pulse * (heavy ? 0.12 : 0.08),
           leadLegLowerRotation: pulse * 0.12,
           rearLegLowerRotation: -pulse * 0.08,
-          leadLegX: pulse * 6,
+          leadLegX: pulse * 7,
           rearLegX: -pulse * 3,
-          torsoRotation: -pulse * (heavy ? 0.13 : 0.095),
-          torsoX: pulse * (heavy ? 7 : 4.5),
-          torsoY: -pulse * (heavy ? 3 : 1.5),
+          torsoRotation: -pulse * (heavy ? 0.13 : 0.12),
+          torsoX: pulse * (heavy ? 7 : 8),
+          torsoY: -pulse * (heavy ? 3 : 1.4),
           headRotation: -pulse * 0.025,
         };
-      } else if (fighter.action === "dash" && actionAge >= 0 && actionAge < duration) {
+      } else if (fighter.action === "doubleAttack" && activeAction) {
+        const t = clamp(actionAge / duration, 0, 1);
+        const jabPulse = t < 0.25 ? Math.sin(Math.PI * t / 0.25) : 0;
+        const crossPulse = t >= 0.44 && t < 0.80 ? Math.sin(Math.PI * (t - 0.44) / 0.36) : 0;
+        rearCrossStriking = t >= 0.44 && t < 0.80;
+        pose = {
+          ...guard,
+          leadArmRotation: GUARD.leadArmRotation - jabPulse * 0.72 - crossPulse * 0.12,
+          leadArmLowerRotation: GUARD.leadArmLowerRotation + jabPulse * 1.62 - crossPulse * 0.10,
+          leadArmX: jabPulse * 15 - crossPulse * 2,
+          leadArmY: -jabPulse * 2 - crossPulse * 2,
+          rearArmRotation: GUARD.rearArmRotation - crossPulse * 1.02 - jabPulse * 0.065,
+          rearArmLowerRotation: GUARD.rearArmLowerRotation + crossPulse * 1.72 - jabPulse * 0.10,
+          rearArmX: crossPulse * 18,
+          rearArmY: -crossPulse * 2 - jabPulse * 1.5,
+          leadLegRotation: -jabPulse * 0.12 - crossPulse * 0.10,
+          rearLegRotation: jabPulse * 0.08 + crossPulse * 0.16,
+          leadLegLowerRotation: jabPulse * 0.12,
+          rearLegLowerRotation: -crossPulse * 0.15,
+          leadLegX: jabPulse * 8,
+          rearLegX: crossPulse * 6 - jabPulse * 3,
+          torsoRotation: -jabPulse * 0.12 - crossPulse * 0.22,
+          torsoX: jabPulse * 8 + crossPulse * 13,
+          torsoY: -jabPulse * 1.4 - crossPulse * 2,
+          headRotation: -jabPulse * 0.03 - crossPulse * 0.04,
+        };
+      } else if (fighter.action === "dash" && activeAction) {
         const pulse = Math.sin(Math.PI * clamp(actionAge / duration, 0, 1));
         pose = {
           ...guard,
@@ -310,6 +371,17 @@ class LiveArenaScene extends Phaser.Scene {
           rearLegLowerRotation: -pulse * 0.30,
         };
       }
+      if (rearCrossStriking !== root.rig.rearCrossInFront) {
+        if (rearCrossStriking) {
+          root.bringToTop(root.rig.layers["left-upper-arm"]);
+          root.bringToTop(root.rig.layers["left-lower-arm"]);
+          root.bringToTop(root.rig.layers["left-hand"]);
+        } else {
+          root.rig.defaultLayerOrder.forEach((child, index) => root.moveTo(child, index));
+        }
+        root.rig.rearCrossInFront = rearCrossStriking;
+      }
+
       if (fighter.flashUntil > now) {
         const react = Math.max(0, Math.sin(Math.PI * clamp((fighter.flashUntil - now) / 230, 0, 1)));
         pose = {
@@ -328,6 +400,27 @@ class LiveArenaScene extends Phaser.Scene {
       fighter.name.setPosition(root.x, root.y - 146);
       fighter.dna.setPosition(root.x, root.y - 126);
       fighter.marker.setPosition(root.x, root.y - 106);
+    }
+
+    const activeIds = new Set();
+    for (const projectile of this.latestProjectiles) {
+      activeIds.add(projectile.id);
+      let visual = this.projectileVisuals.get(projectile.id);
+      if (!visual) {
+        const color = projectile.slot === "special" ? 0xffc94a
+          : projectile.ownerRole === "challenger" ? ACCENTS.challenger : ACCENTS.opponent;
+        visual = this.add.container(projectile.x, projectile.y).setDepth(650);
+        visual.add(this.add.circle(0, 0, Math.max(9, projectile.radius || 11), color, 0.28).setStrokeStyle(2, color, 0.95));
+        visual.add(this.add.circle(0, 0, 4, 0xffffff, 0.95));
+        visual.add(this.add.ellipse(-8, 0, 15, 4, color, 0.8));
+        this.projectileVisuals.set(projectile.id, visual);
+      }
+      visual.setPosition(projectile.x, projectile.y);
+    }
+    for (const [id, visual] of this.projectileVisuals) {
+      if (activeIds.has(id)) continue;
+      visual.destroy();
+      this.projectileVisuals.delete(id);
     }
   }
 
