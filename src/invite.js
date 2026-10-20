@@ -927,7 +927,7 @@ document.addEventListener("keydown", (event) => {
   if (key === " ") registerBasicTap();
   if (key === "q") state.pendingAction = "base";
   if (key === "e") state.pendingAction = "special";
-  if (key === "j" || key === "arrowup") state.pendingAction = "jump";
+  if (key === "j") state.pendingAction = "jump";
   if (key === "shift") state.pendingAction = "dash";
 });
 document.addEventListener("keyup", (event) => state.keys.delete(event.key.toLowerCase()));
