@@ -258,77 +258,104 @@ function makeRow(overrides = {}) {
   };
 }
 
-test("creates a persistent invite in Cloudflare D1 after verifying linked wallet ownership", async () => {
+test("creates a persistent shareable link without selecting a Chog or writing conditions", async () => {
   env.CHOG_DB = new MockD1();
   const cookieHeader = await makeLinkedSession();
   const result = await handleInviteRequest({
-    method: "POST", url: "/api/invites", cookieHeader, env, origin, fetchImpl: rpcFetch(),
-    body: {
-      action: "create", opponentDiscordId: opponentId, challengerTokenId: "561",
-      condition: "Post a harmless silly message for one day.", agreeToCondition: true,
-    },
+    method: "POST", url: "/api/invites", cookieHeader, env, origin,
+    body: { action: "create" },
   });
   assert.equal(result.status, 201);
   assert.equal(result.body.invite.status, "PENDING_ACCEPTANCE");
   assert.equal(Date.parse(result.body.invite.expiresAt) - Date.parse(result.body.invite.createdAt), 24 * 60 * 60 * 1000);
-  assert.equal(result.body.invite.challenger.tokenId, "561");
-  assert.equal(result.body.invite.opponent.discordId, opponentId);
-  assert.match(result.body.invite.termsHash, /^[0-9a-f]{64}$/);
+  assert.equal(result.body.invite.challenger.tokenId, null);
+  assert.equal(result.body.invite.challenger.wallet, null);
+  assert.equal(result.body.invite.opponent.discordId, "anyone");
+  assert.equal(result.body.invite.condition, "");
+  assert.equal(result.body.invite.challengerDemand, "");
+  assert.equal(result.body.invite.termsHash, "");
   assert.match(result.body.inviteUrl, /invite\.html\?id=/);
+  const row = env.CHOG_DB.rows.get(result.body.invite.id);
+  assert.equal(row.condition_text, "__PENDING_LOBBY_DEMAND__");
+  assert.equal(row.challenger_token_id, "");
   assert.equal(env.CHOG_DB.rows.size, 1);
 });
 
-test("rejects a condition that is plainly unsafe before writing to D1", async () => {
+test("does not store conditions supplied before the invitation is accepted", async () => {
   env.CHOG_DB = new MockD1();
   const cookieHeader = await makeLinkedSession();
-  await assert.rejects(
-    handleInviteRequest({
-      method: "POST", url: "/api/invites", cookieHeader, env, origin,
-      fetchImpl: async () => { throw new Error("RPC should not be called for unsafe condition"); },
-      body: {
-        action: "create", opponentDiscordId: opponentId, challengerTokenId: "561",
-        condition: "Doxx their private address.", agreeToCondition: true,
-      },
-    }),
-    (error) => error instanceof InviteApiError && error.code === "CONDITION_UNSAFE"
-  );
-  assert.equal(env.CHOG_DB.rows.size, 0);
+  const result = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader, env, origin,
+    body: { action: "create", condition: "Doxx their private address.", agreeToCondition: true },
+    fetchImpl: async () => { throw new Error("No ownership RPC is needed to create a link"); },
+  });
+  assert.equal(result.status, 201);
+  assert.equal(result.body.invite.condition, "");
+  assert.equal(result.body.invite.challengerDemand, "");
+  assert.equal(env.CHOG_DB.rows.get(result.body.invite.id).condition_text, "__PENDING_LOBBY_DEMAND__");
 });
 
-test("rejects a Chog not owned by the Discord-linked wallet", async () => {
-  env.CHOG_DB = new MockD1();
+test("rejects a Chog not owned by the Discord-linked wallet when saving it in the lobby", async () => {
+  const db = new MockD1();
+  const row = makeRow({ status: "TERMS_ACCEPTED", challenger_token_id: "", opponent_wallet: opponentAccount.address.toLowerCase(), opponent_token_id: "973" });
+  db.rows.set(row.id, row);
+  env.CHOG_DB = db;
   const cookieHeader = await makeLinkedSession();
   await assert.rejects(
     handleInviteRequest({
       method: "POST", url: "/api/invites", cookieHeader, env, origin,
       fetchImpl: rpcFetch({ owned: "0x2222222222222222222222222222222222222222" }),
-      body: {
-        action: "create", opponentDiscordId: opponentId, challengerTokenId: "561",
-        condition: "Post a harmless silly message for one day.", agreeToCondition: true,
-      },
+      body: { action: "selectFighter", id: row.id, tokenId: "561" },
     }),
     (error) => error instanceof InviteApiError && error.code === "CHOG_NOT_OWNED"
   );
-  assert.equal(env.CHOG_DB.rows.size, 0);
+  assert.equal(db.rows.get(row.id).challenger_token_id, "");
 });
 
-test("the challenged Discord account can accept with its own verified Chog", async () => {
+test("the intended recipient accepts before connecting a wallet or selecting a Chog", async () => {
   const db = new MockD1();
   const row = makeRow();
   db.rows.set(row.id, row);
   env.CHOG_DB = db;
   const cookieHeader = await makeLinkedSession({ discordId: opponentId, username: "Opponent", walletAccount: opponentAccount });
   const result = await handleInviteRequest({
-    method: "POST", url: "/api/invites", cookieHeader, env, origin, fetchImpl: rpcFetch({ owned: opponentAccount.address.toLowerCase() }),
-    body: { action: "accept", id: row.id, opponentTokenId: "973", agreeToCondition: true },
+    method: "POST", url: "/api/invites", cookieHeader, env, origin,
+    body: { action: "accept", id: row.id },
   });
   assert.equal(result.status, 200);
   assert.equal(result.body.invite.status, "TERMS_ACCEPTED");
   assert.equal(result.body.invite.viewerRole, "opponent");
-  assert.equal(result.body.invite.opponent.wallet, opponentAccount.address.toLowerCase());
-  assert.equal(result.body.invite.opponent.tokenId, "973");
-  assert.equal(env.CHOG_DB.rows.get(row.id).opponent_terms_accepted, 0);
-  assert.equal(env.CHOG_DB.rows.get(row.id).status, "TERMS_ACCEPTED");
+  assert.equal(result.body.invite.opponent.wallet, null);
+  assert.equal(result.body.invite.opponent.tokenId, null);
+  assert.equal(db.rows.get(row.id).opponent_terms_accepted, 0);
+  assert.equal(db.rows.get(row.id).status, "TERMS_ACCEPTED");
+});
+
+test("any eligible holder can claim an untargeted invitation link only once", async () => {
+  const db = new MockD1();
+  env.CHOG_DB = db;
+  const challengerCookie = await makeLinkedSession({ discordId: challengerId, username: "ChallengeMaker" });
+  const created = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
+    body: { action: "create" },
+  });
+  const inviteId = created.body.invite.id;
+  const recipientCookie = await makeLinkedSession({ discordId: "345678901234567890", username: "NewRival", walletAccount: opponentAccount });
+  const visible = await handleInviteRequest({
+    method: "GET", url: "/api/invites?id=" + inviteId, cookieHeader: recipientCookie, env, origin,
+  });
+  assert.equal(visible.body.invite.viewerRole, "opponent");
+  const accepted = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: recipientCookie, env, origin,
+    body: { action: "accept", id: inviteId },
+  });
+  assert.equal(accepted.body.invite.opponent.discordId, "345678901234567890");
+  assert.equal(db.rows.get(inviteId).opponent_discord_id, "345678901234567890");
+  const secondRecipient = await makeLinkedSession({ discordId: "456789012345678901", username: "SecondRival", walletAccount: opponentAccount });
+  await assert.rejects(
+    handleInviteRequest({ method: "POST", url: "/api/invites", cookieHeader: secondRecipient, env, origin, body: { action: "accept", id: inviteId } }),
+    (error) => error instanceof InviteApiError && error.code === "INVITE_FORBIDDEN"
+  );
 });
 
 test("a different holder cannot read an invitation addressed to someone else", async () => {
@@ -411,7 +438,7 @@ test("both players must write separate demands and accept the combined terms", a
       method: "POST", url: "/api/invites", cookieHeader: challengerCookie, env, origin,
       body: { action: "acceptTerms", id: row.id },
     }),
-    (error) => error instanceof InviteApiError && error.code === "CONDITION_LENGTH"
+    (error) => error instanceof InviteApiError && error.code === "DEMANDS_NOT_READY"
   );
 
   const savedOpponentDemand = await handleInviteRequest({
@@ -575,16 +602,20 @@ test("practice invite accepts a prototype fighter without NFT ownership lookup",
     cookieHeader: opponentCookie,
     env,
     origin,
-    body: {
-      action: "accept",
-      id: row.id,
-      opponentTokenId: "prototype:tide",
-      agreeToCondition: true,
-    },
+    body: { action: "accept", id: row.id },
   });
   assert.equal(accepted.status, 200);
   assert.equal(accepted.body.invite.gameMode, "PRACTICE");
-  assert.equal(accepted.body.invite.opponent.tokenId, "prototype:tide");
+  assert.equal(accepted.body.invite.opponent.tokenId, null);
+  const fighter = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: opponentCookie,
+    env,
+    origin,
+    body: { action: "selectFighter", id: row.id, tokenId: "prototype:tide" },
+  });
+  assert.equal(fighter.body.invite.opponent.tokenId, "prototype:tide");
   assert.equal(db.rows.get(row.id).opponent_wallet, opponentAccount.address.toLowerCase());
 });
 
