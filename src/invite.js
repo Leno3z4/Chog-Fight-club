@@ -25,6 +25,8 @@ const state = {
   realtimeConfigAlertShown: false,
   keys: new Set(),
   pendingAction: null,
+  basicTapPendingAt: null,
+  basicTapWindowMs: 260,
 };
 let liveArena = null;
 let liveArenaPromise = null;
@@ -309,18 +311,35 @@ function drawRealtimeArena(room, viewerRole) {
     })
     .finally(() => { liveArenaPromise = null; });
 }
+function registerBasicTap(now = Date.now()) {
+  if (state.basicTapPendingAt != null && now - state.basicTapPendingAt <= state.basicTapWindowMs) {
+    state.basicTapPendingAt = null;
+    state.pendingAction = "doubleAttack";
+    return;
+  }
+  state.basicTapPendingAt = now;
+}
+
+function flushBasicTap(now = Date.now()) {
+  if (state.basicTapPendingAt == null || now - state.basicTapPendingAt <= state.basicTapWindowMs) return;
+  state.basicTapPendingAt = null;
+  if (!state.pendingAction) state.pendingAction = "attack";
+}
+
 function paintInputFrame() {
   const socket = state.realtimeSocket;
   if (!socket || socket.readyState !== WebSocket.OPEN) return;
   const room = state.realtimeState;
-  const inBattle = room?.phase === "IN_BATTLE" && room?.status === "IN_BATTLE";
+  const inBattle = room?.status === "IN_BATTLE" && ["IN_BATTLE", "ROUND_OVER"].includes(room?.phase);
   if (!inBattle) {
+    state.basicTapPendingAt = null;
     if (Date.now() - state.realtimeLastSync >= 500) {
       state.realtimeLastSync = Date.now();
       socket.send(JSON.stringify({ type: "sync" }));
     }
     return;
   }
+  flushBasicTap();
   let x = 0; let y = 0;
   if (state.keys.has("a") || state.keys.has("arrowleft") || state.keys.has("left")) x -= 1;
   if (state.keys.has("d") || state.keys.has("arrowright") || state.keys.has("right")) x += 1;
@@ -878,14 +897,16 @@ function isTextEntryTarget(target) {
 document.addEventListener("keydown", (event) => {
   if (isTextEntryTarget(event.target)) return;
   const key = event.key.toLowerCase();
-  const controlKeys = ["w", "a", "s", "d", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "shift", "e"];
+  const controlKeys = ["w", "a", "s", "d", "q", "j", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "shift", "e"];
   if (!controlKeys.includes(key)) return;
   event.preventDefault();
   const wasDown = state.keys.has(key);
   state.keys.add(key);
   if (wasDown || state.realtimeState?.phase !== "IN_BATTLE" || state.realtimeState?.status !== "IN_BATTLE") return;
-  if (key === " ") state.pendingAction = "attack";
+  if (key === " ") registerBasicTap();
+  if (key === "q") state.pendingAction = "base";
   if (key === "e") state.pendingAction = "special";
+  if (key === "j" || key === "arrowup") state.pendingAction = "jump";
   if (key === "shift") state.pendingAction = "dash";
 });
 document.addEventListener("keyup", (event) => state.keys.delete(event.key.toLowerCase()));
@@ -904,7 +925,8 @@ document.querySelectorAll("[data-arena-key]").forEach((button) => {
 document.querySelectorAll("[data-arena-action]").forEach((button) => {
   button.addEventListener("click", () => {
     if (state.realtimeState?.phase !== "IN_BATTLE" || state.realtimeState?.status !== "IN_BATTLE") return;
-    state.pendingAction = button.dataset.arenaAction;
+    if (button.dataset.arenaAction === "attack") registerBasicTap();
+    else state.pendingAction = button.dataset.arenaAction;
   });
 });
 async function init() {
