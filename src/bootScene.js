@@ -2,15 +2,21 @@ import Phaser from "phaser";
 import bodyUrl from "../images/body.png";
 import eyesUrl from "../images/eyes.png";
 import headUrl from "../images/head.png";
-import leftArmUrl from "../images/left-arm.png";
-import leftLegUrl from "../images/left-leg.png";
 import mouthUrl from "../images/mouth.png";
-import noseUrl from "../images/nose.png";
-import rightArmUrl from "../images/right-arm.png";
-import rightLegUrl from "../images/right-leg.png";
+import leftFootUrl from "../images/left foot.png";
+import leftHandUrl from "../images/left hand.png";
+import leftLowerArmUrl from "../images/left lower hand.png";
+import leftUpperArmUrl from "../images/left upper hand.png";
+import leftLowerLegUrl from "../images/left lower leg.png";
+import leftUpperLegUrl from "../images/left upper leg.png";
+import rightFootUrl from "../images/right leg.png";
+import rightHandUrl from "../images/right hand.png";
+import rightLowerArmUrl from "../images/right lower hand.png";
+import rightUpperArmUrl from "../images/right upper hand.png";
+import rightLowerLegUrl from "../images/right lower leg.png";
+import rightUpperLegUrl from "../images/right upper leg.png";
 
 const WORLD_WIDTH = 1600;
-const CHOG_SIZE = 250;
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -35,12 +41,19 @@ export class BootScene extends Phaser.Scene {
       body: bodyUrl,
       eyes: eyesUrl,
       head: headUrl,
-      "left-arm": leftArmUrl,
-      "left-leg": leftLegUrl,
       mouth: mouthUrl,
-      nose: noseUrl,
-      "right-arm": rightArmUrl,
-      "right-leg": rightLegUrl,
+      "left-foot": leftFootUrl,
+      "left-hand": leftHandUrl,
+      "left-lower-arm": leftLowerArmUrl,
+      "left-upper-arm": leftUpperArmUrl,
+      "left-lower-leg": leftLowerLegUrl,
+      "left-upper-leg": leftUpperLegUrl,
+      "right-foot": rightFootUrl,
+      "right-hand": rightHandUrl,
+      "right-lower-arm": rightLowerArmUrl,
+      "right-upper-arm": rightUpperArmUrl,
+      "right-lower-leg": rightLowerLegUrl,
+      "right-upper-leg": rightUpperLegUrl,
     };
 
     for (const [layer, url] of Object.entries(chogLayers)) {
