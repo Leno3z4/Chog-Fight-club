@@ -34,7 +34,7 @@ let liveArenaFailed = false;
 let latestLiveSnapshot = null;
 const alertNode = $("#invite-page-alert");
 const isBattleLobbyPage = window.location.pathname.endsWith("/battle-lobby.html");
-const acceptedStatuses = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
+const acceptedStatuses = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "ROUND_OVER", "RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
 const PROTOTYPE_FIGHTERS = [
   { tokenId: "prototype:ember", metadata: { name: "Ember", Tier: "Rare", Aura: "Fire", Skin: "Red", Body: "Toad", Eyes: "Angry" } },
   { tokenId: "prototype:tide", metadata: { name: "Tide", Tier: "Uncommon", Aura: "Water", Skin: "Blue", Body: "Toad", Eyes: "Happy" } },
@@ -443,7 +443,7 @@ function renderPact(pact) {
   state.pact = pact;
   if (!card || !isBattleLobbyPage) return;
   const status = state.invite?.status;
-  const relevant = ["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
+  const relevant = ["READY", "IN_BATTLE", "RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(status);
   card.hidden = !relevant;
   if (!relevant) return;
   const dealNode = $("#pact-deal-text");
@@ -492,9 +492,53 @@ function renderPact(pact) {
   mintButton.disabled = state.pactBusy || !state.wallet || state.invite?.status !== "READY";
   const battleFinished = state.battle?.status === "FINISHED";
   const isWinner = Boolean(state.battle?.youWon);
+  const resultDisputed = Boolean(pact?.resultDisputed || status === "DISPUTED");
+  const resultReviewPanel = $("#result-review-panel");
+  const resultReviewNote = $("#result-review-note");
+  const disputeDetail = $("#result-dispute-detail");
+  const disputeLabel = $("#result-dispute-label");
+  const disputeReason = $("#result-dispute-reason");
+  const disputeButton = $("#pact-dispute-button");
+  const resolveDisputeButton = $("#pact-resolve-dispute-button");
+  const availableAt = Date.parse(pact?.resultSettlementAvailableAt || "");
+  const reviewRemaining = Number.isFinite(availableAt)
+    ? Math.max(0, availableAt - Date.now())
+    : Math.max(0, Number(pact?.resultReviewRemainingMs || 0));
+  const reviewOpen = !resultDisputed && reviewRemaining > 0;
+  const canReviewResult = battleFinished && minted && !pact.settledOnchain && !pact.settlementPending;
+  if (resultReviewPanel) resultReviewPanel.hidden = !canReviewResult;
+  if (resultReviewNote) {
+    resultReviewNote.textContent = resultDisputed
+      ? "Settlement is paused because a participant flagged the result. An authorized moderator must review it."
+      : reviewOpen
+        ? "Settlement is locked during the five-minute review window. Time remaining: " + Math.ceil(reviewRemaining / 1000) + " seconds."
+        : "The review window is closed. Either participant can still flag an issue until the winner submits settlement.";
+  }
+  if (disputeDetail) {
+    disputeDetail.hidden = !resultDisputed;
+    disputeDetail.textContent = resultDisputed
+      ? "Dispute from " + (pact?.resultDispute?.byUsername || "a participant") + ": " + (pact?.resultDispute?.reason || "Reason not available.")
+      : "";
+  }
+  if (disputeLabel) disputeLabel.hidden = resultDisputed;
+  if (disputeReason) {
+    disputeReason.hidden = resultDisputed;
+    disputeReason.disabled = state.pactBusy || !canReviewResult || resultDisputed;
+  }
+  if (disputeButton) {
+    disputeButton.hidden = !canReviewResult || resultDisputed;
+    disputeButton.disabled = state.pactBusy;
+  }
+  if (resolveDisputeButton) {
+    resolveDisputeButton.hidden = !resultDisputed || !pact?.canModerateResult;
+    resolveDisputeButton.disabled = state.pactBusy;
+  }
   const settleButton = $("#pact-settle-button");
   settleButton.hidden = !(battleFinished && isWinner && minted && !pact.settledOnchain && !pact.settlementPending);
-  settleButton.disabled = state.pactBusy;
+  settleButton.disabled = state.pactBusy || resultDisputed || reviewOpen;
+  settleButton.textContent = resultDisputed ? "Settlement paused — dispute open"
+    : reviewOpen ? "Result review · " + Math.ceil(reviewRemaining / 1000) + "s"
+      : "Settle match result ↗";
   const fulfillButton = $("#pact-fulfill-button");
   fulfillButton.hidden = !(battleFinished && isWinner && pact.settledOnchain && !pact.fulfilledOnchain);
   fulfillButton.disabled = state.pactBusy;
@@ -513,6 +557,11 @@ function renderPact(pact) {
   } else if (pact.fulfilledOnchain) {
     $("#pact-sign-status").textContent = "Condition fulfilled on-chain. Both soulbound receipts now show the final outcome.";
   }
+  if (resultDisputed) {
+    $("#pact-sign-status").textContent = "This result is disputed. Settlement remains blocked until an authorized moderator reviews the dispute. The recorded winner cannot be rewritten by the deployed factory.";
+  } else if (reviewOpen && minted && battleFinished) {
+    $("#pact-sign-status").textContent = "The match result is recorded. A five-minute review window must finish before the winner can settle it on-chain.";
+  }
   updateBilateralControls();
   const tx = $("#pact-tx-status");
   tx.hidden = !minted;
@@ -529,7 +578,7 @@ async function loadPact() {
     if (state.realtimeState) renderBattle(state.realtimeState);
     return;
   }
-  if (!["READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(state.invite.status)) return;
+  if (!["READY", "IN_BATTLE", "RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"].includes(state.invite.status)) return;
   const payload = await requestJson(`/api/pacts?id=${encodeURIComponent(state.id)}`);
   renderPact(payload.pact);
   if (state.realtimeState) renderBattle(state.realtimeState);
@@ -793,6 +842,28 @@ $("#pact-sign-button").addEventListener("click", async () => {
 $("#pact-mint-button").addEventListener("click", mintCurrentPact);
 $("#pact-settle-button").addEventListener("click", async () => {
   try { await postPactAction("settle"); } catch (error) { showAlert(error?.message || "Could not settle the match result."); }
+});
+$("#pact-dispute-button")?.addEventListener("click", async () => {
+  const reason = $("#result-dispute-reason")?.value || "";
+  try {
+    await postPactAction("disputeResult", { reason });
+    if ($("#result-dispute-reason")) $("#result-dispute-reason").value = "";
+    await loadInvite();
+    showAlert("Settlement is paused while the result dispute is reviewed.", "success");
+  } catch (error) {
+    showAlert(error?.message || "Could not flag the match result.");
+  }
+});
+$("#pact-resolve-dispute-button")?.addEventListener("click", async () => {
+  const confirmed = window.confirm("Dismiss this dispute and uphold the existing server-recorded winner? This restarts the five-minute review window; it does not change the on-chain winner.");
+  if (!confirmed) return;
+  try {
+    await postPactAction("resolveDispute", { resolution: "uphold" });
+    await loadInvite();
+    showAlert("Dispute dismissed. The review window has restarted.", "success");
+  } catch (error) {
+    showAlert(error?.message || "Could not resolve the result dispute.");
+  }
 });
 $("#pact-fulfill-button").addEventListener("click", async () => {
   if (!state.wallet || !state.pact?.pactId) return showAlert("Connect your linked winner wallet first.");
