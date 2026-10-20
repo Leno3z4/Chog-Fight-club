@@ -38,6 +38,11 @@ class LiveArenaScene extends Phaser.Scene {
     this.fighters = {};
     this.readyForState = false;
     this.finishedOverlay = null;
+    this.finishedTitle = null;
+    this.roundHudText = null;
+    this.projectileVisuals = new Map();
+    this.latestProjectiles = [];
+    this.roundInfo = null;
   }
 
   create() {
@@ -45,7 +50,7 @@ class LiveArenaScene extends Phaser.Scene {
     for (const role of ["challenger", "opponent"]) this.createFighter(role);
     this.finishedOverlay = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(1000).setVisible(false);
     const shade = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x090a0d, 0.78);
-    const title = this.add.text(0, -18, "MATCH OVER", {
+    this.finishedTitle = this.add.text(0, -18, "MATCH OVER", {
       fontFamily: "system-ui, sans-serif", fontSize: "32px", fontStyle: "900",
       color: "#ffffff", stroke: "#111318", strokeThickness: 5,
     }).setOrigin(0.5);
@@ -53,7 +58,7 @@ class LiveArenaScene extends Phaser.Scene {
       fontFamily: "system-ui, sans-serif", fontSize: "17px", fontStyle: "700",
       color: "#f0b53a", stroke: "#111318", strokeThickness: 4,
     }).setOrigin(0.5);
-    this.finishedOverlay.add([shade, title, this.finishedText]);
+    this.finishedOverlay.add([shade, this.finishedTitle, this.finishedText]);
     this.readyForState = true;
     if (this.latestState) this.applySnapshot();
   }
@@ -85,10 +90,14 @@ class LiveArenaScene extends Phaser.Scene {
     ring.lineStyle(1, 0xf5f2ea, 0.18);
     ring.strokeRect(115, 112, 730, 294);
 
-    this.add.text(WIDTH / 2, 38, "CHOG FIGHT CLUB · LIVE RING", {
-      fontFamily: "system-ui, sans-serif", fontSize: "13px", fontStyle: "700",
+    this.add.text(WIDTH / 2, 24, "CHOG FIGHT CLUB · LIVE RING", {
+      fontFamily: "system-ui, sans-serif", fontSize: "12px", fontStyle: "700",
       color: "#f5f2ea", letterSpacing: 2,
     }).setOrigin(0.5);
+    this.roundHudText = this.add.text(WIDTH / 2, 52, "ROUND 1/3 · 01:00 · 0-0", {
+      fontFamily: "system-ui, sans-serif", fontSize: "15px", fontStyle: "900",
+      color: "#f0b53a", stroke: "#090a0d", strokeThickness: 3,
+    }).setOrigin(0.5).setDepth(700);
     this.add.text(WIDTH / 2, 474, "TWO PLAYERS · SERVER-SYNCED", {
       fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "700",
       color: "#d0c7e4", letterSpacing: 1,
@@ -133,6 +142,11 @@ class LiveArenaScene extends Phaser.Scene {
       attack: 20,
       defense: 14,
       speed: 14,
+      hp: 100,
+      maxHp: 100,
+      energy: 100,
+      maxEnergy: 100,
+      jumpHeight: 0,
       stridePhase: role === "challenger" ? 0 : 1.7,
     };
   }
@@ -140,6 +154,7 @@ class LiveArenaScene extends Phaser.Scene {
   setSnapshot(state, viewerRole) {
     this.latestState = state;
     this.viewerRole = viewerRole;
+    this.latestProjectiles = state?.projectiles || [];
     if (this.readyForState) this.applySnapshot();
   }
 
@@ -166,6 +181,11 @@ class LiveArenaScene extends Phaser.Scene {
       fighter.attack = Number(source.attack || 20);
       fighter.defense = Number(source.defense || 14);
       fighter.speed = Number(source.speed || 14);
+      fighter.hp = Number(source.hp ?? 100);
+      fighter.maxHp = Number(source.maxHp ?? 100);
+      fighter.energy = Number(source.energy ?? 100);
+      fighter.maxEnergy = Number(source.maxEnergy ?? 100);
+      fighter.jumpHeight = Math.max(0, Number(source.jumpHeight || 0));
 
       if (fighter.flashUntil > fighter.previousFlashUntil) {
         flashChog(this, fighter.root.rig, 0xffffff, 90);
@@ -174,12 +194,34 @@ class LiveArenaScene extends Phaser.Scene {
       const who = role === this.viewerRole ? "YOU" : "RIVAL";
       const tokenLabel = fighter.tokenId ? ` · Chog #${fighter.tokenId}` : "";
       fighter.name.setText(`${who} · @${fighter.username}${tokenLabel}`);
-      fighter.dna.setText(`${fighter.fighterName} · ${fighter.tier} · ${fighter.ability} · ATK ${fighter.attack}`);
+      fighter.dna.setText(`${fighter.fighterName} · ${fighter.tier} · ATK ${fighter.attack} · MP ${Math.round(fighter.energy)}/${Math.round(fighter.maxEnergy)}`);
       fighter.marker.setFillStyle(fighter.connected ? ACCENTS[role] : 0x777780);
     }
-    const winner = state.winnerRole === this.viewerRole ? "You won the live match." : "The live match has ended.";
-    this.finishedText.setText(winner);
-    this.finishedOverlay.setVisible(state.status === "FINISHED");
+
+    const wins = state.roundWins || { challenger: 0, opponent: 0 };
+    const remaining = Math.ceil(Math.max(0, Number(state.timeRemainingMs ?? 60_000)) / 1000);
+    if (this.roundHudText) {
+      this.roundHudText.setText(
+        `ROUND ${state.round || 1}/${state.totalRounds || 3} · ${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")} · ${wins.challenger || 0}-${wins.opponent || 0}`,
+      );
+    }
+
+    if (state.status === "FINISHED") {
+      this.finishedTitle.setText(state.matchDraw ? "MATCH DRAW" : state.winnerRole === this.viewerRole ? "VICTORY" : "DEFEAT");
+      this.finishedText.setText(state.matchDraw
+        ? "Three rounds complete · score " + (wins.challenger || 0) + "-" + (wins.opponent || 0)
+        : "Three rounds complete · score " + (wins.challenger || 0) + "-" + (wins.opponent || 0));
+      this.finishedOverlay.setVisible(true);
+    } else if (state.phase === "ROUND_OVER") {
+      this.finishedTitle.setText(state.koRole ? "K.O.!" : "ROUND OVER");
+      const roundWinner = state.roundWinnerRole
+        ? (state.roundWinnerRole === this.viewerRole ? "You win" : "Opponent wins")
+        : "Round draw";
+      this.finishedText.setText(roundWinner + " · score " + (wins.challenger || 0) + "-" + (wins.opponent || 0));
+      this.finishedOverlay.setVisible(true);
+    } else {
+      this.finishedOverlay.setVisible(false);
+    }
   }
 
   update(_time, delta) {
@@ -192,7 +234,7 @@ class LiveArenaScene extends Phaser.Scene {
       const fromX = root.x;
       const fromY = root.y;
       root.x = Phaser.Math.Linear(root.x, fighter.targetX, blend);
-      root.y = Phaser.Math.Linear(root.y, fighter.targetY, blend);
+      root.y = Phaser.Math.Linear(root.y, fighter.targetY - fighter.jumpHeight, blend);
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
       root.setDepth(100 + root.y);
       const moved = Math.hypot(root.x - fromX, root.y - fromY) > 0.2;
