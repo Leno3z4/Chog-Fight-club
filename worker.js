@@ -308,8 +308,15 @@ export default {
       try {
         return await handler({ request, env, ctx, params: {}, data: {} });
       } catch (error) {
-        console.error("Worker API route failed", error?.code || error?.name || "Error");
-        return json({ error: "The API request failed.", code: error?.code || "INTERNAL_ERROR" }, 500);
+        const providedStatus = Number(error?.status);
+        const status = Number.isInteger(providedStatus) && providedStatus >= 400 && providedStatus <= 599
+          ? providedStatus
+          : 500;
+        if (status >= 500) console.error("Worker API route failed", error?.code || error?.name || "Error");
+        return json({
+          error: status < 500 && error instanceof Error ? error.message : "The API request failed.",
+          code: error?.code || "INTERNAL_ERROR",
+        }, status);
       }
     }
 
