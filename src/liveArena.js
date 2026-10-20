@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BootScene } from "./bootScene.js";
-import { applyChogPose, createChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -23,10 +23,6 @@ function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
 }
 
-function easeOutCubic(value) {
-  const t = clamp(value, 0, 1);
-  return 1 - ((1 - t) ** 3);
-}
 
 class OnlineBootScene extends BootScene {
   create() {
@@ -303,27 +299,8 @@ class LiveArenaScene extends Phaser.Scene {
 
       if (fighter.hp <= 0) {
         const koAge = Math.max(0, now - (fighter.koStartedAt || now));
-        const fall = easeOutCubic(koAge / 420);
-        const settle = Math.exp(-Math.max(0, koAge - 420) / 240);
-        pose = {
-          ...guard,
-          // A staged loss of balance reads more clearly than an instant
-          // bent-at-the-waist freeze. Gameplay KO timing remains server-owned.
-          leadArmRotation: -0.12 - fall * 0.10,
-          rearArmRotation: 0.16 + fall * 0.11,
-          leadArmLowerRotation: 0.36 + fall * 0.15,
-          rearArmLowerRotation: -0.25 - fall * 0.15,
-          leadLegRotation: -0.42 - fall * 0.06,
-          rearLegRotation: 0.38 + fall * 0.05,
-          leadLegLowerRotation: 0.62 + fall * 0.12,
-          rearLegLowerRotation: -0.58 - fall * 0.12,
-          torsoRotation: 0.22 + fall * 0.14,
-          torsoX: -fall * 3,
-          torsoY: 12 + fall * 4 - (1 - settle) * 1.5,
-          headRotation: 0.15 + fall * 0.08,
-          headX: fall * 1.5,
-          headY: fall * 2,
-        };
+        // Match the solo fall arc; knockout state itself is still server-owned.
+        pose = createChogKnockoutPose(guard, koAge);
       } else if (fighter.action === "jump" && activeAction) {
         pose = {
           ...guard,
