@@ -4,6 +4,7 @@ import eyesUrl from "../images/eyes.png";
 import headUrl from "../images/head.png";
 import leftArmUrl from "../images/left-arm.png";
 import leftLegUrl from "../images/left-leg.png";
+import mouthUrl from "../images/mouth.png";
 import noseUrl from "../images/nose.png";
 import rightArmUrl from "../images/right-arm.png";
 import rightLegUrl from "../images/right-leg.png";
@@ -36,6 +37,7 @@ export class BootScene extends Phaser.Scene {
       head: headUrl,
       "left-arm": leftArmUrl,
       "left-leg": leftLegUrl,
+      mouth: mouthUrl,
       nose: noseUrl,
       "right-arm": rightArmUrl,
       "right-leg": rightLegUrl,
