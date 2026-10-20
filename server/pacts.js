@@ -1,10 +1,11 @@
 import { createPublicClient, createWalletClient, defineChain, http, keccak256, parseEventLogs, recoverTypedDataAddress, toBytes } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { readDiscordSession } from "./discordAuth.js";
+import { appendBattleLog, normalizeDisputeReason, readBattleLog, resultReviewRemainingMs, resultSettlementAvailableAt } from "./launchPolicy.js";
 
 const CHOG_CONTRACT = "0xc96d31f8626c6d03fae5dcd3d61e3fb9f4a73763";
 const DEFAULT_RPC = "https://rpc.monad.xyz";
-const ACCEPTED_FOR_PACT = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
+const ACCEPTED_FOR_PACT = ["TERMS_ACCEPTED", "READY", "IN_BATTLE", "RESULT_PENDING", "DISPUTED", "SETTLED", "CONDITION_PENDING", "CONDITION_FULFILLED"];
 const PACT_TYPES = {
   PactAgreement: [
     { name: "inviteKey", type: "bytes32" },
@@ -122,7 +123,7 @@ async function getParticipant({ db, id, user }) {
   }
   return { row, isChallenger };
 }
-function publicPact(row, address, env, isChallenger) {
+function publicPact(row, address, env, isChallenger, battle = null) {
   const configured = Boolean(address);
   const termsReady = String(row.condition_text || "").trim().length >= 5
     && String(row.opponent_demand_text || "").trim().length >= 5;
@@ -131,6 +132,14 @@ function publicPact(row, address, env, isChallenger) {
     reason: "Pact factory address is not configured on the Cloudflare backend.",
   };
   const typedData = termsReady ? typedDataFor(row, env, address) : null;
+  const battleLog = readBattleLog(battle?.battle_log);
+  const resolvedDisputes = new Set(battleLog
+    .filter((event) => event?.type === "result_review" && event?.resolution === "UPHELD")
+    .map((event) => String(event.disputeId || "")));
+  const activeDispute = [...battleLog].reverse().find((event) =>
+    event?.type === "result_dispute" && event.disputeId && !resolvedDisputes.has(String(event.disputeId)));
+  const resultDisputed = row.status === "DISPUTED";
+  const reviewRemaining = row.status === "RESULT_PENDING" ? resultReviewRemainingMs(row.updated_at) : 0;
   return {
     configured: true,
     termsReady,
@@ -151,6 +160,14 @@ function publicPact(row, address, env, isChallenger) {
     settlementTxHash: /^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || "")) ? row.pact_settlement_tx_hash : null,
     settledOnchain: /^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || "")),
     settlementPending: row.pact_settlement_tx_hash === "SUBMITTING",
+    resultDisputed,
+    resultDispute: activeDispute ? {
+      reason: String(activeDispute.reason || ""),
+      createdAt: activeDispute.createdAt || null,
+      byUsername: String(activeDispute.byUsername || "A participant"),
+    } : null,
+    resultReviewRemainingMs: reviewRemaining,
+    resultSettlementAvailableAt: row.status === "RESULT_PENDING" ? resultSettlementAvailableAt(row.updated_at) : null,
     fulfillmentTxHash: row.pact_fulfillment_tx_hash || null,
     fulfilledOnchain: Boolean(row.pact_fulfillment_tx_hash),
     agreement: typedData ? {
@@ -250,10 +267,10 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
         .bind(expiry, id).run();
       row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
     }
-    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
+    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger, await db.prepare("SELECT status, winner_discord_id, battle_log FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first()) } };
   }
   if (method !== "POST") throw new PactApiError("Method not allowed.", { status: 405, code: "METHOD_NOT_ALLOWED" });
-  if (row.pact_id && !["confirmMint", "settle", "recordFulfillment"].includes(body.action)) throw new PactApiError("The Pact NFT has already been minted for this challenge.", { status: 409, code: "PACT_ALREADY_MINTED" });
+  if (row.pact_id && !["confirmMint", "settle", "recordFulfillment", "disputeResult", "resolveDispute"].includes(body.action)) throw new PactApiError("The Pact NFT has already been minted for this challenge.", { status: 409, code: "PACT_ALREADY_MINTED" });
 
   if (body.action === "sign") {
     if (row.status !== "READY" || !row.challenger_terms_accepted || !row.opponent_terms_accepted) {
@@ -331,8 +348,95 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
     row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
     return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
   }
+  if (body.action === "disputeResult") {
+    if (!row.pact_id || !row.pact_tx_hash) {
+      throw new PactApiError("Only a minted official Pact can have its result disputed.", { status: 409, code: "PACT_NOT_MINTED" });
+    }
+    if (row.status !== "RESULT_PENDING" || row.pact_settlement_tx_hash !== null) {
+      throw new PactApiError("The result can only be disputed before on-chain settlement and before another dispute is open.", { status: 409, code: "RESULT_NOT_DISPUTABLE" });
+    }
+    const battle = await db.prepare("SELECT status, battle_log FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first();
+    if (battle?.status !== "FINISHED") throw new PactApiError("Only a finished server-recorded match can be disputed.", { status: 409, code: "MATCH_NOT_FINISHED" });
+    let reason;
+    try { reason = normalizeDisputeReason(body.reason); }
+    catch (error) { throw new PactApiError(error.message, { status: 400, code: "RESULT_DISPUTE_REASON_INVALID" }); }
+    const now = new Date().toISOString();
+    const dispute = {
+      type: "result_dispute",
+      disputeId: crypto.randomUUID(),
+      status: "OPEN",
+      byRole: isChallenger ? "challenger" : "opponent",
+      byUsername: String(user.username || user.displayName || "Participant").slice(0, 80),
+      reason,
+      createdAt: now,
+    };
+    const statements = [
+      db.prepare("UPDATE chog_challenge_invites SET status = 'DISPUTED', updated_at = ?1 WHERE id = ?2 AND status = 'RESULT_PENDING' AND pact_settlement_tx_hash IS NULL")
+        .bind(now, id),
+      db.prepare("UPDATE chog_battles SET battle_log = ?1, updated_at = ?2 WHERE invite_id = ?3 AND status = 'FINISHED' AND EXISTS (SELECT 1 FROM chog_challenge_invites WHERE id = ?3 AND status = 'DISPUTED' AND updated_at = ?2)")
+        .bind(appendBattleLog(battle.battle_log, dispute), now, id),
+    ];
+    let results;
+    try { results = await db.batch(statements); }
+    catch { throw new PactApiError("The dispute could not be saved. Please refresh and try again.", { status: 503, code: "RESULT_DISPUTE_SAVE_FAILED" }); }
+    if (results?.[0]?.meta?.changes !== 1) {
+      throw new PactApiError("The result changed while the dispute was being submitted. Refresh the lobby.", { status: 409, code: "RESULT_DISPUTE_CONFLICT" });
+    }
+    row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
+    const updatedBattle = await db.prepare("SELECT status, winner_discord_id, battle_log FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first();
+    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger, updatedBattle) } };
+  }
+
+  if (body.action === "resolveDispute") {
+    if (!user.isAdmin) throw new PactApiError("Only an authorized Arena moderator can close a result dispute.", { status: 403, code: "RESULT_MODERATOR_REQUIRED" });
+    if (body.resolution !== "uphold") {
+      throw new PactApiError("The deployed Pact factory cannot rewrite or void a recorded winner. Only dismissing the dispute and restarting the review window is supported.", { status: 409, code: "RESULT_RESOLUTION_UNSUPPORTED" });
+    }
+    if (row.status !== "DISPUTED" || row.pact_settlement_tx_hash !== null) {
+      throw new PactApiError("There is no unsettled result dispute to resolve.", { status: 409, code: "RESULT_DISPUTE_NOT_OPEN" });
+    }
+    const battle = await db.prepare("SELECT status, battle_log FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first();
+    if (battle?.status !== "FINISHED") throw new PactApiError("The authoritative match result is unavailable.", { status: 409, code: "MATCH_NOT_FINISHED" });
+    const entries = readBattleLog(battle.battle_log);
+    const resolved = new Set(entries.filter((event) => event?.type === "result_review" && event?.resolution === "UPHELD").map((event) => String(event.disputeId || "")));
+    const dispute = [...entries].reverse().find((event) => event?.type === "result_dispute" && event.disputeId && !resolved.has(String(event.disputeId)));
+    if (!dispute) throw new PactApiError("The dispute record is missing; keep settlement blocked and escalate for review.", { status: 409, code: "RESULT_DISPUTE_RECORD_MISSING" });
+    const now = new Date().toISOString();
+    const review = {
+      type: "result_review",
+      disputeId: String(dispute.disputeId),
+      resolution: "UPHELD",
+      moderator: String(user.username || user.displayName || "Arena moderator").slice(0, 80),
+      createdAt: now,
+    };
+    const statements = [
+      db.prepare("UPDATE chog_challenge_invites SET status = 'RESULT_PENDING', updated_at = ?1 WHERE id = ?2 AND status = 'DISPUTED' AND pact_settlement_tx_hash IS NULL")
+        .bind(now, id),
+      db.prepare("UPDATE chog_battles SET battle_log = ?1, updated_at = ?2 WHERE invite_id = ?3 AND status = 'FINISHED' AND EXISTS (SELECT 1 FROM chog_challenge_invites WHERE id = ?3 AND status = 'RESULT_PENDING' AND updated_at = ?2)")
+        .bind(appendBattleLog(battle.battle_log, review), now, id),
+    ];
+    let results;
+    try { results = await db.batch(statements); }
+    catch { throw new PactApiError("The review could not be saved. Keep settlement paused and retry.", { status: 503, code: "RESULT_REVIEW_SAVE_FAILED" }); }
+    if (results?.[0]?.meta?.changes !== 1) {
+      throw new PactApiError("The dispute changed while it was being resolved. Refresh the lobby.", { status: 409, code: "RESULT_REVIEW_CONFLICT" });
+    }
+    row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
+    const updatedBattle = await db.prepare("SELECT status, winner_discord_id, battle_log FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first();
+    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger, updatedBattle) } };
+  }
+
   if (body.action === "settle") {
     if (!row.pact_id || !row.pact_tx_hash) throw new PactApiError("Mint the Pact NFT before settling a match.", { status: 409, code: "PACT_NOT_MINTED" });
+    if (row.status === "DISPUTED") throw new PactApiError("Settlement is paused while this result dispute is open. An authorized moderator must review it first.", { status: 409, code: "RESULT_DISPUTED" });
+    if (/^0x[0-9a-fA-F]{64}$/.test(String(row.pact_settlement_tx_hash || ""))) {
+      return { status: 200, body: { pact: publicPact(row, address, env, isChallenger) } };
+    }
+    if (row.status !== "RESULT_PENDING") throw new PactApiError("Only an unsettled result in the review stage can be settled.", { status: 409, code: "RESULT_NOT_PENDING" });
+    const reviewRemaining = resultReviewRemainingMs(row.updated_at);
+    if (reviewRemaining > 0) {
+      throw new PactApiError("The five-minute result review window is still open. Wait " + Math.ceil(reviewRemaining / 1000) + " more seconds before settlement.", { status: 409, code: "RESULT_REVIEW_OPEN" });
+    }
     const battle = await db.prepare("SELECT status, winner_discord_id FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first();
     if (battle?.status !== "FINISHED" || !battle.winner_discord_id) throw new PactApiError("The server has not recorded a finished match yet.", { status: 409, code: "MATCH_NOT_FINISHED" });
     if (battle.winner_discord_id !== user.discordId) throw new PactApiError("Only the recorded winner can trigger on-chain settlement.", { status: 403, code: "NOT_MATCH_WINNER" });
@@ -342,7 +446,7 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
     if (row.pact_settlement_tx_hash === "SUBMITTING") {
       throw new PactApiError("Settlement is already being submitted. Refresh shortly.", { status: 409, code: "SETTLEMENT_IN_PROGRESS" });
     }
-    const reserved = await db.prepare("UPDATE chog_challenge_invites SET pact_settlement_tx_hash = 'SUBMITTING' WHERE id = ?1 AND pact_settlement_tx_hash IS NULL AND pact_id = ?2")
+    const reserved = await db.prepare("UPDATE chog_challenge_invites SET pact_settlement_tx_hash = 'SUBMITTING' WHERE id = ?1 AND pact_settlement_tx_hash IS NULL AND pact_id = ?2 AND status = 'RESULT_PENDING'")
       .bind(id, row.pact_id).run();
     if (!reserved.meta || reserved.meta.changes !== 1) {
       throw new PactApiError("Another settlement request is already in progress. Refresh shortly.", { status: 409, code: "SETTLEMENT_IN_PROGRESS" });
