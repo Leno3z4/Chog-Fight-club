@@ -11,6 +11,7 @@ const state = {
   wallet: null,
   chogs: [],
   selectedTokenId: null,
+  persistedTokenId: null,
   invite: null,
   busy: false,
   battle: null,
@@ -91,9 +92,9 @@ function renderSummary(invite) {
   $("#invite-status-chip").textContent = statusText(invite.status);
   const practiceMode = invite.gameMode === "PRACTICE";
   const conditionNode = $("#invite-condition");
-  if (conditionNode) conditionNode.textContent = practiceMode
-    ? `${invite.condition} - PROTOTYPE PRACTICE: no Pact NFT or official result.`
-    : invite.condition;
+  if (conditionNode) conditionNode.textContent = invite.condition
+    ? (practiceMode ? `${invite.condition} - PROTOTYPE PRACTICE: no Pact NFT or official result.` : invite.condition)
+    : "No conditions are written before the invitation is accepted. Both players will choose Chogs and write their own conditions in the lobby.";
   const conditionNote = $("#invite-condition-note");
   if (conditionNote && practiceMode) conditionNote.textContent = "Prototype practice only. No NFT is transferred or minted and no official result is recorded. Both players still agree to voluntary, harmless demands.";
   const readyFooterNote = $("#ready-card-footer-note");
@@ -147,6 +148,8 @@ function renderSummary(invite) {
 
   const isRecipient = invite.viewerRole === "opponent";
   const pending = invite.status === "PENDING_ACCEPTANCE";
+  const fighterCard = $("#fighter-card");
+  if (fighterCard) fighterCard.hidden = pending;
   $("#invite-headline").innerHTML = isBattleLobbyPage
     ? "BATTLE<br /><span>LOBBY.</span>"
     : isRecipient && pending
@@ -161,7 +164,8 @@ function renderSummary(invite) {
   $("#accept-card").hidden = !(isRecipient && pending);
   $("#ready-card").hidden = invite.status !== "READY" || (!practiceMode && !state.pact?.minted);
   $("#cancel-invite").hidden = !(invite.viewerRole === "challenger" && pending);
-  $("#accept-invite").disabled = !state.selectedTokenId || !$("#accept-condition-check").checked || !state.wallet;
+  $("#accept-invite").disabled = !isRecipient || !pending || state.busy;
+  updateFighterSaveButton();
   $("#ready-status-chip").textContent = invite.challenger.ready && invite.opponent.ready ? "BOTH READY" : "READY CHECK";
   $("#ready-button").disabled = invite.status !== "READY" || Boolean(viewer(invite).ready);
   $("#ready-button").textContent = viewer(invite).ready ? "You're ready ✓" : "I'm ready ↗";
@@ -682,6 +686,15 @@ function updateBilateralControls() {
     || own.value.trim() !== saved.trim() || otherDemand.trim().length < 5 || ownAccepted;
   accept.textContent = ownAccepted ? "You accepted both demands ✓" : "I accept both demands ↗";
 }
+async function saveSelectedFighter() {
+  if (!state.wallet || !state.session?.walletAddress || state.wallet.toLowerCase() !== state.session.walletAddress.toLowerCase()) {
+    throw new Error("Connect and verify the wallet linked to your Discord account first.");
+  }
+  if (!state.selectedTokenId) throw new Error("Choose one of your Chogs first.");
+  await postAction("selectFighter", { tokenId: String(state.selectedTokenId) });
+  $("#selected-fighter-status").textContent = "Your Chog is saved to this lobby. It will not be transferred.";
+  $("#selected-fighter-status").dataset.kind = "success";
+}
 async function saveOwnDemand() {
   const own = $("#own-demand-text");
   const demand = own?.value?.trim() || "";
@@ -713,11 +726,13 @@ function renderChogs() {
   if (!state.wallet) {
     target.innerHTML = '<div class="roster-empty">Connect and verify a wallet to load the fighter selector.</div>';
     updateAcceptButton();
+    updateFighterSaveButton();
     return;
   }
   if (!fighters.length) {
     target.innerHTML = '<div class="roster-empty">No Chog Genesis NFTs were found in this wallet. You cannot accept an official challenge without one.</div>';
     updateAcceptButton();
+    updateFighterSaveButton();
     return;
   }
   target.innerHTML = fighters.map((chog) => {
@@ -738,10 +753,21 @@ function renderChogs() {
     </button>`;
   }).join("");
   updateAcceptButton();
+  updateFighterSaveButton();
 }
 function updateAcceptButton() {
   const button = $("#accept-invite");
-  if (button) button.disabled = !state.selectedTokenId || !$("#accept-condition-check").checked || !state.wallet;
+  if (button) button.disabled = !state.invite || state.invite.viewerRole !== "opponent" || state.invite.status !== "PENDING_ACCEPTANCE" || state.busy;
+}
+function updateFighterSaveButton() {
+  const button = $("#save-fighter-button");
+  if (!button) return;
+  const invite = state.invite;
+  const isAccepted = Boolean(invite && ["TERMS_ACCEPTED", "READY"].includes(invite.status));
+  const isChallenger = invite?.viewerRole === "challenger";
+  const savedTokenId = isChallenger ? invite?.challenger?.tokenId : invite?.opponent?.tokenId;
+  button.disabled = !isAccepted || state.busy || !state.wallet || !state.selectedTokenId
+    || String(state.selectedTokenId) === String(savedTokenId || "");
 }
 async function requestJson(url, options = {}) {
   const response = await fetch(url, {
@@ -758,11 +784,24 @@ async function requestJson(url, options = {}) {
   if (!response.ok) throw new Error(payload.error || "The request failed.");
   return payload;
 }
+function syncSavedFighter(invite) {
+  const saved = invite?.viewerRole === "challenger" ? invite?.challenger?.tokenId : invite?.opponent?.tokenId;
+  if (saved !== null && saved !== undefined && String(saved) !== "") {
+    if (!state.selectedTokenId || String(state.selectedTokenId) === String(state.persistedTokenId) || String(state.selectedTokenId) === String(saved)) {
+      state.selectedTokenId = String(saved);
+    }
+    state.persistedTokenId = String(saved);
+  } else {
+    if (!state.selectedTokenId || String(state.selectedTokenId) === String(state.persistedTokenId)) state.selectedTokenId = null;
+    state.persistedTokenId = null;
+  }
+}
 async function loadInvite() {
   if (!state.id || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(state.id)) {
     throw new Error("This invitation link is invalid. Ask the challenger to send a fresh link.");
   }
   const payload = await requestJson(`/api/invites?id=${encodeURIComponent(state.id)}`);
+  syncSavedFighter(payload.invite);
   renderSummary(payload.invite);
   if (acceptedStatuses.includes(payload.invite.status) && !isBattleLobbyPage) {
     window.location.replace(`/battle-lobby.html?id=${encodeURIComponent(state.id)}`);
@@ -842,10 +881,13 @@ async function postAction(action, extra = {}) {
       method: "POST",
       body: JSON.stringify({ action, id: state.id, ...extra }),
     });
-    if (payload.invite) renderSummary(payload.invite);
+    if (payload.invite) {
+      syncSavedFighter(payload.invite);
+      renderSummary(payload.invite);
+    }
     if (payload.notice) showAlert(payload.notice, "success");
     if (action === "accept") {
-      showAlert("You joined the lobby. Write your demand there and accept both demands before minting the Pact NFT.", "success");
+      showAlert("You joined the lobby. Choose your Chog and write conditions here with your rival.", "success");
     }
     return payload;
   } catch (error) {
@@ -908,7 +950,14 @@ $("#pact-fulfill-button").addEventListener("click", async () => {
   }
 });
 
-$("#accept-condition-check").addEventListener("change", updateAcceptButton);
+$("#save-fighter-button")?.addEventListener("click", async () => {
+  if (state.busy) return;
+  const button = $("#save-fighter-button");
+  button.disabled = true;
+  try { await saveSelectedFighter(); }
+  catch (error) { showAlert(error?.message || "Could not save your Chog."); }
+  finally { updateFighterSaveButton(); }
+});
 $("#save-demand-button")?.addEventListener("click", async () => {
   if (state.busy) return;
   try { await saveOwnDemand(); } catch (error) { showAlert(error?.message || "Could not save your demand."); }
@@ -920,15 +969,9 @@ $("#accept-bilateral-terms")?.addEventListener("click", async () => {
 });
 $("#accept-invite").addEventListener("click", async () => {
   if (state.busy) return;
-  if (!state.wallet) return showAlert("Connect and verify the wallet belonging to your Discord account first.");
-  if (!state.selectedTokenId) return showAlert("Choose one of your Chogs first.");
-  if (!$("#accept-condition-check").checked) return showAlert("Confirm that you want to join this challenge lobby.");
   $("#accept-invite").disabled = true;
   try {
-    await postAction("accept", {
-      opponentTokenId: String(state.selectedTokenId),
-      agreeToCondition: true,
-    });
+    await postAction("accept");
     window.location.replace(`/battle-lobby.html?id=${encodeURIComponent(state.id)}`);
   } catch {
     // postAction already renders a visible error.
