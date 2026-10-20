@@ -246,9 +246,12 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
   const db = getDb(env);
   let row;
   let isChallenger;
-  if (method === "POST" && body.action === "resolveDispute" && user.isAdmin) {
+  if ((method === "POST" && body.action === "resolveDispute" && user.isAdmin) || (method === "GET" && user.isAdmin)) {
     row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
     if (!row) throw new PactApiError("Challenge not found.", { status: 404, code: "INVITE_NOT_FOUND" });
+    if (method === "GET" && row.status !== "DISPUTED" && ![row.challenger_discord_id, row.opponent_discord_id].includes(user.discordId)) {
+      throw new PactApiError("Moderators may open only a disputed challenge through this route.", { status: 403, code: "PACT_MODERATOR_SCOPE" });
+    }
     isChallenger = row.challenger_discord_id === user.discordId;
   } else {
     ({ row, isChallenger } = await getParticipant({ db, id, user }));
