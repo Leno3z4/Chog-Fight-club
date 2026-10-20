@@ -190,11 +190,11 @@ class LiveArenaScene extends Phaser.Scene {
       if (!fighter) continue;
       const root = fighter.root;
       const fromX = root.x;
+      const fromY = root.y;
       root.x = Phaser.Math.Linear(root.x, fighter.targetX, blend);
       root.y = Phaser.Math.Linear(root.y, fighter.targetY, blend);
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
       root.setDepth(100 + root.y);
-      const fromY = root.y;
       const moved = Math.hypot(root.x - fromX, root.y - fromY) > 0.2;
       const stridePhase = now * 0.0065 + fighter.stridePhase;
       const stride = Math.sin(stridePhase);
@@ -224,7 +224,7 @@ class LiveArenaScene extends Phaser.Scene {
         torsoY: moved ? -bodyBob * 2 : -Math.max(0, Math.sin(now * 0.002 + fighter.stridePhase)) * 1.2,
         headRotation: moved ? stride * 0.016 : 0,
       };
-      let pose = guard;      let pose = guard;
+      let pose = guard;
       const actionAge = now - fighter.actionStartedAt;
       const duration = Math.max(1, fighter.actionUntil - fighter.actionStartedAt);
       if ((fighter.action === "attack" || fighter.action === "special") && actionAge >= 0 && actionAge < duration) {
