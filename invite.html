@@ -23,23 +23,24 @@
       <div class="lobby-primary">
         <article class="lobby-card">
           <div class="lobby-card-heading"><div><h2>Your rival’s demand.</h2></div><span id="invite-status-chip" class="invite-state">LOADING</span></div>
-          <blockquote id="invite-condition" class="condition-quote">Fetching the proposed condition…</blockquote>
+          <blockquote id="invite-condition" class="condition-quote">No conditions are written before the invitation is accepted.</blockquote>
           <div class="condition-meta"><span>PUBLIC TERMS HASH</span><code id="condition-hash">—</code></div>
-          <p class="lobby-note" id="invite-condition-note">This is the challenger’s initial demand, not the final agreement. When you join the lobby, each player writes a demand and both accept the combined terms before the Pact NFT is minted. Conditions must be voluntary, harmless, and non-invasive.</p>
+          <p class="lobby-note" id="invite-condition-note">After joining the lobby, each player writes their own voluntary, harmless condition. Both players must accept the combined terms before a Pact NFT can be minted.</p>
         </article>
 
-        <article class="lobby-card">
+        <article class="lobby-card" id="fighter-card" hidden>
           <div class="lobby-card-heading"><div><h2>Choose your Chog.</h2></div><span id="fighter-count" class="invite-state">WALLET REQUIRED</span></div>
-          <p id="fighter-prompt" class="lobby-note">Link the wallet belonging to your Discord account, then pick the Chog that will represent you. Ownership is rechecked server-side before acceptance.</p>
+          <p id="fighter-prompt" class="lobby-note">After the invitation is accepted, link the wallet belonging to your Discord account, choose your Chog, and save it to this lobby. Ownership is verified server-side.</p>
           <button id="link-wallet" class="discord-button" type="button">Connect and verify wallet <b>↗</b></button>
           <div id="lobby-chog-grid" class="lobby-chog-grid"></div>
           <p id="selected-fighter-status" class="auth-status" role="status"></p>
+          <button id="save-fighter-button" class="discord-button" type="button" disabled>Save selected Chog <b>↗</b></button>
         </article>
 
         <article class="lobby-card" id="accept-card" hidden>
           
           <h2>Accept the challenge?</h2>
-          <label class="terms-check"><input id="accept-condition-check" type="checkbox" /><span>I want to join this challenge lobby. I will write my own demand there; joining does not mean I have accepted the final agreement. My Chog is referenced, never transferred.</span></label>
+          <p class="lobby-note">Accepting only joins the lobby. You will choose your Chog and write conditions after joining; neither your Chog nor any assets are transferred.</p>
           <div class="lobby-actions"><button id="accept-invite" class="discord-button" type="button" disabled>Join lobby <b>↗</b></button><button id="decline-invite" class="outline-button" type="button">Decline</button></div>
         </article>
 
