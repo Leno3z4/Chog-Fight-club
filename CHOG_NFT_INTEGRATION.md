@@ -14,12 +14,12 @@ The default fallback is the server-side `/api/chogs?owner=0x...` route. Vercel u
 
 Configure `OPENSEA_API_KEY` as a **server-side environment secret** in your deployment platform: Vercel → Settings → Environment Variables, or Cloudflare Pages → Settings → Variables and Secrets (secret, not plain text), for the environments that serve the app. Do not name it `VITE_OPENSEA_API_KEY`; any `VITE_*` variable is shipped to the browser. The endpoint returns only token IDs. The client then verifies each candidate with the actual Monad `ownerOf` call and reads the collection's `tokenURI` for traits and metadata.
 
-If the key is not configured or OpenSea is unavailable, the client falls back to the configured indexer or MonadScan transfer history. OpenSea is an index/discovery aid, not authority on current ownership. Rate limits and marketplace hidden-item behavior are possible, so the app still needs a production-owned indexer strategy and error states.
+If the key is not configured or OpenSea is unavailable, the client falls back to the configured server-side indexer or MonadScan transfer history. OpenSea is an index/discovery aid, not authority on current ownership. The backend has owner-lookup rate limits and explicit provider errors; the client verifies each candidate with `ownerOf` before showing it. A dedicated indexer remains a reliability upgrade for higher volume, not an unfinished correctness feature for the current launch.
 
 ## Ownership discovery
 ERC-721 owner enumeration is optional. The client checks the `0x780e9d63` ERC-721 Enumerable interface first. If unsupported, it falls back to the public MonadScan `tokennfttx` API and reconstructs the latest transfer status per token. The public API is rate-limited when used without a key, so it is a prototype fallback rather than a production dependency.
 
-For production, set `VITE_CHOG_NFT_INDEXER_URL` to a **server-side** endpoint accepting `?owner=0x...` and returning token IDs, e.g.:
+For a future higher-volume deployment, optionally set `VITE_CHOG_NFT_INDEXER_URL` to a **server-side** endpoint accepting `?owner=0x...` and returning token IDs, e.g.:
 
 ```json
 { "tokenIds": ["561", "973"] }
@@ -35,13 +35,11 @@ npm run dev
 
 Open **Play → Single Player** to choose Ember, Tide, or Volt as a prototype fighter. Use **Load my Chogs** only if you want to use a real owned Chog in practice. The prototype mode never mints a Pact NFT.
 
-## Deliberately not included yet
-- Discord OAuth/account linking.
-- Challenge invitations, both-player consent, immutable terms/pact minting, battle result attestations, or fulfilment confirmation.
-- A condition NFT contract or mutable/revealed outcome metadata.
-- Production battle-result verification.
+## Product boundaries and remaining validation
 
-The bilateral demand flow, dedicated soulbound Pact factory, and authenticated realtime lobby now exist in the feature branch. Keep session-storage selection strictly for practice UI; never use it as proof of ownership or as a settlement result.
+Discord OAuth/account linking, challenge invitations, bilateral consent, the immutable Pact factory, authoritative server result recording, winner settlement, and winner-confirmed fulfilment are implemented. They still require the controlled two-account end-to-end test described in `PACT_FACTORY_DEPLOYMENT.md` before official matches are treated as production-ready.
+
+The deployed factory is immutable and does not support on-chain dispute, void, or timeout states after a Pact is minted. The app now blocks settlement during a five-minute review and while an off-chain result dispute is open, but a moderator cannot rewrite or void the on-chain outcome. The post-fulfilment timeout path needs a future contract version if its metadata must change on-chain without winner confirmation. Keep session-storage selection strictly for practice UI; never use it as proof of ownership or as a settlement result.
 
 
 ## Tests and checks
