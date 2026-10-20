@@ -199,11 +199,15 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
     const won = room?.winnerRole === invite.viewerRole;
     const draw = Boolean(room?.matchDraw || !room?.winnerRole);
     $("#combat-status").textContent = draw ? "MATCH DRAW" : won ? "VICTORY" : "DEFEAT";
-    $("#combat-message").textContent = draw
-      ? "All three rounds are complete and the round score is tied. No winner was declared."
-      : won
-        ? "You won the three-round match. You can now settle the result and later confirm fulfilment of the agreement."
-        : "You lost the three-round match. The declared winner can settle the result before the condition is fulfilled.";
+    $("#combat-message").textContent = room?.forfeitRole
+      ? (room.forfeitRole === invite.viewerRole
+        ? "You forfeited because you did not reconnect within 30 seconds."
+        : `You won by forfeit because @${players[room.forfeitRole]?.username || "your opponent"} did not reconnect within 30 seconds.`)
+      : draw
+        ? "All three rounds are complete and the round score is tied. No winner was declared."
+        : won
+          ? "You won the three-round match. You can now settle the result and later confirm fulfilment of the agreement."
+          : "You lost the three-round match. The declared winner can settle the result before the condition is fulfilled.";
   } else if (phase === "ROUND_OVER") {
     const wins = room?.roundWins || { challenger: 0, opponent: 0 };
     const result = room?.roundWinnerRole
@@ -279,6 +283,8 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
       status: matchStatus === "FINISHED" ? "FINISHED" : phase === "ROUND_OVER" ? "ROUND_OVER" : phase === "IN_BATTLE" ? "IN_BATTLE" : "WAITING_FOR_READY",
       inviteStatus: invite.status,
       youWon: room.winnerRole === invite.viewerRole,
+      winnerDiscordId: room.winnerDiscordId || (room.winnerRole === "challenger" ? invite.challenger?.discordId : room.winnerRole === "opponent" ? invite.opponent?.discordId : null),
+      forfeitRole: room.forfeitRole || null,
       challenger: {
         username: players.challenger?.username || invite.challenger?.username,
         tokenId: invite.challenger?.tokenId,
@@ -460,7 +466,8 @@ function renderPact(pact) {
   const conditionStatusNode = $("#pact-condition-status");
   const battleFinishedNow = state.battle?.status === "FINISHED";
   const hasWinner = battleFinishedNow && Boolean(state.battle?.winnerDiscordId || state.realtimeState?.winnerRole);
-  const winnerIsChallenger = hasWinner && String(state.battle?.winnerDiscordId || "") === String(state.invite?.challenger?.discordId || "");
+  const authoritativeWinnerId = state.battle?.winnerDiscordId || (state.realtimeState?.winnerRole === "challenger" ? state.invite?.challenger?.discordId : state.realtimeState?.winnerRole === "opponent" ? state.invite?.opponent?.discordId : "");
+  const winnerIsChallenger = hasWinner && String(authoritativeWinnerId || "") === String(state.invite?.challenger?.discordId || "");
   const winnerPlayer = hasWinner ? (winnerIsChallenger ? state.invite.challenger : state.invite.opponent) : null;
   const loserPlayer = hasWinner ? (winnerIsChallenger ? state.invite.opponent : state.invite.challenger) : null;
   if (winnerNode) winnerNode.textContent = winnerPlayer?.username || (hasWinner ? "Winner confirmed" : "Not decided yet");
@@ -866,8 +873,12 @@ $("#pact-resolve-dispute-button")?.addEventListener("click", async () => {
   const confirmed = window.confirm("Dismiss this dispute and uphold the existing server-recorded winner? This restarts the five-minute review window; it does not change the on-chain winner.");
   if (!confirmed) return;
   try {
-    await postPactAction("resolveDispute", { resolution: "uphold" });
-    await loadInvite();
+    const updatedPact = await postPactAction("resolveDispute", { resolution: "uphold" });
+    if (state.invite) {
+      state.invite = { ...state.invite, status: "RESULT_PENDING", updatedAt: new Date().toISOString() };
+      renderSummary(state.invite);
+    }
+    if (updatedPact) renderPact(updatedPact);
     showAlert("Dispute dismissed. The review window has restarted.", "success");
   } catch (error) {
     showAlert(error?.message || "Could not resolve the result dispute.");
