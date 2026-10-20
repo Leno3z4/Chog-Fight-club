@@ -3,35 +3,44 @@ const RENDER_SIZE = 250;
 const SCALE = RENDER_SIZE / SOURCE_SIZE;
 
 const LAYER_ORDER = [
-  "right-upper-leg", "right-lower-leg", "right-foot",
-  "left-upper-leg", "left-lower-leg", "left-foot",
-  "right-upper-arm", "right-lower-arm", "right-hand",
-  "body",
+  // Legs sit behind the torso. On each limb, the proximal section is added
+  // first so the lower section and hand/foot overlap the joint cleanly.
+  "right-foot", "left-foot",
+  "right-lower-leg", "left-lower-leg",
+  "right-upper-leg", "left-upper-leg",
   "left-upper-arm", "left-lower-arm", "left-hand",
+  "body",
+  "right-upper-arm", "right-lower-arm", "right-hand",
   "head", "eyes", "mouth",
 ];
 
 // Each PNG is a full-size transparent canvas. Pivots are coordinates on
 // that shared canvas; offsets close the small gaps left between cutout parts.
 const PARTS = {
-  body:             { pivot: [510, 640] },
-  head:             { pivot: [505, 350], offset: [0, 80] },
-  eyes:             { pivot: [505, 350], offset: [0, 80] },
-  mouth:            { pivot: [505, 350], offset: [0, 80] },
+  // All the source images represent the same 1024-unit character canvas,
+  // even though some PNGs were exported at 768px or 3000px. Pivots therefore
+  // stay in this normalized canvas coordinate system; don't add per-layer
+  // offsets or the original artwork no longer lines up at rest.
+  body:              { pivot: [500, 620] },
+  head:              { pivot: [505, 450] },
+  eyes:              { pivot: [505, 450] },
+  mouth:             { pivot: [505, 450] },
 
-  "left-upper-arm": { pivot: [405, 475] },
-  "left-lower-arm": { pivot: [355, 600] },
-  "left-hand":      { pivot: [280, 790], offset: [0, -85] },
-  "right-upper-arm":{ pivot: [565, 480] },
-  "right-lower-arm":{ pivot: [620, 610] },
-  "right-hand":     { pivot: [690, 665], offset: [0, 35] },
+  // Left arm is the rear arm when facing right; right arm is the lead arm.
+  "left-upper-arm":  { pivot: [412, 485] },
+  "left-lower-arm":  { pivot: [350, 610] },
+  "left-hand":       { pivot: [270, 665] },
+  "right-upper-arm": { pivot: [560, 485] },
+  "right-lower-arm": { pivot: [620, 610] },
+  "right-hand":      { pivot: [685, 665] },
 
-  "left-upper-leg": { pivot: [455, 835], offset: [0, -42] },
-  "left-lower-leg": { pivot: [405, 930], offset: [0, -42] },
-  "left-foot":      { pivot: [430, 900], offset: [0, 40] },
-  "right-upper-leg":{ pivot: [650, 735], offset: [-38, 42] },
-  "right-lower-leg":{ pivot: [760, 890], offset: [-38, 42] },
-  "right-foot":     { pivot: [790, 900], offset: [-38, 0] },
+  // Hip -> knee -> ankle pivots, positioned inside the overlap areas.
+  "left-upper-leg":  { pivot: [420, 750] },
+  "left-lower-leg":  { pivot: [405, 830] },
+  "left-foot":       { pivot: [350, 890] },
+  "right-upper-leg": { pivot: [600, 750] },
+  "right-lower-leg": { pivot: [625, 820] },
+  "right-foot":      { pivot: [630, 875] },
 };
 
 function canvasPoint(point, offset = [0, 0]) {
@@ -43,7 +52,7 @@ function canvasPoint(point, offset = [0, 0]) {
 
 function createPart(scene, root, name) {
   const spec = PARTS[name];
-  const offset = spec.offset ?? [0, 0];
+  const offset = [0, 0];
   const image = scene.add.image(0, 0, `chog-${name}`);
   image.setOrigin(spec.pivot[0] / SOURCE_SIZE, spec.pivot[1] / SOURCE_SIZE);
   image.setDisplaySize(RENDER_SIZE, RENDER_SIZE);
@@ -82,7 +91,7 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   const lower = rig.parts[`${side}-lower-arm`];
   const hand = rig.parts[`${side}-hand`];
   const joints = rig.joints[side];
-  const upperPoseKey = side === "left" ? "leadArm" : "rearArm";
+  const upperPoseKey = side === "right" ? "leadArm" : "rearArm";
   const upperAngle = pose[`${upperPoseKey}Rotation`] ?? 0;
   const lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? (upperAngle * 0.18);
   const upperX = pose[`${upperPoseKey}X`] ?? 0;
@@ -119,7 +128,7 @@ function placeLeg(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   const lower = rig.parts[`${side}-lower-leg`];
   const foot = rig.parts[`${side}-foot`];
   const joints = rig.joints[side];
-  const key = side === "left" ? "leadLeg" : "rearLeg";
+  const key = side === "right" ? "leadLeg" : "rearLeg";
   const upperAngle = pose[`${key}Rotation`] ?? 0;
   const lowerAngle = pose[`${key}LowerRotation`] ?? 0;
   const upperX = pose[`${key}X`] ?? 0;
@@ -180,17 +189,19 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     tintLayers: Object.values(parts).map((part) => part.image),
     rest,
     joints: {
+      // A child pivot is the parent's next joint. Matching these coordinates
+      // preserves the artist's original overlap with every pose at rest.
       left: {
-        elbow: canvasPoint([355, 600]),
-        wrist: canvasPoint([280, 705]),
-        knee: canvasPoint([405, 888]),
-        ankle: canvasPoint([430, 940]),
+        elbow: canvasPoint(PARTS["left-lower-arm"].pivot),
+        wrist: canvasPoint(PARTS["left-hand"].pivot),
+        knee: canvasPoint(PARTS["left-lower-leg"].pivot),
+        ankle: canvasPoint(PARTS["left-foot"].pivot),
       },
       right: {
-        elbow: canvasPoint([620, 610]),
-        wrist: canvasPoint([690, 700]),
-        knee: canvasPoint([722, 932]),
-        ankle: canvasPoint([752, 930]),
+        elbow: canvasPoint(PARTS["right-lower-arm"].pivot),
+        wrist: canvasPoint(PARTS["right-hand"].pivot),
+        knee: canvasPoint(PARTS["right-lower-leg"].pivot),
+        ankle: canvasPoint(PARTS["right-foot"].pivot),
       },
     },
     phase: mirrored ? 1.7 : 0,
