@@ -831,7 +831,16 @@ async function loadChogs() {
   if (!state.wallet) return;
   if (state.invite?.gameMode === "PRACTICE") {
     state.chogs = [];
-    state.selectedTokenId = null;
+    const savedTokenId = state.invite?.viewerRole === "challenger"
+      ? state.invite?.challenger?.tokenId
+      : state.invite?.opponent?.tokenId;
+    if (savedTokenId && String(savedTokenId).startsWith("prototype:")) {
+      state.selectedTokenId = String(savedTokenId);
+      state.persistedTokenId = String(savedTokenId);
+    } else if (!String(state.selectedTokenId || "").startsWith("prototype:")) {
+      state.selectedTokenId = null;
+      state.persistedTokenId = null;
+    }
     $("#fighter-prompt").textContent = "Choose a prototype fighter. No Chog Genesis NFT is needed for practice.";
     renderChogs();
     return;
