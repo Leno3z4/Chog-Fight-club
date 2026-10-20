@@ -77,7 +77,12 @@ class AttackStartupState extends CharacterState {
 class AttackActiveState extends CharacterState {
   enter(character) {
     character.attack.elapsed = 0;
-    character.attack.hitbox = character.scene.createAttackHitbox(character.attack.facing, character.attack.slot);
+    character.attack.hitbox = character.attack.slot === "basic"
+      ? character.scene.createAttackHitbox(character.attack.facing, "basic")
+      : null;
+    if (character.attack.slot === "base" || character.attack.slot === "special") {
+      character.scene.startPlayerProjectile(character.attack);
+    }
     character.scene.createAttackVFX(character.attack);
     const moveName = character.attack.moveName ?? character.attack.slot;
     character.scene.showStatus(`${moveName.toUpperCase()} RELEASED`);
