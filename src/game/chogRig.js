@@ -33,6 +33,7 @@ export function createChogVisual(scene, x, y, mirrored = false) {
   root.add(shadow);
 
   const layers = {};
+  let mouth = null;
   for (const layer of LAYER_ORDER) {
     const [pivotX, pivotY] = PIVOTS[layer];
     const image = scene.add.image(
@@ -43,7 +44,11 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     image.setOrigin(pivotX / SOURCE_SIZE, pivotY / SOURCE_SIZE);
     image.setDisplaySize(RENDER_SIZE, RENDER_SIZE);
     root.add(image);
-    layers[layer] = image;
+
+    // Keep the existing eight-part rig map stable while exposing the mouth
+    // as a facial overlay with the same canvas alignment and head pivot.
+    if (layer === "mouth") mouth = image;
+    else layers[layer] = image;
   }
 
   const rest = {
@@ -55,17 +60,21 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     head: { x: layers.head.x, y: layers.head.y },
   };
 
+  const headParts = [layers.head, layers.eyes, layers.nose];
+  const faceParts = [layers.head, layers.eyes, mouth, layers.nose];
   root.rig = {
     root,
     shadow,
     layers,
+    mouth,
     leadArm: layers["left-arm"],
     rearArm: layers["right-arm"],
     leadLeg: layers["left-leg"],
     rearLeg: layers["right-leg"],
     torso: layers.body,
-    headParts: [layers.head, layers.eyes, layers.mouth, layers.nose],
-    tintLayers: Object.values(layers),
+    headParts,
+    faceParts,
+    tintLayers: [...Object.values(layers), mouth],
     rest,
     phase: mirrored ? 1.7 : 0,
     flashToken: 0,
@@ -94,7 +103,7 @@ export function applyChogPose(rig, pose) {
   applyPart(rig.rearLeg, rig.rest.rearLeg, pose, "rearLeg", torsoOrigin, torsoAngle, torsoX, torsoY);
 
   const head = transformJoint(rig.rest.head, torsoOrigin, torsoAngle, torsoX, torsoY);
-  for (const part of rig.headParts) {
+  for (const part of rig.faceParts ?? rig.headParts) {
     part.x = head.x + (pose.headX ?? 0);
     part.y = head.y + (pose.headY ?? 0);
     part.rotation = torsoAngle + (pose.headRotation ?? 0);
