@@ -139,7 +139,16 @@ export function canHitTargetInFront(attackerX, targetX, facing) {
 }
 
 export function canEvadeIncomingAttack(combatant, attack) {
-  return Boolean(combatant.airborne && combatant.evadeWindow > 0 && attack?.canBeEvaded !== false);
+  // Being airborne is not a universal invulnerability state. Callers must
+  // establish that a real projectile physically intersects the target's
+  // hurtbox while the target is in the jump arc.
+  return Boolean(
+    combatant.airborne
+      && combatant.evadeWindow > 0
+      && attack?.projectile === true
+      && attack?.projectileOverlapsHitbox === true
+      && attack?.canBeEvaded !== false,
+  );
 }
 
 export function resolveIncomingAttack(attacker, defender, attack) {
