@@ -107,12 +107,12 @@ const rotateVector = (x, y, angle) => ({
   y: x * Math.sin(angle) + y * Math.cos(angle),
 });
 
-const elbowLocal = transform(rig.joints.left.elbow, rig.parts["left-upper-arm"].rest, -1.58);
+const elbowLocal = transform(rig.joints.left.elbow, rig.parts["left-upper-arm"].rest, -2.42);
 const elbowWorld = transform(elbowLocal, rig.rest.torso, -0.1, 4, -3);
 const wristVector = rotateVector(
   rig.joints.left.wrist.x - rig.joints.left.elbow.x,
   rig.joints.left.wrist.y - rig.joints.left.elbow.y,
-  -0.1 - 1.58 + (-1.58 * 0.18),
+  -0.1 - 2.42 + (-2.42 * 0.18),
 );
 assert.ok(
   Math.abs(rig.parts["left-hand"].image.x - elbowWorld.x - wristVector.x) < 1e-9
@@ -120,12 +120,12 @@ assert.ok(
   "wrist should extend from the transformed elbow, not drift from the original joint",
 );
 
-const kneeLocal = transform(rig.joints.left.knee, rig.parts["left-upper-leg"].rest, 0.2);
+const kneeLocal = transform(rig.joints.left.knee, rig.parts["left-upper-leg"].rest, -0.2);
 const kneeWorld = transform(kneeLocal, rig.rest.torso, -0.1, 4, -3);
 const ankleVector = rotateVector(
   rig.joints.left.ankle.x - rig.joints.left.knee.x,
   rig.joints.left.ankle.y - rig.joints.left.knee.y,
-  -0.1 + 0.2,
+  -0.1 - 0.2,
 );
 assert.ok(
   Math.abs(rig.parts["left-foot"].image.x - kneeWorld.x - ankleVector.x) < 1e-9
