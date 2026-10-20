@@ -1,7 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  DISCONNECT_GRACE_MS,
   INVITE_EXPIRY_MS,
+  getDisconnectedForfeitRole,
   RESULT_REVIEW_WINDOW_MS,
   appendBattleLog,
   inviteExpiryAt,
@@ -51,4 +53,16 @@ test("battle-log appends preserve valid prior entries and cap retained history",
   assert.deepEqual(readBattleLog("not-json"), []);
   const bounded = Array.from({ length: 5 }, (_, i) => ({ n: i }));
   assert.deepEqual(readBattleLog(appendBattleLog(JSON.stringify(bounded), { n: 5 }, 3)), [{ n: 3 }, { n: 4 }, { n: 5 }]);
+});
+
+test("a disconnected player forfeits only after grace expires while their opponent remains connected", () => {
+  const now = 1_000_000;
+  const players = {
+    challenger: { connected: false, disconnectedAt: now - DISCONNECT_GRACE_MS },
+    opponent: { connected: true, disconnectedAt: 0 },
+  };
+  assert.equal(getDisconnectedForfeitRole(players, now - 1), null);
+  assert.equal(getDisconnectedForfeitRole(players, now), "challenger");
+  assert.equal(getDisconnectedForfeitRole({ ...players, opponent: { connected: false, disconnectedAt: now - DISCONNECT_GRACE_MS } }, now), null);
+  assert.equal(getDisconnectedForfeitRole({ ...players, challenger: { connected: true, disconnectedAt: 0 } }, now), null);
 });
