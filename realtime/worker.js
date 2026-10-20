@@ -211,13 +211,16 @@ export class ArenaRoom {
         player.connected = true;
         player.username = attachment.username || player.username;
       }
+      await this._resolveMatch(state, Date.now());
       await this._persist(state, true);
       this._broadcast(state);
       return;
     }
 
-    if (message.type === "input" && state.phase === "IN_BATTLE" && state.status === "IN_BATTLE") {
-      this._step(state, Date.now());
+    if (message.type === "input" && state.status === "IN_BATTLE"
+      && ["IN_BATTLE", "ROUND_OVER"].includes(state.phase)) {
+      const now = Date.now();
+      this._step(state, now);
       const player = state.players[attachment.role];
       if (!player || player.discordId !== attachment.discordId) return;
       const inputX = Number(message.x);
@@ -227,11 +230,21 @@ export class ArenaRoom {
         y: Number.isFinite(inputY) ? clamp(Math.sign(inputY), -1, 1) : 0,
       };
       if (player.input.x !== 0) player.facing = player.input.x;
-      if (message.action === "attack") this._attack(state, attachment.role, false);
-      else if (message.action === "special") this._attack(state, attachment.role, true);
-      else if (message.action === "dash") this._dash(state, attachment.role, Date.now());
-      await this._checkWinner(state);
-      await this._persist(state, state.status === "FINISHED");
+
+      if (state.phase === "IN_BATTLE") {
+        if (message.action === "attack" || message.action === "doubleAttack") {
+          this._attack(state, attachment.role, message.action);
+        } else if (message.action === "base" || message.action === "special") {
+          this._attack(state, attachment.role, message.action);
+        } else if (message.action === "dash") {
+          this._dash(state, attachment.role, now);
+        } else if (message.action === "jump") {
+          this._jump(state, attachment.role, now);
+        }
+      }
+
+      await this._resolveMatch(state, now);
+      await this._persist(state, state.status === "FINISHED" || state.phase === "ROUND_OVER");
       this._broadcast(state);
     }
   }
