@@ -352,11 +352,16 @@ class ArenaScene extends Phaser.Scene {
       combatant.jumpTime = 0;
       combatant.evadeWindow = 0;
       combatant.defeated = false;
+      combatant.koAnnounced = false;
     }
     this.playerCharacter.attack = null;
     this.playerCharacter.hitstunRemaining = 0;
     this.playerCharacter.input = { left: false, right: false, crouch: false };
     this.playerCharacter.stateMachine.change(CHARACTER_STATES.IDLE);
+    this.incomingAttack?.visual?.destroy();
+    this.incomingAttack = null;
+    this.projectiles.forEach((projectile) => projectile.visual?.destroy());
+    this.projectiles = [];
     const spawnGap = Math.min(720, this.arenaWidth * 0.56);
     const playerX = this.arenaWidth / 2 - spawnGap / 2;
     const opponentX = this.arenaWidth / 2 + spawnGap / 2;
@@ -960,8 +965,11 @@ class ArenaScene extends Phaser.Scene {
     this.wasGrounded = grounded;
 
     const playerPose = this.getPlayerRigPose(time, grounded, moving);
+    const currentAttack = this.playerCharacter.attack;
     const rearCrossStriking = state === CHARACTER_STATES.ATTACK_ACTIVE
-      && this.playerCharacter.attack?.hand === "rear";
+      && Boolean(currentAttack?.combo)
+      && currentAttack.elapsed >= 170
+      && currentAttack.elapsed < 290;
     const playerRig = this.playerVisual.rig;
     if (rearCrossStriking !== playerRig.rearCrossInFront) {
       if (rearCrossStriking) {
@@ -1348,22 +1356,6 @@ class ArenaScene extends Phaser.Scene {
         headRotation: 0.16,
       };
     }
-    if (state === CHARACTER_STATES.DEFEATED) {
-      return {
-        ...readyPose,
-        leadArmRotation: -0.1,
-        rearArmRotation: 0.15,
-        leadArmLowerRotation: 0.35,
-        rearArmLowerRotation: -0.25,
-        leadLegRotation: -0.45,
-        rearLegRotation: 0.38,
-        leadLegLowerRotation: 0.65,
-        rearLegLowerRotation: -0.6,
-        torsoRotation: 0.22,
-        torsoY: 12,
-        headRotation: 0.16,
-      };
-    }
     if (this.incomingAttack) {
       const pattern = this.incomingAttack;
       const elapsed = Phaser.Math.Clamp(pattern.telegraphMs - pattern.timeLeft, 0, pattern.telegraphMs);
@@ -1425,7 +1417,6 @@ class ArenaScene extends Phaser.Scene {
     const specialName = this.playerBattleDNA.abilitySet.special?.name ?? "Signature Ability";
     this.add.text(32, 80, `1 ${baseName}  ·  2 ${specialName}`, { ...textStyle, fontSize: "12px", fontStyle: "700" }).setScrollFactor(0);
     this.playerHpText = this.add.text(32, 120, "", { ...textStyle, fontSize: "14px" }).setScrollFactor(0);
-    this.playerEnergyText = this.add.text(32, 162, "", { ...textStyle, fontSize: "13px" }).setScrollFactor(0);
     this.playerCooldownText = this.add.text(32, 182, "", { ...textStyle, fontSize: "12px" }).setScrollFactor(0);
     this.statusText = this.add.text(this.arenaWidth / 2, this.arenaHeight - 38, "", { ...textStyle, fontSize: "16px", align: "center" }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
     this.matchHudText = this.add.text(this.arenaWidth / 2, 22, "", {
