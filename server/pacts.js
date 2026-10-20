@@ -123,12 +123,12 @@ async function getParticipant({ db, id, user }) {
   }
   return { row, isChallenger };
 }
-function publicPact(row, address, env, isChallenger, battle = null) {
+function publicPact(row, address, env, isChallenger, battle = null, isModerator = false) {
   const configured = Boolean(address);
   const termsReady = String(row.condition_text || "").trim().length >= 5
     && String(row.opponent_demand_text || "").trim().length >= 5;
   if (!configured) return {
-    configured: false, minted: false, termsReady,
+    configured: false, minted: false, termsReady, canModerateResult: Boolean(isModerator),
     reason: "Pact factory address is not configured on the Cloudflare backend.",
   };
   const typedData = termsReady ? typedDataFor(row, env, address) : null;
@@ -143,6 +143,7 @@ function publicPact(row, address, env, isChallenger, battle = null) {
   return {
     configured: true,
     termsReady,
+    canModerateResult: Boolean(isModerator),
     minted: Boolean(row.pact_id && row.pact_tx_hash),
     pactId: row.pact_id == null ? null : String(row.pact_id),
     transactionHash: row.pact_tx_hash || null,
@@ -267,7 +268,7 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
         .bind(expiry, id).run();
       row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
     }
-    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger, await db.prepare("SELECT status, winner_discord_id, battle_log FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first()) } };
+    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger, await db.prepare("SELECT status, winner_discord_id, battle_log FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first(), user.isAdmin) } };
   }
   if (method !== "POST") throw new PactApiError("Method not allowed.", { status: 405, code: "METHOD_NOT_ALLOWED" });
   if (row.pact_id && !["confirmMint", "settle", "recordFulfillment", "disputeResult", "resolveDispute"].includes(body.action)) throw new PactApiError("The Pact NFT has already been minted for this challenge.", { status: 409, code: "PACT_ALREADY_MINTED" });
@@ -384,7 +385,7 @@ export async function handlePactRequest({ method, url, cookieHeader, env, body =
     }
     row = await db.prepare("SELECT * FROM chog_challenge_invites WHERE id = ?1 LIMIT 1").bind(id).first();
     const updatedBattle = await db.prepare("SELECT status, winner_discord_id, battle_log FROM chog_battles WHERE invite_id = ?1 LIMIT 1").bind(id).first();
-    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger, updatedBattle) } };
+    return { status: 200, body: { pact: publicPact(row, address, env, isChallenger, updatedBattle, user.isAdmin) } };
   }
 
   if (body.action === "resolveDispute") {
