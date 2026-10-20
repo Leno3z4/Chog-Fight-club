@@ -9,6 +9,7 @@ import { InputBuffer } from "./game/inputBuffer.js";
 import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
 import { applyChogPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
+import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
   beginOffensiveAction,
   canUseOffensiveAction,
@@ -100,6 +101,23 @@ function blendRigPose(from, to, progress) {
   ]));
 }
 
+function circleIntersectsHurtbox(x, y, radius, zone) {
+  if (!zone) return false;
+  const width = zone.body?.width ?? 100;
+  const height = zone.body?.height ?? 115;
+  const closestX = Phaser.Math.Clamp(x, zone.x - width / 2, zone.x + width / 2);
+  const closestY = Phaser.Math.Clamp(y, zone.y - height / 2, zone.y + height / 2);
+  return (x - closestX) ** 2 + (y - closestY) ** 2 <= radius ** 2;
+}
+
+function hitboxIntersectsHurtbox(hitbox, zone) {
+  if (!hitbox || !zone) return false;
+  const a = hitbox.body ?? hitbox;
+  const b = zone.body ?? zone;
+  return Math.abs(hitbox.x - zone.x) <= (a.width + b.width) / 2
+    && Math.abs(hitbox.y - zone.y) <= (a.height + b.height) / 2;
+}
+
 class ArenaScene extends Phaser.Scene {
   constructor() {
     super("ArenaScene");
@@ -114,7 +132,17 @@ class ArenaScene extends Phaser.Scene {
     this.opponentVisual = null;
     this.playerFacing = 1;
     this.walkBlend = 0;
+    this.strideDist = 0;
     this.lastPlayerPose = { ...BASE_RIG_POSE };
+    this.match = null;
+    this.matchHudText = null;
+    this.matchOverlay = null;
+    this.matchOverlayTitle = null;
+    this.matchOverlayDetail = null;
+    this.roundIntermissionMs = 0;
+    this.basicTapPendingAt = null;
+    this.basicDoubleTapWindowMs = 260;
+    this.projectiles = [];
     this.playerHurtbox = null;
     this.opponentHurtbox = null;
     this.cursors = null;
@@ -141,9 +169,10 @@ class ArenaScene extends Phaser.Scene {
   }
 
   create() {
-    this.punchHand = "lead";
-    this.lastPunchAt = -9999;
-    this.strideDist = 0;
+    this.basicTapPendingAt = null;
+    this.projectiles = [];
+    this.match = createMatchState({ totalRounds: 3, roundTimeMs: 60_000 });
+    startRound(this.match);
     this.arenaWidth = this.scale.width || GAME_WIDTH;
     this.arenaHeight = this.scale.height || GAME_HEIGHT;
     this.floorY = Math.round(this.arenaHeight * (FLOOR_Y / GAME_HEIGHT));
@@ -209,7 +238,35 @@ class ArenaScene extends Phaser.Scene {
   }
 
   update(time, delta) {
-    if (!this.player) return;
+    if (!this.player || !this.match) return;
+
+    if (this.match.phase === MATCH_PHASES.FIGHTING) {
+      const previousPhase = this.match.phase;
+      updateMatch(this.match, delta, {
+        player: this.playerCombatant,
+        opponent: this.opponentCombatant,
+      });
+      if (this.match.phase !== previousPhase) {
+        this.handleRoundTransition(time);
+        this.updateVisuals(time, delta);
+        this.updateHealthBars();
+        this.updateHud();
+        return;
+      }
+    } else if (this.match.phase === MATCH_PHASES.ROUND_OVER) {
+      this.roundIntermissionMs = Math.max(0, this.roundIntermissionMs - delta);
+      if (this.roundIntermissionMs === 0) this.resetForNextRound();
+      this.updateVisuals(time, delta);
+      this.updateHealthBars();
+      this.updateHud();
+      return;
+    } else if (this.match.phase === MATCH_PHASES.MATCH_OVER) {
+      this.updateVisuals(time, delta);
+      this.updateHealthBars();
+      this.updateHud();
+      return;
+    }
+
     const dt = delta / 1000;
     updateCombatant(this.playerCombatant, delta);
     updateCombatant(this.opponentCombatant, delta);
@@ -219,9 +276,114 @@ class ArenaScene extends Phaser.Scene {
     this.playerCharacter.stateMachine.update(delta);
     this.processBufferedInput();
     this.updateIncomingAttack(delta);
+    this.updateHurtboxes();
+    this.updateProjectiles(delta);
     this.updateVisuals(time, delta);
     this.updateHealthBars();
     this.updateHud();
+  }
+
+  registerBasicTap(now = performance.now()) {
+    if (this.basicTapPendingAt != null && now - this.basicTapPendingAt <= this.basicDoubleTapWindowMs) {
+      this.basicTapPendingAt = null;
+      this.inputBuffer.push("doubleBasic", now);
+      return;
+    }
+    this.basicTapPendingAt = now;
+  }
+
+  flushPendingBasicTap(now = performance.now()) {
+    if (this.basicTapPendingAt == null || now - this.basicTapPendingAt <= this.basicDoubleTapWindowMs) return;
+    this.basicTapPendingAt = null;
+    this.inputBuffer.push("basic", now);
+  }
+
+  handleRoundTransition(time) {
+    this.basicTapPendingAt = null;
+    this.inputBuffer.clear();
+    this.incomingAttack?.visual?.destroy();
+    this.incomingAttack = null;
+    for (const projectile of this.projectiles) projectile.visual?.destroy();
+    this.projectiles = [];
+    this.player.setVelocity(0, 0);
+
+    if (this.playerCombatant.hp <= 0) {
+      this.playerCharacter.stateMachine.change(CHARACTER_STATES.DEFEATED);
+    } else {
+      this.playerCharacter.attack = null;
+      this.playerCharacter.stateMachine.change(CHARACTER_STATES.IDLE);
+    }
+
+    const score = `YOU ${this.match.wins.player}  —  ${this.match.wins.opponent} BOT`;
+    const wasKO = this.playerCombatant.hp <= 0 || this.opponentCombatant.hp <= 0;
+    if (this.match.phase === MATCH_PHASES.MATCH_OVER) {
+      this.matchOverlayTitle.setText(this.match.matchDraw
+        ? (wasKO ? "DOUBLE K.O. · MATCH DRAW" : "MATCH DRAW")
+        : wasKO ? "K.O.!" : "MATCH OVER");
+      this.matchOverlayDetail.setText(this.match.matchDraw
+        ? `THREE ROUNDS COMPLETE · ${score}`
+        : `${this.match.matchWinner === "player" ? "YOU WIN" : "BOT WINS"} · FINAL SCORE ${score}`);
+      this.matchOverlay.setVisible(true);
+      this.roundIntermissionMs = 0;
+      this.showStatus(this.match.matchDraw ? "MATCH DRAW" : (this.match.matchWinner === "player" ? "VICTORY" : "DEFEAT"), 1800, 250);
+      return;
+    }
+
+    const roundText = this.match.draw ? `ROUND ${this.match.round} DRAW`
+      : `${this.match.lastWinner === "player" ? "YOU" : "BOT"} WIN ROUND ${this.match.round}`;
+    this.matchOverlayTitle.setText(wasKO ? "K.O.!" : "ROUND OVER");
+    this.matchOverlayDetail.setText(`${roundText} · SCORE ${score}`);
+    this.matchOverlay.setVisible(true);
+    this.roundIntermissionMs = 2200;
+    this.showStatus(wasKO ? "K.O.!" : roundText, 1600, 250);
+  }
+
+  resetForNextRound() {
+    this.playerCombatant.hp = this.playerCombatant.maxHp;
+    this.opponentCombatant.hp = this.opponentCombatant.maxHp;
+    for (const combatant of [this.playerCombatant, this.opponentCombatant]) {
+      combatant.energy = combatant.maxEnergy;
+      combatant.statuses = {};
+      combatant.guarding = false;
+      combatant.guardTimeRemaining = 0;
+      combatant.counterWindowMs = 0;
+      combatant.cooldowns = { basic: 0, base: 0, special: 0 };
+      combatant.airborne = false;
+      combatant.jumpTime = 0;
+      combatant.evadeWindow = 0;
+      combatant.defeated = false;
+      combatant.koAnnounced = false;
+    }
+    this.playerCharacter.attack = null;
+    this.playerCharacter.hitstunRemaining = 0;
+    this.playerCharacter.input = { left: false, right: false, crouch: false };
+    this.playerCharacter.stateMachine.change(CHARACTER_STATES.IDLE);
+    this.incomingAttack?.visual?.destroy();
+    this.incomingAttack = null;
+    this.projectiles.forEach((projectile) => projectile.visual?.destroy());
+    this.projectiles = [];
+    const spawnGap = Math.min(720, this.arenaWidth * 0.56);
+    const playerX = this.arenaWidth / 2 - spawnGap / 2;
+    const opponentX = this.arenaWidth / 2 + spawnGap / 2;
+    this.player.setPosition(playerX, this.floorY - 72).setVelocity(0, 0);
+    this.opponent.setPosition(opponentX, this.floorY - 72);
+    this.opponent.refreshBody();
+    this.player.body.updateFromGameObject();
+    this.playerVisual.setPosition(this.player.x, this.player.y - 55);
+    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 120);
+    this.playerVisual.setScale(1, 1);
+    this.opponentVisual.setScale(-1, 1);
+    this.playerFacing = 1;
+    this.opponentAttackIndex = 0;
+    this.nextOpponentAttack = 1200;
+    this.walkBlend = 0;
+    this.strideDist = 0;
+    this.ghostHp.player = this.playerCombatant.hp;
+    this.ghostHp.opponent = this.opponentCombatant.hp;
+    this.matchOverlay.setVisible(false);
+    startRound(this.match);
+    this.updateHealthBars(true);
+    this.showStatus(`ROUND ${this.match.round} — FIGHT!`, 900, 250);
   }
 
   captureInput() {
@@ -231,7 +393,8 @@ class ArenaScene extends Phaser.Scene {
     this.playerCharacter.input.right = right;
     this.playerCharacter.input.crouch = this.cursors.down.isDown || this.keys.crouch.isDown || practiceTouchInput.crouch;
 
-    if (Phaser.Input.Keyboard.JustDown(this.keys.basic) || practiceTouchActions.delete("basic")) this.inputBuffer.push("basic");
+    if (Phaser.Input.Keyboard.JustDown(this.keys.basic) || practiceTouchActions.delete("basic")) this.registerBasicTap();
+    this.flushPendingBasicTap();
     if (Phaser.Input.Keyboard.JustDown(this.keys.base) || practiceTouchActions.delete("base")) this.inputBuffer.push("base");
     if (Phaser.Input.Keyboard.JustDown(this.keys.special) || practiceTouchActions.delete("special")) this.inputBuffer.push("special");
     if (Phaser.Input.Keyboard.JustDown(this.keys.defense) || practiceTouchActions.delete("defense")) this.inputBuffer.push("defense");
@@ -271,9 +434,10 @@ class ArenaScene extends Phaser.Scene {
     const canAct = state === CHARACTER_STATES.IDLE || state === CHARACTER_STATES.WALK;
     if (!canAct || this.playerCharacter.hitstunRemaining > 0) return;
 
-    const bufferedAttack = this.inputBuffer.consume(["special", "base", "basic"]);
+    const bufferedAttack = this.inputBuffer.consume(["special", "base", "doubleBasic", "basic"]);
     if (bufferedAttack) {
-      this.startAttack(bufferedAttack.action);
+      if (bufferedAttack.action === "doubleBasic") this.startAttack("basic", { combo: true });
+      else this.startAttack(bufferedAttack.action);
       return;
     }
 
@@ -291,7 +455,7 @@ class ArenaScene extends Phaser.Scene {
     }
   }
 
-  startAttack(slot) {
+  startAttack(slot, { combo = false } = {}) {
     const state = this.playerCharacter.stateMachine.currentName;
     if (![CHARACTER_STATES.IDLE, CHARACTER_STATES.WALK].includes(state)) return;
 
@@ -299,11 +463,6 @@ class ArenaScene extends Phaser.Scene {
       const cooldown = getCooldownRemaining(this.playerCombatant, slot);
       if (cooldown > 0) this.showStatus(`${slot.toUpperCase()} RELOADING: ${(cooldown / 1000).toFixed(1)}s`);
       else this.showStatus("ENERGY RECHARGING");
-      return;
-    }
-
-    if (Math.abs(this.player.x - this.opponent.x) > 310) {
-      this.showStatus("OUT OF RANGE");
       return;
     }
 
@@ -318,19 +477,15 @@ class ArenaScene extends Phaser.Scene {
     const ability = slot === "basic" ? null : this.playerBattleDNA.abilitySet[slot];
     const auraFamily = ability?.auraFamily ?? this.playerBattleDNA.abilitySet.base?.auraFamily ?? "neutral";
     const moveName = getAttackPresentation({ slot, ability, auraFamily }).name;
-    let hand = "lead";
-    if (slot === "basic") {
-      const now = this.time.now;
-      hand = (now - this.lastPunchAt < 700)
-        ? (this.punchHand === "lead" ? "rear" : "lead")
-        : "lead";
-      this.punchHand = hand;
-      this.lastPunchAt = now;
-    }
+    const timing = slot === "basic" && combo
+      ? { ...combatData.timing.basic, startup: 100, active: 350, recovery: 350 }
+      : combatData.timing[slot];
     this.playerCharacter.stateMachine.change(CHARACTER_STATES.ATTACK_STARTUP, {
       attack: {
         slot,
-        hand,
+        hand: "lead",
+        combo: Boolean(combo),
+        landedComboHits: [],
         ability,
         auraFamily,
         moveName,
@@ -338,7 +493,7 @@ class ArenaScene extends Phaser.Scene {
         elapsed: 0,
         hit: false,
         hitbox: null,
-        timing: combatData.timing[slot],
+        timing,
         animationFrameDriven: false,
         resourceCommitted: true,
       },
@@ -346,10 +501,21 @@ class ArenaScene extends Phaser.Scene {
   }
 
   checkPlayerHit(sequence) {
-    if (sequence.hit || !sequence.hitbox || !this.opponentHurtbox.active) return;
+    if (!sequence.hitbox || !this.opponentHurtbox.active) return;
+    let comboHitIndex = -1;
+    if (sequence.combo && sequence.slot === "basic") {
+      const elapsed = sequence.elapsed ?? 0;
+      comboHitIndex = elapsed >= 25 && elapsed <= 110 ? 0
+        : elapsed >= 200 && elapsed <= 285 ? 1
+          : -1;
+      if (comboHitIndex < 0 || sequence.landedComboHits?.includes(comboHitIndex)) return;
+    } else if (sequence.hit) {
+      return;
+    }
     if (!canHitTargetInFront(this.player.x, this.opponent.x, sequence.facing)) return;
     if (!this.physics.overlap(sequence.hitbox, this.opponentHurtbox)) return;
-    sequence.hit = true;
+    if (sequence.combo && sequence.slot === "basic") sequence.landedComboHits.push(comboHitIndex);
+    else sequence.hit = true;
 
     let result;
     try {
@@ -398,8 +564,22 @@ class ArenaScene extends Phaser.Scene {
       attack.timeLeft -= delta;
       if (attack.timeLeft <= 0) {
         this.incomingAttack = null;
-        const result = resolveIncomingAttack(this.opponentCombatant, this.playerCombatant, attack);
         attack.visual?.destroy();
+        if (attack.slot === "base" || attack.slot === "special") {
+          this.spawnProjectile("opponent", attack.slot, attack.ability, attack.facing, attack.auraFamily);
+          return;
+        }
+
+        const melee = this.createAttackHitbox(attack.facing, "basic");
+        melee.setPosition(this.opponent.x + attack.facing * 82, this.opponent.y - 50);
+        melee.body.updateFromGameObject();
+        const overlaps = hitboxIntersectsHurtbox(melee, this.playerHurtbox);
+        melee.destroy();
+        if (!overlaps) {
+          this.showStatus(this.playerCombatant.airborne ? "PUNCH DODGED" : "PUNCH MISSED", 500, 250);
+          return;
+        }
+        const result = resolveIncomingAttack(this.opponentCombatant, this.playerCombatant, { ...attack, canBeEvaded: false });
         if (result.evaded) {
           const perfect = Boolean(result.parried || attack.perfectEvade);
           if (perfect) {
@@ -455,6 +635,7 @@ class ArenaScene extends Phaser.Scene {
       }
       this.incomingAttack = {
         ...pattern,
+        facing,
         timeLeft: pattern.telegraphMs,
         visual,
         action: `opponent-${pattern.id}`,
@@ -485,6 +666,76 @@ class ArenaScene extends Phaser.Scene {
     this.cameras.main.shake(counter ? 120 : heavy ? 120 : 70, counter ? 0.006 : heavy ? 0.007 : 0.004);
     this.applyHitstop(counter ? 85 : heavy ? combatData.timing.hitstop.heavy : combatData.timing.hitstop.normal);
     this.showStatus(counter ? `COUNTER! ${damage} DAMAGE` : `HIT: ${damage} DAMAGE`, counter ? 900 : 650, counter ? 300 : 350);
+    const defenderCombatant = defender === this.player ? this.playerCombatant : this.opponentCombatant;
+    if (defenderCombatant.hp <= 0 && !defenderCombatant.koAnnounced) {
+      defenderCombatant.koAnnounced = true;
+      this.showStatus(defender === this.player ? "K.O. — YOU ARE DOWN" : "K.O. — OPPONENT DOWN", 1500, 200);
+      if (defender === this.player) this.playerCharacter.stateMachine.change(CHARACTER_STATES.DEFEATED);
+    }
+  }
+
+  startPlayerProjectile(attack) {
+    if (!attack || attack.projectileLaunched || !["base", "special"].includes(attack.slot)) return;
+    attack.projectileLaunched = true;
+    this.spawnProjectile("player", attack.slot, attack.ability, attack.facing, attack.auraFamily);
+  }
+
+  spawnProjectile(ownerRole, slot, ability, facing, auraFamily = "neutral") {
+    const attacker = ownerRole === "player" ? this.player : this.opponent;
+    const direction = Number(facing) < 0 ? -1 : 1;
+    const speed = slot === "special" ? 660 : 560;
+    const radius = slot === "special" ? 17 : 12;
+    const x = attacker.x + direction * 52;
+    const y = attacker.y - 55;
+    const visual = this.createAbilityMarker(x, y, { slot, ability, auraFamily }).setDepth(18);
+    visual.setScale(slot === "special" ? 1.1 : 0.85);
+    this.projectiles.push({
+      ownerRole, slot, ability, auraFamily, facing: direction,
+      x, y, vx: direction * speed, radius, visual,
+    });
+  }
+
+  updateProjectiles(delta) {
+    const dt = Math.max(0, delta) / 1000;
+    for (let index = this.projectiles.length - 1; index >= 0; index -= 1) {
+      const projectile = this.projectiles[index];
+      projectile.x += projectile.vx * dt;
+      projectile.visual.setPosition(projectile.x, projectile.y);
+      const targetIsPlayer = projectile.ownerRole === "opponent";
+      const target = targetIsPlayer ? this.player : this.opponent;
+      const hurtbox = targetIsPlayer ? this.playerHurtbox : this.opponentHurtbox;
+      if (!target || !hurtbox) continue;
+
+      if (circleIntersectsHurtbox(projectile.x, projectile.y, projectile.radius, hurtbox)) {
+        const attacker = projectile.ownerRole === "player" ? this.player : this.opponent;
+        const defender = target;
+        const attackerCombatant = projectile.ownerRole === "player" ? this.playerCombatant : this.opponentCombatant;
+        const defenderCombatant = targetIsPlayer ? this.playerCombatant : this.opponentCombatant;
+        let result;
+        try {
+          result = projectile.slot === "base"
+            ? resolveBaseAbility(attackerCombatant, defenderCombatant, true)
+            : resolveSpecialAbility(attackerCombatant, defenderCombatant, true);
+          this.onHit({
+            attacker, defender,
+            defenderVisual: targetIsPlayer ? this.playerVisual : this.opponentVisual,
+            result,
+            attack: projectile,
+            heavy: projectile.slot === "special",
+          });
+        } catch (error) {
+          this.showStatus(error?.message || "Projectile impact failed.");
+        }
+        projectile.visual.destroy();
+        this.projectiles.splice(index, 1);
+        continue;
+      }
+
+      if (projectile.x < -80 || projectile.x > this.arenaWidth + 80) {
+        projectile.visual.destroy();
+        this.projectiles.splice(index, 1);
+      }
+    }
   }
 
   createAttackHitbox(facing, slot = "basic") {
@@ -714,8 +965,11 @@ class ArenaScene extends Phaser.Scene {
     this.wasGrounded = grounded;
 
     const playerPose = this.getPlayerRigPose(time, grounded, moving);
+    const currentAttack = this.playerCharacter.attack;
     const rearCrossStriking = state === CHARACTER_STATES.ATTACK_ACTIVE
-      && this.playerCharacter.attack?.hand === "rear";
+      && Boolean(currentAttack?.combo)
+      && currentAttack.elapsed >= 170
+      && currentAttack.elapsed < 290;
     const playerRig = this.playerVisual.rig;
     if (rearCrossStriking !== playerRig.rearCrossInFront) {
       if (rearCrossStriking) {
@@ -812,8 +1066,84 @@ class ArenaScene extends Phaser.Scene {
     windUp.rearLegRotation += 0.03 * power;
     windUp.headRotation += 0.018;
 
+    if (attack.slot === "basic" && attack.combo) {
+      // Double tap is a short jab-cross sequence: load, snap out the lead
+      // hand, return to guard, then rotate through the rear shoulder and hip.
+      const load = {
+        ...readyPose,
+        leadArmRotation: (readyPose.leadArmRotation ?? 0) + 0.12,
+        leadArmLowerRotation: (readyPose.leadArmLowerRotation ?? 0) - 0.08,
+        rearArmRotation: (readyPose.rearArmRotation ?? 0) - 0.08,
+        rearArmLowerRotation: (readyPose.rearArmLowerRotation ?? 0) - 0.06,
+        torsoRotation: (readyPose.torsoRotation ?? 0) + 0.04,
+        torsoX: (readyPose.torsoX ?? 0) - 2,
+        torsoY: (readyPose.torsoY ?? 0) + 1,
+      };
+      const jab = {
+        ...readyPose,
+        leadArmRotation: -1.47,
+        leadArmLowerRotation: 0.92,
+        leadArmX: 15,
+        leadArmY: -1,
+        rearArmRotation: (readyPose.rearArmRotation ?? 0) - 0.10,
+        rearArmLowerRotation: (readyPose.rearArmLowerRotation ?? 0) - 0.12,
+        rearArmY: -2,
+        torsoRotation: -0.14,
+        torsoX: 8,
+        torsoY: -1,
+        leadLegRotation: -0.12,
+        leadLegX: 8,
+        rearLegRotation: 0.08,
+        headX: 2,
+        headRotation: -0.03,
+      };
+      const resetGuard = {
+        ...readyPose,
+        leadArmRotation: (readyPose.leadArmRotation ?? 0) + 0.02,
+        leadArmLowerRotation: (readyPose.leadArmLowerRotation ?? 0) - 0.04,
+        rearArmRotation: (readyPose.rearArmRotation ?? 0) - 0.04,
+        rearArmLowerRotation: (readyPose.rearArmLowerRotation ?? 0) - 0.05,
+        torsoRotation: (readyPose.torsoRotation ?? 0) + 0.015,
+      };
+      const cross = {
+        ...readyPose,
+        rearArmRotation: -1.48,
+        rearArmLowerRotation: 0.92,
+        rearArmX: 18,
+        rearArmY: -2,
+        leadArmRotation: (readyPose.leadArmRotation ?? 0) - 0.10,
+        leadArmLowerRotation: (readyPose.leadArmLowerRotation ?? 0) - 0.12,
+        leadArmY: -2,
+        torsoRotation: -0.22,
+        torsoX: 13,
+        torsoY: -2,
+        rearLegRotation: 0.16,
+        rearLegLowerRotation: -0.15,
+        rearLegX: 6,
+        leadLegRotation: -0.10,
+        headX: 3,
+        headRotation: -0.04,
+      };
+
+      if (state === CHARACTER_STATES.ATTACK_STARTUP) {
+        return blendRigPose(readyPose, load, easeInOutCubic(
+          attack.elapsed / Math.max(1, attack.timing?.startup ?? 100),
+        ));
+      }
+      if (state === CHARACTER_STATES.ATTACK_ACTIVE) {
+        const progress = clamp01(attack.elapsed / Math.max(1, attack.timing?.active ?? 350));
+        if (progress < 0.28) return blendRigPose(load, jab, easeInOutCubic(progress / 0.20));
+        if (progress < 0.48) return blendRigPose(jab, resetGuard, easeInOutCubic((progress - 0.28) / 0.20));
+        if (progress < 0.82) return blendRigPose(resetGuard, cross, easeInOutCubic((progress - 0.48) / 0.28));
+        return blendRigPose(cross, readyPose, easeInOutCubic((progress - 0.82) / 0.18));
+      }
+      if (state === CHARACTER_STATES.ATTACK_RECOVERY) return readyPose;
+      return readyPose;
+    }
+
     if (attack.slot === "basic") {
-      // Basic punches use a dedicated two-hand boxing combo.
+      // Basic single tap remains one right-hand jab; the left cross is only
+      // used by the explicit double-tap combo.
       // Reset the generic ability wind-up before laying in the jab or cross.
       Object.assign(windUp, readyPose);
 
@@ -993,6 +1323,22 @@ class ArenaScene extends Phaser.Scene {
     const attack = this.playerCharacter.attack;
     const readyPose = this.getPlayerReadyPose(time, rig.phase);
     if (attack && ATTACK_STATES.has(state)) return this.getAttackPose(attack, state, time, rig.phase, readyPose);
+    if (state === CHARACTER_STATES.DEFEATED) {
+      return {
+        ...readyPose,
+        leadArmRotation: -0.1,
+        rearArmRotation: 0.15,
+        leadArmLowerRotation: 0.35,
+        rearArmLowerRotation: -0.25,
+        leadLegRotation: -0.45,
+        rearLegRotation: 0.38,
+        leadLegLowerRotation: 0.65,
+        rearLegLowerRotation: -0.6,
+        torsoRotation: 0.22,
+        torsoY: 12,
+        headRotation: 0.16,
+      };
+    }
     if (state === CHARACTER_STATES.HITSTUN) {
       const duration = Math.max(1, combatData.timing.hitstunMs);
       const age = duration - this.playerCharacter.hitstunRemaining;
@@ -1070,6 +1416,22 @@ class ArenaScene extends Phaser.Scene {
 
   getOpponentRigPose(time) {
     const rig = this.opponentVisual.rig;
+    if (this.opponentCombatant?.hp <= 0) {
+      return {
+        ...BASE_RIG_POSE,
+        leadArmRotation: -0.1,
+        rearArmRotation: 0.15,
+        leadArmLowerRotation: 0.35,
+        rearArmLowerRotation: -0.25,
+        leadLegRotation: -0.45,
+        rearLegRotation: 0.38,
+        leadLegLowerRotation: 0.65,
+        rearLegLowerRotation: -0.6,
+        torsoRotation: 0.22,
+        torsoY: 12,
+        headRotation: 0.16,
+      };
+    }
     if (this.incomingAttack) {
       const pattern = this.incomingAttack;
       const elapsed = Phaser.Math.Clamp(pattern.telegraphMs - pattern.timeLeft, 0, pattern.telegraphMs);
@@ -1131,17 +1493,32 @@ class ArenaScene extends Phaser.Scene {
     const specialName = this.playerBattleDNA.abilitySet.special?.name ?? "Signature Ability";
     this.add.text(32, 80, `1 ${baseName}  ·  2 ${specialName}`, { ...textStyle, fontSize: "12px", fontStyle: "700" }).setScrollFactor(0);
     this.playerHpText = this.add.text(32, 120, "", { ...textStyle, fontSize: "14px" }).setScrollFactor(0);
-    this.playerEnergyText = this.add.text(32, 162, "", { ...textStyle, fontSize: "13px" }).setScrollFactor(0);
     this.playerCooldownText = this.add.text(32, 182, "", { ...textStyle, fontSize: "12px" }).setScrollFactor(0);
     this.statusText = this.add.text(this.arenaWidth / 2, this.arenaHeight - 38, "", { ...textStyle, fontSize: "16px", align: "center" }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
+    this.matchHudText = this.add.text(this.arenaWidth / 2, 22, "", {
+      ...textStyle, fontSize: "16px", fontStyle: "800", align: "center", color: "#16324A",
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(31);
+    this.matchOverlay = this.add.container(this.arenaWidth / 2, this.arenaHeight / 2).setDepth(50).setScrollFactor(0).setVisible(false);
+    const overlayShade = this.add.rectangle(0, 0, 520, 144, 0x10131b, 0.88).setStrokeStyle(2, 0xf0b53a, 0.95);
+    this.matchOverlayTitle = this.add.text(0, -28, "ROUND OVER", {
+      ...textStyle, fontSize: "30px", fontStyle: "900", color: "#f0b53a", align: "center",
+    }).setOrigin(0.5);
+    this.matchOverlayDetail = this.add.text(0, 22, "", {
+      ...textStyle, fontSize: "15px", fontStyle: "800", color: "#ffffff", align: "center",
+    }).setOrigin(0.5);
+    this.matchOverlay.add([overlayShade, this.matchOverlayTitle, this.matchOverlayDetail]);
 
     this.playerGhostBar = this.add.rectangle(32, 106, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
     this.playerBar = this.add.rectangle(32, 106, 300, 18, 0x53d769, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
     this.playerEnergyBar = this.add.rectangle(32, 145, 300, 10, 0x39d96a, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
     this.playerEnergyGhostBar = this.add.rectangle(32, 145, 300, 10, 0xffffff, 0.12).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
+    this.playerEnergyText = this.add.text(32, 156, "", { ...textStyle, fontSize: "11px" }).setScrollFactor(0).setDepth(12);
 
     this.opponentGhostBar = this.add.rectangle(0, 106, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
     this.opponentBar = this.add.rectangle(0, 106, 300, 18, 0xf04b61, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
+    this.opponentEnergyBar = this.add.rectangle(0, 145, 300, 10, 0xb89eff, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
+    this.opponentEnergyGhostBar = this.add.rectangle(0, 145, 300, 10, 0xffffff, 0.12).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
+    this.opponentEnergyText = this.add.text(0, 156, "", { ...textStyle, fontSize: "11px", align: "right" }).setOrigin(1, 0).setScrollFactor(0).setDepth(12);
     this.opponentLabel = this.add.text(0, 120, "OPPONENT", { ...textStyle, fontSize: "14px" }).setScrollFactor(0);
     this.positionHud(this.arenaWidth, this.arenaHeight);
   }
@@ -1150,9 +1527,18 @@ class ArenaScene extends Phaser.Scene {
     const hp = Math.max(0, Math.round(this.playerCombatant.hp));
     const energy = Math.round(this.playerCombatant.energy);
     const energyRatio = Phaser.Math.Clamp(this.playerCombatant.energy / this.playerCombatant.maxEnergy, 0, 1);
+    const opponentEnergy = Math.round(this.opponentCombatant.energy);
+    const opponentEnergyRatio = Phaser.Math.Clamp(this.opponentCombatant.energy / this.opponentCombatant.maxEnergy, 0, 1);
     this.playerHpText.setText(`HP ${hp}/${this.playerCombatant.maxHp}`);
     this.playerEnergyBar.width = this.healthBarWidth * energyRatio;
-    this.playerEnergyText.setText(`ENERGY ${energy}%  •  Basic 5%  •  Base 10%  •  Special 35%`);
+    this.opponentEnergyBar.width = this.healthBarWidth * opponentEnergyRatio;
+    this.playerEnergyText.setText(`MP ${energy}%  •  Basic 5%  •  Base 10%  •  Special 35%`);
+    this.opponentEnergyText.setText(`BOT MP ${opponentEnergy}%`);
+
+    if (this.matchHudText) {
+      const seconds = Math.ceil(this.match.timeRemainingMs / 1000);
+      this.matchHudText.setText(`ROUND ${this.match.round}/${this.match.totalRounds}  ·  ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}  ·  ${this.match.wins.player}-${this.match.wins.opponent}`);
+    }
 
     const basic = getCooldownRemaining(this.playerCombatant, "basic");
     const base = getCooldownRemaining(this.playerCombatant, "base");
@@ -1222,9 +1608,14 @@ class ArenaScene extends Phaser.Scene {
     if (!this.statusText) return;
     this.healthBarWidth = Math.min(300, Math.max(100, (width - 96) / 2));
     this.statusText.setPosition(width / 2, height - 38);
+    this.matchHudText.setPosition(width / 2, 22);
+    this.matchOverlay.setPosition(width / 2, height / 2);
     const opponentX = width - 32 - this.healthBarWidth;
     this.opponentGhostBar.setPosition(opponentX, 106).setSize(this.healthBarWidth, 18);
     this.opponentBar.setPosition(opponentX, 106).setSize(this.healthBarWidth, 18);
+    this.opponentEnergyBar.setPosition(opponentX, 145).setSize(this.healthBarWidth, 10);
+    this.opponentEnergyGhostBar.setPosition(opponentX, 145).setSize(this.healthBarWidth, 10);
+    this.opponentEnergyText.setPosition(opponentX + this.healthBarWidth, 156);
     this.opponentLabel.setPosition(opponentX, 120);
     this.playerGhostBar.setSize(this.healthBarWidth, 18);
     this.playerBar.setSize(this.healthBarWidth, 18);
