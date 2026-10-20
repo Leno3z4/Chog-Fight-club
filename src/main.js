@@ -141,6 +141,9 @@ class ArenaScene extends Phaser.Scene {
   }
 
   create() {
+    this.punchHand = "lead";
+    this.lastPunchAt = -9999;
+    this.strideDist = 0;
     this.arenaWidth = this.scale.width || GAME_WIDTH;
     this.arenaHeight = this.scale.height || GAME_HEIGHT;
     this.floorY = Math.round(this.arenaHeight * (FLOOR_Y / GAME_HEIGHT));
@@ -160,6 +163,8 @@ class ArenaScene extends Phaser.Scene {
 
     this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 120, false);
     this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 120, true);
+    this.playerVisual.rig.defaultLayerOrder = [...this.playerVisual.list];
+    this.playerVisual.rig.rearCrossInFront = false;
     this.playerHurtbox = this.createHurtbox(this.player);
     this.opponentHurtbox = this.createHurtbox(this.opponent);
 
@@ -239,7 +244,11 @@ class ArenaScene extends Phaser.Scene {
     const state = this.playerCharacter.stateMachine.currentName;
     const canMove = [CHARACTER_STATES.IDLE, CHARACTER_STATES.WALK, CHARACTER_STATES.JUMP].includes(state);
     if (!canMove) {
-      if (state !== CHARACTER_STATES.HITSTUN) this.player.setVelocityX(0);
+      if (state === CHARACTER_STATES.ATTACK_ACTIVE) {
+        this.player.setVelocityX(this.playerFacing * 120);
+      } else if (state !== CHARACTER_STATES.HITSTUN) {
+        this.player.setVelocityX(0);
+      }
       return;
     }
 
@@ -276,7 +285,10 @@ class ArenaScene extends Phaser.Scene {
 
     const jump = this.inputBuffer.consume("jump");
     const grounded = this.player.body.blocked.down || this.player.body.touching.down;
-    if (jump && grounded) this.playerCharacter.stateMachine.change(CHARACTER_STATES.JUMP);
+    if (jump && grounded) {
+      this.playerCharacter.stateMachine.change(CHARACTER_STATES.JUMP);
+      this.playerVisual.scaleY = 1.12;
+    }
   }
 
   startAttack(slot) {
@@ -306,9 +318,19 @@ class ArenaScene extends Phaser.Scene {
     const ability = slot === "basic" ? null : this.playerBattleDNA.abilitySet[slot];
     const auraFamily = ability?.auraFamily ?? this.playerBattleDNA.abilitySet.base?.auraFamily ?? "neutral";
     const moveName = getAttackPresentation({ slot, ability, auraFamily }).name;
+    let hand = "lead";
+    if (slot === "basic") {
+      const now = this.time.now;
+      hand = (now - this.lastPunchAt < 700)
+        ? (this.punchHand === "lead" ? "rear" : "lead")
+        : "lead";
+      this.punchHand = hand;
+      this.lastPunchAt = now;
+    }
     this.playerCharacter.stateMachine.change(CHARACTER_STATES.ATTACK_STARTUP, {
       attack: {
         slot,
+        hand,
         ability,
         auraFamily,
         moveName,
@@ -656,33 +678,56 @@ class ArenaScene extends Phaser.Scene {
 
 
   updateVisuals(time, delta) {
+    const grounded = this.player.body.blocked.down || this.player.body.touching.down;
+    if (grounded && Math.abs(this.player.x - this.opponent.x) < 90) {
+      const away = this.player.x < this.opponent.x ? -1 : 1;
+      this.player.setX(this.opponent.x + away * 90);
+      if (this.player.body.velocity.x * away < 0) this.player.setVelocityX(0);
+      this.player.body.updateFromGameObject();
+    }
+
     this.updateHurtboxes();
     this.playerVisual.x = this.player.x;
     this.playerVisual.y = this.player.y - 55;
     this.opponentVisual.x = this.opponent.x;
     this.opponentVisual.y = this.floorY - 120;
-    const grounded = this.player.body.blocked.down || this.player.body.touching.down;
     const state = this.playerCharacter.stateMachine.currentName;
     const moving = grounded && state === CHARACTER_STATES.WALK && (this.playerCharacter.input.left || this.playerCharacter.input.right);
+    if (moving) this.strideDist += Math.abs(this.player.body.velocity.x) * (delta / 1000);
     const walkTarget = moving ? 1 : 0;
     const walkRate = moving ? 13 : 18;
     this.walkBlend = Phaser.Math.Linear(this.walkBlend, walkTarget, 1 - Math.exp(-walkRate * (delta / 1000)));
     if (!ATTACK_STATES.has(state)) {
-      const targetX = (grounded ? (moving ? 1.02 : 1) : 1.04) * this.playerFacing;
+      const targetMagnitude = grounded ? (moving ? 1.02 : 1) : 1.04;
       const targetY = grounded ? (moving ? 0.98 : 1) : 1.08;
       const blend = 1 - Math.exp(-12 * (delta / 1000));
-      this.playerVisual.scaleX = Phaser.Math.Linear(this.playerVisual.scaleX, targetX, blend);
+      const newMagnitude = Phaser.Math.Linear(Math.abs(this.playerVisual.scaleX), targetMagnitude, blend);
+      this.playerVisual.scaleX = newMagnitude * this.playerFacing;
       this.playerVisual.scaleY = Phaser.Math.Linear(this.playerVisual.scaleY, targetY, blend);
     }
     if (!this.wasGrounded && grounded) {
       this.createDust(this.player.x, this.floorY - 3);
-      this.playerVisual.rig.landingUntil = time + 150;
+      this.playerVisual.scaleY = 0.88;
+      this.playerVisual.rig.landingUntil = time + 180;
       this.playerVisual.rig.landingFromPose = { ...this.lastPlayerPose };
     }
     this.wasGrounded = grounded;
 
     const playerPose = this.getPlayerRigPose(time, grounded, moving);
-    applyChogPose(this.playerVisual.rig, playerPose);
+    const rearCrossStriking = state === CHARACTER_STATES.ATTACK_ACTIVE
+      && this.playerCharacter.attack?.hand === "rear";
+    const playerRig = this.playerVisual.rig;
+    if (rearCrossStriking !== playerRig.rearCrossInFront) {
+      if (rearCrossStriking) {
+        playerRig.root.bringToTop(playerRig.layers["left-upper-arm"]);
+        playerRig.root.bringToTop(playerRig.layers["left-lower-arm"]);
+        playerRig.root.bringToTop(playerRig.layers["left-hand"]);
+      } else {
+        playerRig.defaultLayerOrder.forEach((child, index) => playerRig.root.moveTo(child, index));
+      }
+      playerRig.rearCrossInFront = rearCrossStriking;
+    }
+    applyChogPose(playerRig, playerPose);
     this.lastPlayerPose = { ...playerPose };
     applyChogPose(this.opponentVisual.rig, this.getOpponentRigPose(time));
   }
@@ -711,9 +756,10 @@ class ArenaScene extends Phaser.Scene {
       };
     }
 
-    // Boxing footwork: short alternating steps and a counter-rotating torso,
-    // while both elbows remain bent and the fists stay up by the face.
-    const stridePhase = (time / 1000) * 8.2 + phase;
+    // Measure each step from actual ground distance so the feet keep time
+    // with movement speed instead of sliding at a fixed animation rate.
+    const STEP_LEN = 75;
+    const stridePhase = (this.strideDist / STEP_LEN) * Math.PI + phase;
     const stride = Math.sin(stridePhase);
     const leadLift = Math.max(0, stride) ** 2;
     const rearLift = Math.max(0, -stride) ** 2;
@@ -728,15 +774,15 @@ class ArenaScene extends Phaser.Scene {
       rearArmX: BASE_RIG_POSE.rearArmX - stride * 1.1,
       leadArmY: -1.2 - leadLift * 1.4,
       rearArmY: -1.4 - rearLift * 1.4,
-      leadLegRotation: BASE_RIG_POSE.leadLegRotation + stride * 0.23,
-      rearLegRotation: BASE_RIG_POSE.rearLegRotation - stride * 0.23,
-      leadLegLowerRotation: -stride * 0.12 + leadLift * 0.22,
-      rearLegLowerRotation: stride * 0.12 + rearLift * 0.22,
-      leadLegY: -leadLift * 4,
-      rearLegY: -rearLift * 4,
-      torsoRotation: -stride * 0.04,
+      leadLegRotation: BASE_RIG_POSE.leadLegRotation + stride * 0.23 - 0.08,
+      rearLegRotation: BASE_RIG_POSE.rearLegRotation - stride * 0.23 + 0.08,
+      leadLegLowerRotation: -stride * 0.12 + leadLift * 0.22 + 0.12,
+      rearLegLowerRotation: stride * 0.12 + rearLift * 0.22 - 0.12,
+      leadLegY: -leadLift * 6,
+      rearLegY: -rearLift * 6,
+      torsoRotation: -0.03 - stride * 0.04,
       torsoX: stride * 1.2,
-      torsoY: -bodyBob * 2.5,
+      torsoY: -bodyBob * 4,
       headRotation: stride * 0.018,
       headX: -stride * 0.7,
     };
@@ -767,22 +813,64 @@ class ArenaScene extends Phaser.Scene {
     windUp.headRotation += 0.018;
 
     if (attack.slot === "basic") {
-      // A straight lead jab: rotate through the hip, extend the elbow and let
-      // the wrist travel from the elbow joint rather than sliding independently.
-      action.leadArmRotation -= 0.65;
-      action.leadArmLowerRotation = 0.86;
-      action.leadArmX = (action.leadArmX ?? 0) + 12;
-      action.leadArmY = (action.leadArmY ?? 0) - 1;
-      action.rearArmRotation -= 0.05;
-      action.rearArmLowerRotation -= 0.08;
-      action.rearArmY = (action.rearArmY ?? 0) - 2;
-      action.torsoRotation = -0.11;
-      action.torsoX = (action.torsoX ?? 0) + 5;
-      action.torsoY = (action.torsoY ?? 0) - 1;
-      action.leadLegRotation = -0.05;
-      action.rearLegRotation = 0.07;
-      action.leadLegLowerRotation = 0.04;
-      action.rearLegLowerRotation = -0.05;
+      // Basic punches use a dedicated two-hand boxing combo.
+      // Reset the generic ability wind-up before laying in the jab or cross.
+      Object.assign(windUp, readyPose);
+
+      if (attack.hand === "rear") {
+        // Left-hand rear cross: load the rear side and rotate harder through
+        // the torso before driving the rear fist across the center line.
+        windUp.rearArmRotation = (readyPose.rearArmRotation ?? 0) - 0.12;
+        windUp.rearArmLowerRotation = (readyPose.rearArmLowerRotation ?? 0) - 0.14;
+        windUp.leadArmRotation = (readyPose.leadArmRotation ?? 0) - 0.06;
+        windUp.leadArmLowerRotation = (readyPose.leadArmLowerRotation ?? 0) - 0.05;
+        windUp.torsoRotation = (readyPose.torsoRotation ?? 0) + 0.07;
+        windUp.torsoX = (readyPose.torsoX ?? 0) - 4;
+        windUp.torsoY = (readyPose.torsoY ?? 0) + 1;
+        windUp.rearLegRotation = (readyPose.rearLegRotation ?? 0) + 0.06;
+
+        action.rearArmRotation = -1.45;
+        action.rearArmLowerRotation = 0.90;
+        action.rearArmX = 20;
+        action.rearArmY = -2;
+        action.leadArmRotation = (readyPose.leadArmRotation ?? 0) - 0.12;
+        action.leadArmLowerRotation = (readyPose.leadArmLowerRotation ?? 0) - 0.15;
+        action.leadArmX = (readyPose.leadArmX ?? 0) - 2;
+        action.torsoRotation = -0.22;
+        action.torsoX = 14;
+        action.torsoY = -2;
+        action.rearLegRotation = 0.16;
+        action.rearLegLowerRotation = -0.15;
+        action.rearLegX = 6;
+        action.leadLegRotation = -0.10;
+        action.headX = 3;
+        action.headRotation = -0.04;
+      } else {
+        // Right-hand lead jab: keep the rear fist at the chin and drive the
+        // lead elbow out, followed by a small step through the lead leg.
+        windUp.leadArmRotation = (readyPose.leadArmRotation ?? 0) + 0.14;
+        windUp.leadArmLowerRotation = (readyPose.leadArmLowerRotation ?? 0) - 0.10;
+        windUp.rearArmRotation = (readyPose.rearArmRotation ?? 0) - 0.07;
+        windUp.rearArmLowerRotation = (readyPose.rearArmLowerRotation ?? 0) - 0.05;
+        windUp.torsoRotation = (readyPose.torsoRotation ?? 0) + 0.03;
+        windUp.torsoX = (readyPose.torsoX ?? 0) - 2;
+
+        action.leadArmRotation = (readyPose.leadArmRotation ?? 0) - 0.65;
+        action.leadArmLowerRotation = 0.86;
+        action.leadArmX = 14;
+        action.leadArmY = -1;
+        action.rearArmRotation = (readyPose.rearArmRotation ?? 0) - 0.10;
+        action.rearArmLowerRotation = (readyPose.rearArmLowerRotation ?? 0) - 0.12;
+        action.rearArmY = -2;
+        action.torsoRotation = -0.14;
+        action.torsoX = 8;
+        action.torsoY = -1;
+        action.leadLegRotation = -0.12;
+        action.leadLegX = 8;
+        action.rearLegRotation = 0.08;
+        action.headX = 2;
+        action.headRotation = -0.03;
+      }
     } else if (abilityType === "control" || abilityType === "disruption") {
       action.leadArmRotation -= 0.45 * power;
       action.rearArmRotation += 0.52 * power;
@@ -830,15 +918,26 @@ class ArenaScene extends Phaser.Scene {
       action.rearLegX = (action.rearLegX ?? 0) - 8 * power;
     }
 
-    action.headRotation = (action.headRotation ?? 0) - 0.02;
-    action.headX = (action.headX ?? 0) + 1.2 * power;
-    action.torsoY -= 1 * power;
+    if (attack.slot !== "basic") {
+      action.headRotation = (action.headRotation ?? 0) - 0.02;
+      action.headX = (action.headX ?? 0) + 1.2 * power;
+      action.torsoY -= 1 * power;
+    }
 
     const timings = attack.timing ?? {};
     if (state === CHARACTER_STATES.ATTACK_STARTUP) {
-      return blendRigPose(readyPose, windUp, easeInOutCubic(attack.elapsed / Math.max(1, timings.startup ?? 150)));
+      const startupProgress = attack.elapsed / Math.max(1, timings.startup ?? 150);
+      const startupBlend = attack.slot === "basic"
+        ? clamp01(startupProgress) ** 2
+        : easeInOutCubic(startupProgress);
+      return blendRigPose(readyPose, windUp, startupBlend);
     }
     if (state === CHARACTER_STATES.ATTACK_ACTIVE) {
+      if (attack.slot === "basic") {
+        const strikeProgress = clamp01(attack.elapsed / Math.max(1, Math.min(timings.active ?? 100, 70)));
+        const strikeBlend = 1 - ((1 - strikeProgress) ** 3);
+        return blendRigPose(windUp, action, strikeBlend);
+      }
       const activeWindow = Math.min(timings.active ?? 100, 95);
       return blendRigPose(windUp, action, easeInOutCubic(attack.elapsed / Math.max(1, activeWindow)));
     }
@@ -903,36 +1002,64 @@ class ArenaScene extends Phaser.Scene {
       return this.getCrouchPose(time, rig.phase, readyPose);
     }
     if (state === CHARACTER_STATES.JUMP || !grounded) {
-      return {
+      const vmax = Math.abs(combatData.movement.jumpVelocity);
+      const p = Phaser.Math.Clamp((this.player.body.velocity.y + vmax) / (2 * vmax), 0, 1);
+      const guardLead = (readyPose.leadArmRotation ?? 0) - 0.06;
+      const guardRear = (readyPose.rearArmRotation ?? 0) + 0.04;
+      const launch = {
         ...readyPose,
-        leadArmRotation: readyPose.leadArmRotation - 0.18,
-        rearArmRotation: readyPose.rearArmRotation + 0.16,
-        // Bring the knees together beneath the torso, then fold the lower
-        // legs back down. This follows the tucked-airborne silhouette in the
-        // supplied jump sheet instead of spreading two rigid legs apart.
+        leadArmRotation: guardLead,
+        rearArmRotation: guardRear,
+        leadLegRotation: -0.05,
+        rearLegRotation: 0.05,
+        leadLegLowerRotation: 0,
+        rearLegLowerRotation: 0,
+        leadLegY: 2,
+        rearLegY: 2,
+        torsoY: -2,
+      };
+      const tuck = {
+        ...readyPose,
+        leadArmRotation: guardLead,
+        rearArmRotation: guardRear,
         leadLegRotation: -1.0,
         rearLegRotation: 0.85,
         leadLegLowerRotation: 1.0,
         rearLegLowerRotation: -1.4,
         leadLegY: -5,
         rearLegY: -4,
-        torsoRotation: -0.04,
+        torsoRotation: -0.02,
         torsoY: -3,
       };
+      const reach = {
+        ...readyPose,
+        leadArmRotation: guardLead,
+        rearArmRotation: guardRear,
+        leadLegRotation: -0.30,
+        rearLegRotation: 0.28,
+        leadLegLowerRotation: 0.2,
+        rearLegLowerRotation: -0.2,
+        torsoY: -2,
+      };
+
+      if (p < 0.2) return blendRigPose(launch, tuck, easeInOutCubic(p / 0.2));
+      if (p <= 0.55) {
+        const armFloat = Math.sin((time / 1000) * 6) * 0.02;
+        return {
+          ...tuck,
+          leadArmRotation: tuck.leadArmRotation + armFloat,
+          rearArmRotation: tuck.rearArmRotation - armFloat,
+        };
+      }
+      return blendRigPose(tuck, reach, easeInOutCubic((p - 0.55) / 0.45));
     }
     if (rig.landingUntil > time) {
-      const landing = {
-        ...readyPose,
-        leadLegRotation: -0.07,
-        rearLegRotation: 0.08,
-        leadLegY: 1,
-        rearLegY: 1,
-        torsoRotation: -0.04,
-        torsoY: 2,
-        leadArmRotation: readyPose.leadArmRotation + 0.035,
-        rearArmRotation: readyPose.rearArmRotation - 0.03,
-      };
-      const progress = 1 - ((rig.landingUntil - time) / 150);
+      const landing = blendRigPose(
+        readyPose,
+        this.getCrouchPose(time, rig.phase, readyPose),
+        0.8,
+      );
+      const progress = 1 - ((rig.landingUntil - time) / 180);
       if (progress < 0.3) {
         return blendRigPose(rig.landingFromPose ?? readyPose, landing, easeInOutCubic(progress / 0.3));
       }
