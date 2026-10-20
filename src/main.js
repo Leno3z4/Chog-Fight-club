@@ -1066,8 +1066,84 @@ class ArenaScene extends Phaser.Scene {
     windUp.rearLegRotation += 0.03 * power;
     windUp.headRotation += 0.018;
 
+    if (attack.slot === "basic" && attack.combo) {
+      // Double tap is a short jab-cross sequence: load, snap out the lead
+      // hand, return to guard, then rotate through the rear shoulder and hip.
+      const load = {
+        ...readyPose,
+        leadArmRotation: (readyPose.leadArmRotation ?? 0) + 0.12,
+        leadArmLowerRotation: (readyPose.leadArmLowerRotation ?? 0) - 0.08,
+        rearArmRotation: (readyPose.rearArmRotation ?? 0) - 0.08,
+        rearArmLowerRotation: (readyPose.rearArmLowerRotation ?? 0) - 0.06,
+        torsoRotation: (readyPose.torsoRotation ?? 0) + 0.04,
+        torsoX: (readyPose.torsoX ?? 0) - 2,
+        torsoY: (readyPose.torsoY ?? 0) + 1,
+      };
+      const jab = {
+        ...readyPose,
+        leadArmRotation: -1.47,
+        leadArmLowerRotation: 0.92,
+        leadArmX: 15,
+        leadArmY: -1,
+        rearArmRotation: (readyPose.rearArmRotation ?? 0) - 0.10,
+        rearArmLowerRotation: (readyPose.rearArmLowerRotation ?? 0) - 0.12,
+        rearArmY: -2,
+        torsoRotation: -0.14,
+        torsoX: 8,
+        torsoY: -1,
+        leadLegRotation: -0.12,
+        leadLegX: 8,
+        rearLegRotation: 0.08,
+        headX: 2,
+        headRotation: -0.03,
+      };
+      const resetGuard = {
+        ...readyPose,
+        leadArmRotation: (readyPose.leadArmRotation ?? 0) + 0.02,
+        leadArmLowerRotation: (readyPose.leadArmLowerRotation ?? 0) - 0.04,
+        rearArmRotation: (readyPose.rearArmRotation ?? 0) - 0.04,
+        rearArmLowerRotation: (readyPose.rearArmLowerRotation ?? 0) - 0.05,
+        torsoRotation: (readyPose.torsoRotation ?? 0) + 0.015,
+      };
+      const cross = {
+        ...readyPose,
+        rearArmRotation: -1.48,
+        rearArmLowerRotation: 0.92,
+        rearArmX: 18,
+        rearArmY: -2,
+        leadArmRotation: (readyPose.leadArmRotation ?? 0) - 0.10,
+        leadArmLowerRotation: (readyPose.leadArmLowerRotation ?? 0) - 0.12,
+        leadArmY: -2,
+        torsoRotation: -0.22,
+        torsoX: 13,
+        torsoY: -2,
+        rearLegRotation: 0.16,
+        rearLegLowerRotation: -0.15,
+        rearLegX: 6,
+        leadLegRotation: -0.10,
+        headX: 3,
+        headRotation: -0.04,
+      };
+
+      if (state === CHARACTER_STATES.ATTACK_STARTUP) {
+        return blendRigPose(readyPose, load, easeInOutCubic(
+          attack.elapsed / Math.max(1, attack.timing?.startup ?? 100),
+        ));
+      }
+      if (state === CHARACTER_STATES.ATTACK_ACTIVE) {
+        const progress = clamp01(attack.elapsed / Math.max(1, attack.timing?.active ?? 350));
+        if (progress < 0.28) return blendRigPose(load, jab, easeInOutCubic(progress / 0.20));
+        if (progress < 0.48) return blendRigPose(jab, resetGuard, easeInOutCubic((progress - 0.28) / 0.20));
+        if (progress < 0.82) return blendRigPose(resetGuard, cross, easeInOutCubic((progress - 0.48) / 0.28));
+        return blendRigPose(cross, readyPose, easeInOutCubic((progress - 0.82) / 0.18));
+      }
+      if (state === CHARACTER_STATES.ATTACK_RECOVERY) return readyPose;
+      return readyPose;
+    }
+
     if (attack.slot === "basic") {
-      // Basic punches use a dedicated two-hand boxing combo.
+      // Basic single tap remains one right-hand jab; the left cross is only
+      // used by the explicit double-tap combo.
       // Reset the generic ability wind-up before laying in the jab or cross.
       Object.assign(windUp, readyPose);
 
