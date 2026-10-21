@@ -1,4 +1,5 @@
 import { readDiscordSession } from "./discordAuth.js";
+import { inviteExpiryAt } from "./launchPolicy.js";
 
 export class PlayerDirectoryError extends Error {
   constructor(message, { status = 500, code = "PLAYER_DIRECTORY_ERROR" } = {}) {
@@ -56,6 +57,24 @@ export async function handlePlayerDirectoryRequest({
       user.walletAddress || null,
       now,
     ).run();
+
+    // Turn reserved username invites into fixed-ID invites at the first verified Arena signup.
+    // The invite then gets the normal 24-hour acceptance window.
+    const registeredAt = new Date(now);
+    await db.prepare(`
+      UPDATE chog_challenge_invites
+      SET opponent_discord_id = ?1, opponent_username = ?2, expires_at = ?3, updated_at = ?4
+      WHERE opponent_discord_id = ?5
+        AND status = 'PENDING_ACCEPTANCE'
+        AND challenger_discord_id <> ?1
+    `).bind(
+      user.discordId,
+      username,
+      inviteExpiryAt(registeredAt),
+      now,
+      `username:${username.toLowerCase()}`,
+    ).run();
+
     return {
       status: 200,
       body: { ok: true },
