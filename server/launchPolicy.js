@@ -11,6 +11,10 @@ export function inviteExpiryAt(createdAt = Date.now()) {
 
 export function isPendingInviteExpired(row, now = Date.now()) {
   if (row?.status !== "PENDING_ACCEPTANCE") return false;
+  // Username-reserved invites have no deadline while the intended player is unregistered.
+  if (typeof row?.opponent_discord_id === "string"
+    && row.opponent_discord_id.startsWith("username:")
+    && !row.expires_at) return false;
   const explicitExpiry = Date.parse(row.expires_at || "");
   const createdAt = Date.parse(row.created_at || "");
   // Older pending rows may have null expires_at; derive their deadline from creation.
