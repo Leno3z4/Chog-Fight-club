@@ -19,6 +19,7 @@ class FakeObject {
   setPosition(x, y) { this.x = x; this.y = y; return this; }
   createBitmapMask() { return { source: this }; }
   setMask(mask) { this.mask = mask; return this; }
+  clearMask() { this.mask = undefined; return this; }
   setTintFill(color) { this.tint = color; return this; }
   clearTint() { this.tint = null; return this; }
 }
@@ -56,7 +57,12 @@ assert.ok(layerNames.indexOf("right-upper-arm") > bodyLayer, "the lead upper arm
 assert.ok(layerNames.indexOf("right-lower-arm") > layerNames.indexOf("right-upper-arm"), "the lead forearm should follow its upper arm in front of the torso");
 assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("right-lower-arm"), "the lead glove should render above its forearm");
 assert.ok(layerNames.indexOf("right-hand") < layerNames.indexOf("head"), "the head should remain above both gloves");
-assert.equal(rig.parts["left-upper-arm"].image.mask, undefined, "the rear upper-arm bitmap mask should not be needed with the authored layer order");
+assert.equal(
+  rig.parts["left-upper-arm"].image.mask.source,
+  rig.parts.body.image,
+  "the rear upper arm must be clipped to the torso alpha to hide colored pixels beyond its silhouette",
+);
+assert.equal(rig.parts["right-upper-arm"].image.mask, undefined, "the front upper arm should not be clipped by the torso");
 for (const name of [
   "body", "head", "eyes", "mouth",
   "left-upper-arm", "left-lower-arm", "left-hand",
@@ -408,6 +414,18 @@ assert.deepEqual(
 );
 assert.equal(rightRoot.scaleX, 1, "right-facing root should use positive horizontal scale");
 assert.equal(leftRoot.scaleX, -1, "left-facing root should mirror with negative horizontal scale");
+assert.equal(
+  rightRig.parts["left-upper-arm"].image.mask.source,
+  rightRig.parts.body.image,
+  "right-facing fighter should mask the left/rear upper arm",
+);
+assert.equal(
+  leftRig.parts["right-upper-arm"].image.mask.source,
+  leftRig.parts.body.image,
+  "left-facing fighter should mask the right/rear upper arm",
+);
+assert.equal(leftRig.parts["left-upper-arm"].image.mask, undefined,
+  "left-facing fighter should leave the front upper arm unmasked");
 
 const armLengths = (testRig, side) => {
   const upper = testRig.parts[`${side}-upper-arm`].rest;
@@ -464,7 +482,13 @@ const finalLayers = rightRoot.list.slice(1).map((layer) => layer.texture.replace
 assert.ok(finalLayers.indexOf("left-hand") < finalLayers.indexOf("right-hand"), "rear glove should stay behind the lead glove");
 assert.ok(finalLayers.indexOf("right-hand") < finalLayers.indexOf("head"), "the head should remain above the lead glove");
 assert.ok(finalLayers.indexOf("left-hand") < finalLayers.indexOf("head"), "the head should remain above the rear glove");
-assert.equal(rightRig.parts["left-upper-arm"].image.mask, undefined, "the rear upper arm should not require a bitmap mask");
+assert.equal(
+  rightRig.parts["right-upper-arm"].image.mask.source,
+  rightRig.parts.body.image,
+  "after flipping, the right upper arm becomes rear and must use the torso alpha mask",
+);
+assert.equal(rightRig.parts["left-upper-arm"].image.mask, undefined,
+  "after flipping, the former rear arm must have its mask cleared");
 
 const ik = solveTwoBoneIK({ x: 0, y: 0 }, { x: 200, y: 0 }, 30, 20);
 assert.ok(Math.hypot(ik.wrist.x, ik.wrist.y) <= 50, "two-bone IK must clamp an unreachable target to maximum reach");
