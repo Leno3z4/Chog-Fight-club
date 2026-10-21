@@ -93,19 +93,7 @@ export async function handlePlayerDirectoryRequest({
       };
     }
     // Escape LIKE metacharacters without stripping valid Discord username characters such as "_".
-    const prefix = query.replace(/[\\%_]/g, "\\    const prefix = query + "%";
-    const rows = await db.prepare(`
-      SELECT discord_id, username, display_name, avatar_url, last_seen
-      FROM chog_players
-      WHERE discord_id <> ?1
-        AND (username LIKE ?2 COLLATE NOCASE OR display_name LIKE ?2 COLLATE NOCASE)
-      ORDER BY
-        CASE WHEN username = ?3 COLLATE NOCASE THEN 0
-             WHEN display_name = ?3 COLLATE NOCASE THEN 1
-             ELSE 2 END,
-        last_seen DESC
-      LIMIT 10
-    `).bind(user.discordId, prefix, query).all();") + "%";
+    const prefix = query.replace(/[\\%_]/g, "\\$&") + "%";
     const rows = await db.prepare(`
       SELECT discord_id, username, display_name, avatar_url, last_seen
       FROM chog_players
@@ -118,13 +106,6 @@ export async function handlePlayerDirectoryRequest({
         last_seen DESC
       LIMIT 10
     `).bind(user.discordId, prefix, query).all();
-    const players = (rows?.results || []).map((row) => ({
-      discordId: row.discord_id,
-      username: row.username,
-      displayName: row.display_name,
-      avatar: row.avatar_url,
-      lastSeen: row.last_seen,
-    }));
     return {
       status: 200,
       body: { players, queryTooShort: false },
