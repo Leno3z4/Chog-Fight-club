@@ -10,7 +10,7 @@ const GUARD = {
   // Match solo mode: a relaxed right/lead guard with the left/rear glove home.
   leadArmRotation: -0.04,
   leadArmLowerRotation: -1.14,
-  // Match solo mode: tuck the rear shoulder/elbow and keep its glove lower/back.
+  // The wrist target, not a shoulder translation, keeps the rear glove at guard level.
   rearArmRotation: -1.24,
   rearArmLowerRotation: -1.18,
   leadLegRotation: -0.14,
@@ -19,7 +19,7 @@ const GUARD = {
   rearLegLowerRotation: 0.68,
   leadArmX: 0,
   leadArmY: 0,
-  rearArmX: 20,
+  rearArmX: 0,
   rearArmY: 0,
   leadLegX: 0,
   leadLegY: 0,
@@ -301,6 +301,7 @@ class LiveArenaScene extends Phaser.Scene {
       const idleWave = Math.sin(idlePhase) * (1 - gait);
       const guard = {
         ...GUARD,
+        ...chogArmTargetPose("guard"),
         leadArmRotation: GUARD.leadArmRotation + stride * 0.025 * gait + idleWave * 0.006,
         rearArmRotation: GUARD.rearArmRotation - stride * 0.025 * gait - idleWave * 0.006,
         leadArmLowerRotation: GUARD.leadArmLowerRotation + stride * 0.012 * gait,
