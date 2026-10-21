@@ -60,16 +60,30 @@ const OPPONENT_METADATA = {
 };
 
 const BASE_RIG_POSE = {
-  leadArmRotation: -0.82, rearArmRotation: -0.48,
-  // Bend at the elbows so the fists sit forward instead of hanging below
-  // the shoulders or stretching the arms into a straight line.
-  leadArmLowerRotation: -0.75, rearArmLowerRotation: -0.82,
-  leadLegRotation: -0.08, rearLegRotation: 0.10,
-  leadLegLowerRotation: 0, rearLegLowerRotation: 0,
-  torsoRotation: 0, headRotation: 0,
-  leadArmX: 3, leadArmY: 0, rearArmX: -2, rearArmY: 0,
-  leadLegX: 6, leadLegY: 0, rearLegX: -6, rearLegY: 0,
-  torsoX: 0, torsoY: 0, headX: 0, headY: 0,
+  // Compact boxer guard: right/lead glove and left/rear glove protect the chin.
+  leadArmRotation: 0.22,
+  leadArmLowerRotation: -1.84,
+  rearArmRotation: -1.0,
+  rearArmLowerRotation: -2.0,
+  // Narrow, bent-knee stance. The pivot-based rig keeps segment lengths fixed.
+  leadLegRotation: 0.08,
+  leadLegLowerRotation: 0.18,
+  rearLegRotation: -0.74,
+  rearLegLowerRotation: 0.78,
+  torsoRotation: 0,
+  headRotation: 0,
+  leadArmX: 0,
+  leadArmY: 0,
+  rearArmX: 0,
+  rearArmY: 0,
+  leadLegX: 0,
+  leadLegY: 0,
+  rearLegX: 0,
+  rearLegY: 0,
+  torsoX: 0,
+  torsoY: 0,
+  headX: 0,
+  headY: 0,
 };
 
 const ATTACK_STATES = new Set([
@@ -133,6 +147,8 @@ class ArenaScene extends Phaser.Scene {
     this.playerFacing = 1;
     this.walkBlend = 0;
     this.strideDist = 0;
+    this.walkDir = 1;
+    this.walkDirBlend = 1;
     this.lastPlayerPose = { ...BASE_RIG_POSE };
     this.match = null;
     this.matchHudText = null;
@@ -378,6 +394,8 @@ class ArenaScene extends Phaser.Scene {
     this.nextOpponentAttack = 1200;
     this.walkBlend = 0;
     this.strideDist = 0;
+    this.walkDir = 1;
+    this.walkDirBlend = 1;
     this.ghostHp.player = this.playerCombatant.hp;
     this.ghostHp.opponent = this.opponentCombatant.hp;
     this.matchOverlay.setVisible(false);
@@ -405,6 +423,7 @@ class ArenaScene extends Phaser.Scene {
 
   applyMovement() {
     const state = this.playerCharacter.stateMachine.currentName;
+    const grounded = this.player.body.blocked.down || this.player.body.touching.down;
     const canMove = [CHARACTER_STATES.IDLE, CHARACTER_STATES.WALK, CHARACTER_STATES.JUMP].includes(state);
     if (!canMove) {
       if (state === CHARACTER_STATES.ATTACK_ACTIVE) {
@@ -415,12 +434,19 @@ class ArenaScene extends Phaser.Scene {
       return;
     }
 
+    // Keep facing the rival, not the movement key. Moving away from a rival
+    // already in front becomes a backstep; if the rival is behind, turn first.
+    // Facing stays locked during attacks and while airborne.
+    if (grounded && state !== CHARACTER_STATES.JUMP && !ATTACK_STATES.has(state)
+      && state !== CHARACTER_STATES.HITSTUN && state !== CHARACTER_STATES.DEFEATED) {
+      const opponentIsInFront = (this.opponent.x - this.player.x) * this.playerFacing >= 0;
+      if (!opponentIsInFront) this.playerFacing = this.opponent.x >= this.player.x ? 1 : -1;
+    }
+
     if (this.playerCharacter.input.left) {
-      this.playerFacing = -1;
       this.player.setVelocityX(-combatData.movement.walkSpeed);
       engineMove(this.playerCombatant, "left");
     } else if (this.playerCharacter.input.right) {
-      this.playerFacing = 1;
       this.player.setVelocityX(combatData.movement.walkSpeed);
       engineMove(this.playerCombatant, "right");
     } else if (state !== CHARACTER_STATES.JUMP) {
@@ -943,9 +969,9 @@ class ArenaScene extends Phaser.Scene {
 
   updateVisuals(time, delta) {
     const grounded = this.player.body.blocked.down || this.player.body.touching.down;
-    if (grounded && Math.abs(this.player.x - this.opponent.x) < 90) {
+    if (grounded && Math.abs(this.player.x - this.opponent.x) < 150) {
       const away = this.player.x < this.opponent.x ? -1 : 1;
-      this.player.setX(this.opponent.x + away * 90);
+      this.player.setX(this.opponent.x + away * 150);
       if (this.player.body.velocity.x * away < 0) this.player.setVelocityX(0);
       this.player.body.updateFromGameObject();
     }
@@ -957,7 +983,12 @@ class ArenaScene extends Phaser.Scene {
     this.opponentVisual.y = this.floorY - 120;
     const state = this.playerCharacter.stateMachine.currentName;
     const moving = grounded && state === CHARACTER_STATES.WALK && (this.playerCharacter.input.left || this.playerCharacter.input.right);
-    if (moving) this.strideDist += Math.abs(this.player.body.velocity.x) * (delta / 1000);
+    if (moving) {
+      this.strideDist += Math.abs(this.player.body.velocity.x) * (delta / 1000);
+      const travelDirection = Math.sign(this.player.body.velocity.x) * this.playerFacing;
+      if (travelDirection) this.walkDir = travelDirection;
+    }
+    this.walkDirBlend += (this.walkDir - this.walkDirBlend) * (1 - Math.exp(-delta / 85));
     const walkTarget = moving ? 1 : 0;
     const walkRate = moving ? 13 : 18;
     this.walkBlend = Phaser.Math.Linear(this.walkBlend, walkTarget, 1 - Math.exp(-walkRate * (delta / 1000)));
@@ -999,64 +1030,65 @@ class ArenaScene extends Phaser.Scene {
     applyChogPose(this.opponentVisual.rig, this.getOpponentRigPose(time));
   }
 
-  getReadyPose(time, phase, moving = false) {
+  getReadyPose(time, phase, moving = false, walkDir = 1) {
     const idleWave = Math.sin((time / 1000) * 2.2 + phase);
     if (!moving) {
-      // Stay in a compact, raised guard. The shoulders breathe slightly while
-      // the hips shift underneath them so the fighter never looks frozen.
+      // Keep both gloves close to the chin; breathing is intentionally subtle.
       const weightShift = Math.sin((time / 1000) * 1.35 + phase);
       return {
         ...BASE_RIG_POSE,
-        leadArmRotation: BASE_RIG_POSE.leadArmRotation + idleWave * 0.022 + weightShift * 0.014,
-        rearArmRotation: BASE_RIG_POSE.rearArmRotation - idleWave * 0.018 - weightShift * 0.012,
-        leadArmLowerRotation: BASE_RIG_POSE.leadArmLowerRotation + idleWave * 0.018,
-        rearArmLowerRotation: BASE_RIG_POSE.rearArmLowerRotation - idleWave * 0.015,
-        leadArmY: -1.2 + Math.max(0, idleWave) * 0.8,
-        rearArmY: -1.4 + Math.max(0, -idleWave) * 0.8,
-        leadLegRotation: BASE_RIG_POSE.leadLegRotation + weightShift * 0.018,
-        rearLegRotation: BASE_RIG_POSE.rearLegRotation - weightShift * 0.018,
-        torsoRotation: weightShift * 0.018,
-        torsoX: weightShift * 0.75,
-        torsoY: -Math.max(0, idleWave) * 2.2,
-        headRotation: weightShift * 0.012,
-        headX: weightShift * 0.45,
+        leadArmRotation: BASE_RIG_POSE.leadArmRotation + idleWave * 0.012 + weightShift * 0.006,
+        rearArmRotation: BASE_RIG_POSE.rearArmRotation - idleWave * 0.010 - weightShift * 0.006,
+        leadArmLowerRotation: BASE_RIG_POSE.leadArmLowerRotation + idleWave * 0.010,
+        rearArmLowerRotation: BASE_RIG_POSE.rearArmLowerRotation - idleWave * 0.010,
+        leadArmY: Math.max(0, idleWave) * 0.35,
+        rearArmY: Math.max(0, -idleWave) * 0.35,
+        leadLegRotation: BASE_RIG_POSE.leadLegRotation + weightShift * 0.008,
+        rearLegRotation: BASE_RIG_POSE.rearLegRotation - weightShift * 0.008,
+        torsoRotation: weightShift * 0.010,
+        torsoX: weightShift * 0.4,
+        torsoY: -Math.max(0, idleWave) * 0.5,
+        headRotation: weightShift * 0.008,
+        headX: weightShift * 0.25,
       };
     }
 
-    // Measure each step from actual ground distance so the feet keep time
-    // with movement speed instead of sliding at a fixed animation rate.
-    const STEP_LEN = 75;
-    const stridePhase = (this.strideDist / STEP_LEN) * Math.PI + phase;
-    const stride = Math.sin(stridePhase);
-    const leadLift = Math.max(0, stride) ** 2;
-    const rearLift = Math.max(0, -stride) ** 2;
-    const bodyBob = 0.5 - Math.cos(2 * stridePhase) * 0.5;
+    // Distance-driven boxer shuffle. A backstep phase-shifts the feet so the
+    // rear foot leads; the upper body stays compact and guarded.
+    const SHUFFLE_DISTANCE = 56;
+    const u = ((this.strideDist / SHUFFLE_DISTANCE) % 1 + 1) % 1;
+    const directionPhase = (2 * Math.PI * u) + ((1 - walkDir) / 2) * Math.PI;
+    const stride = Math.sin(directionPhase);
+    const leadLift = Math.max(0, Math.cos(directionPhase)) ** 2;
+    const rearLift = Math.max(0, -Math.cos(directionPhase)) ** 2;
+    const bob = 0.5 - Math.cos(2 * directionPhase) * 0.5;
+    const swing = 0.34;
     return {
       ...BASE_RIG_POSE,
-      leadArmRotation: BASE_RIG_POSE.leadArmRotation + stride * 0.055,
-      rearArmRotation: BASE_RIG_POSE.rearArmRotation - stride * 0.05,
-      leadArmLowerRotation: BASE_RIG_POSE.leadArmLowerRotation + stride * 0.028,
-      rearArmLowerRotation: BASE_RIG_POSE.rearArmLowerRotation - stride * 0.026,
-      leadArmX: BASE_RIG_POSE.leadArmX + stride * 1.4,
-      rearArmX: BASE_RIG_POSE.rearArmX - stride * 1.1,
-      leadArmY: -1.2 - leadLift * 1.4,
-      rearArmY: -1.4 - rearLift * 1.4,
-      leadLegRotation: BASE_RIG_POSE.leadLegRotation + stride * 0.23 - 0.08,
-      rearLegRotation: BASE_RIG_POSE.rearLegRotation - stride * 0.23 + 0.08,
-      leadLegLowerRotation: -stride * 0.12 + leadLift * 0.22 + 0.12,
-      rearLegLowerRotation: stride * 0.12 + rearLift * 0.22 - 0.12,
-      leadLegY: -leadLift * 6,
-      rearLegY: -rearLift * 6,
-      torsoRotation: -0.03 - stride * 0.04,
-      torsoX: stride * 1.2,
-      torsoY: -bodyBob * 4,
-      headRotation: stride * 0.018,
-      headX: -stride * 0.7,
+      leadArmRotation: BASE_RIG_POSE.leadArmRotation + stride * 0.03,
+      rearArmRotation: BASE_RIG_POSE.rearArmRotation - stride * 0.03,
+      leadArmY: -leadLift * 1.0,
+      rearArmY: -rearLift * 1.0,
+      leadLegRotation: BASE_RIG_POSE.leadLegRotation - stride * swing,
+      rearLegRotation: BASE_RIG_POSE.rearLegRotation + stride * swing,
+      leadLegLowerRotation: BASE_RIG_POSE.leadLegLowerRotation + leadLift * 0.35,
+      rearLegLowerRotation: BASE_RIG_POSE.rearLegLowerRotation + rearLift * 0.35,
+      leadLegY: -leadLift * 4,
+      rearLegY: -rearLift * 4 - (walkDir < 0 ? 1 : 0),
+      torsoRotation: -0.03 * walkDir,
+      torsoX: stride * 1.0,
+      torsoY: -bob * 2,
+      headRotation: stride * 0.012,
+      headX: -stride * 0.5,
     };
   }
 
   getPlayerReadyPose(time, phase) {
-    return blendRigPose(BASE_RIG_POSE, this.getReadyPose(time, phase, true), this.walkBlend);
+    return blendRigPose(
+      BASE_RIG_POSE,
+      this.getReadyPose(time, phase, true, this.walkDirBlend),
+      this.walkBlend,
+    );
   }
 
   getAttackPose(attack, state, time, phase, readyPose = BASE_RIG_POSE) {
@@ -1098,9 +1130,10 @@ class ArenaScene extends Phaser.Scene {
         leadArmLowerRotation: 0.92,
         leadArmX: 15,
         leadArmY: -1,
-        rearArmRotation: (readyPose.rearArmRotation ?? 0) - 0.10,
-        rearArmLowerRotation: (readyPose.rearArmLowerRotation ?? 0) - 0.12,
-        rearArmY: -2,
+        // Keep the off-hand left/rear fist at the chin during the right jab.
+        rearArmRotation: readyPose.rearArmRotation ?? BASE_RIG_POSE.rearArmRotation,
+        rearArmLowerRotation: readyPose.rearArmLowerRotation ?? BASE_RIG_POSE.rearArmLowerRotation,
+        rearArmY: readyPose.rearArmY ?? 0,
         torsoRotation: -0.14,
         torsoX: 8,
         torsoY: -1,
@@ -1198,13 +1231,14 @@ class ArenaScene extends Phaser.Scene {
         windUp.torsoRotation = (readyPose.torsoRotation ?? 0) + 0.03;
         windUp.torsoX = (readyPose.torsoX ?? 0) - 2;
 
-        action.leadArmRotation = (readyPose.leadArmRotation ?? 0) - 0.65;
-        action.leadArmLowerRotation = 0.86;
+        action.leadArmRotation = -1.47;
+        action.leadArmLowerRotation = 0.90;
         action.leadArmX = 14;
         action.leadArmY = -1;
-        action.rearArmRotation = (readyPose.rearArmRotation ?? 0) - 0.10;
-        action.rearArmLowerRotation = (readyPose.rearArmLowerRotation ?? 0) - 0.12;
-        action.rearArmY = -2;
+        // Keep the off-hand at the chin so the primary right-hand jab is isolated.
+        action.rearArmRotation = readyPose.rearArmRotation ?? BASE_RIG_POSE.rearArmRotation;
+        action.rearArmLowerRotation = readyPose.rearArmLowerRotation ?? BASE_RIG_POSE.rearArmLowerRotation;
+        action.rearArmY = readyPose.rearArmY ?? 0;
         action.torsoRotation = -0.14;
         action.torsoX = 8;
         action.torsoY = -1;
@@ -1295,8 +1329,8 @@ class ArenaScene extends Phaser.Scene {
       ...readyPose,
       leadArmRotation: readyPose.leadArmRotation - 0.12 * intensity,
       rearArmRotation: readyPose.rearArmRotation - 0.16 * intensity,
-      leadLegRotation: -0.06 * intensity,
-      rearLegRotation: 0.08 * intensity,
+      leadLegRotation: (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.06 * intensity,
+      rearLegRotation: (readyPose.rearLegRotation ?? BASE_RIG_POSE.rearLegRotation) + 0.08 * intensity,
       torsoRotation: 0.11 * intensity,
       headRotation: -0.045 * intensity,
       torsoX: -2 * intensity,
@@ -1316,15 +1350,16 @@ class ArenaScene extends Phaser.Scene {
       rearArmLowerRotation: readyPose.rearArmLowerRotation - 0.07,
       leadArmY: (readyPose.leadArmY ?? 0) - 1.5,
       rearArmY: (readyPose.rearArmY ?? 0) - 1.5,
-      leadLegRotation: -0.27,
-      rearLegRotation: 0.30,
-      leadLegLowerRotation: 0.52,
-      rearLegLowerRotation: -0.46,
-      leadLegY: 1,
-      rearLegY: 1,
-      torsoRotation: (readyPose.torsoRotation ?? 0) + 0.075 + settle,
-      torsoX: (readyPose.torsoX ?? 0) - 1.8,
-      torsoY: (readyPose.torsoY ?? 0) + 8,
+      // Bend the knees relative to the base stance and keep the torso drop shallow.
+      leadLegRotation: (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.12,
+      rearLegRotation: (readyPose.rearLegRotation ?? BASE_RIG_POSE.rearLegRotation) + 0.10,
+      leadLegLowerRotation: (readyPose.leadLegLowerRotation ?? BASE_RIG_POSE.leadLegLowerRotation) + 0.22,
+      rearLegLowerRotation: (readyPose.rearLegLowerRotation ?? BASE_RIG_POSE.rearLegLowerRotation) - 0.22,
+      leadLegY: readyPose.leadLegY ?? 0,
+      rearLegY: (readyPose.rearLegY ?? 0) - 1.2,
+      torsoRotation: (readyPose.torsoRotation ?? 0) + 0.025 + settle,
+      torsoX: (readyPose.torsoX ?? 0) - 1,
+      torsoY: (readyPose.torsoY ?? 0) + 1,
       headRotation: (readyPose.headRotation ?? 0) - 0.04,
       headY: (readyPose.headY ?? 0) + 1.5,
     };
@@ -1354,41 +1389,40 @@ class ArenaScene extends Phaser.Scene {
     if (state === CHARACTER_STATES.JUMP || !grounded) {
       const vmax = Math.abs(combatData.movement.jumpVelocity);
       const p = Phaser.Math.Clamp((this.player.body.velocity.y + vmax) / (2 * vmax), 0, 1);
-      const guardLead = (readyPose.leadArmRotation ?? 0) - 0.06;
-      const guardRear = (readyPose.rearArmRotation ?? 0) + 0.04;
+      const guard = {
+        leadArmRotation: readyPose.leadArmRotation,
+        rearArmRotation: readyPose.rearArmRotation,
+        leadArmLowerRotation: readyPose.leadArmLowerRotation,
+        rearArmLowerRotation: readyPose.rearArmLowerRotation,
+      };
       const launch = {
         ...readyPose,
-        leadArmRotation: guardLead,
-        rearArmRotation: guardRear,
-        leadLegRotation: -0.05,
-        rearLegRotation: 0.05,
-        leadLegLowerRotation: 0,
-        rearLegLowerRotation: 0,
+        ...guard,
+        leadLegRotation: 0.0,
+        leadLegLowerRotation: 0.05,
+        rearLegRotation: -0.45,
+        rearLegLowerRotation: 0.35,
         leadLegY: 2,
         rearLegY: 2,
         torsoY: -2,
       };
       const tuck = {
         ...readyPose,
-        leadArmRotation: guardLead,
-        rearArmRotation: guardRear,
-        leadLegRotation: -1.0,
-        rearLegRotation: 0.85,
-        leadLegLowerRotation: 1.0,
-        rearLegLowerRotation: -1.4,
-        leadLegY: -5,
-        rearLegY: -4,
+        ...guard,
+        // Both knees tuck inward to remove the old wide, dangling split.
+        leadLegRotation: -0.96,
+        leadLegLowerRotation: 1.6,
+        rearLegRotation: -1.3,
+        rearLegLowerRotation: 1.2,
+        leadLegY: -4,
+        rearLegY: -3,
         torsoRotation: -0.02,
         torsoY: -3,
       };
       const reach = {
         ...readyPose,
-        leadArmRotation: guardLead,
-        rearArmRotation: guardRear,
-        leadLegRotation: -0.30,
-        rearLegRotation: 0.28,
-        leadLegLowerRotation: 0.2,
-        rearLegLowerRotation: -0.2,
+        ...guard,
+        // Return to the narrow base stance before the landing compression.
         torsoY: -2,
       };
 
