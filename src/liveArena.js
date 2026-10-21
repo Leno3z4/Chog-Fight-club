@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BootScene } from "./bootScene.js";
-import { applyChogPose, createChogKnockoutPose, createChogVisual, flashChog, setChogRearCrossLayer } from "./game/chogRig.js";
+import { applyChogPose, createChogKnockoutPose, createChogVisual, flashChog, setChogFacingLayerOrder, setChogRearCrossLayer } from "./game/chogRig.js";
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -9,16 +9,16 @@ const GUARD = {
   // Match solo mode: a relaxed right/lead guard with the left/rear glove home.
   leadArmRotation: -0.04,
   leadArmLowerRotation: -1.14,
-  // Match solo mode: tuck the rear elbow and keep its glove lower/back.
-  rearArmRotation: -1.1,
-  rearArmLowerRotation: -1.3,
+  // Match solo mode: tuck the rear shoulder/elbow and keep its glove lower/back.
+  rearArmRotation: -1.24,
+  rearArmLowerRotation: -1.18,
   leadLegRotation: -0.14,
   leadLegLowerRotation: 0.0,
   rearLegRotation: -0.5,
   rearLegLowerRotation: 0.68,
   leadArmX: 0,
   leadArmY: 0,
-  rearArmX: 2,
+  rearArmX: 16,
   rearArmY: 0,
   leadLegX: 0,
   leadLegY: 0,
@@ -277,6 +277,7 @@ class LiveArenaScene extends Phaser.Scene {
       root.x = Phaser.Math.Linear(root.x, fighter.targetX, blend);
       root.y = Phaser.Math.Linear(root.y, fighter.targetY - fighter.jumpHeight, blend);
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
+      setChogFacingLayerOrder(root, fighter.facing);
       root.setDepth(100 + root.y);
       const horizontalDelta = root.x - fromX;
       const horizontalTravel = Math.abs(horizontalDelta);
