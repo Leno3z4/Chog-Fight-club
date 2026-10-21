@@ -50,7 +50,7 @@ assert.equal(Object.keys(rig.parts).length, 16, "all separated Chog layers shoul
 const layerNames = visual.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
 const bodyLayer = layerNames.indexOf("body");
 assert.ok(layerNames.indexOf("left-upper-arm") < bodyLayer, "the rear upper arm should stay behind the torso to hide shoulder seams");
-assert.ok(layerNames.indexOf("left-lower-arm") < bodyLayer, "the rear forearm should pass behind the torso to hide the dark streak over the chest");
+assert.ok(layerNames.indexOf("left-lower-arm") > bodyLayer, "the rear forearm should remain visible in front of the torso as it rises to the cheek");
 assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("left-lower-arm"), "the rear glove should follow its forearm");
 assert.ok(layerNames.indexOf("left-hand") < layerNames.indexOf("right-hand"), "the rear glove should render behind the lead glove");
 assert.ok(layerNames.indexOf("right-upper-arm") > bodyLayer, "the lead upper arm should reveal its shoulder over the torso");
