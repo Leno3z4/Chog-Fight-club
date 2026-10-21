@@ -121,6 +121,7 @@ function fighterFromDna({ id, username, role, dna, hp, connected, x, y, tokenId 
     action: "idle",
     actionStartedAt: 0,
     actionUntil: 0,
+    pendingAttack: null,
     input: { x: 0, y: 0 },
     facing: role === "challenger" ? 1 : -1,
     nextAttackAt: 0,
@@ -402,6 +403,7 @@ export class ArenaRoom {
       if (!player.action) player.action = "idle";
       if (!Number.isFinite(player.actionStartedAt)) player.actionStartedAt = 0;
       if (!Number.isFinite(player.actionUntil)) player.actionUntil = 0;
+      if (!("pendingAttack" in player)) player.pendingAttack = null;
       if (!Number.isFinite(player.facing)) player.facing = role === "challenger" ? 1 : -1;
       if (!Number.isFinite(player.energy)) player.energy = 100;
       if (!Number.isFinite(player.maxEnergy)) player.maxEnergy = 100;
@@ -582,6 +584,7 @@ export class ArenaRoom {
       b.y = clamp(b.y + ny * overlap, ARENA_TOP, ARENA_BOTTOM);
     }
 
+    this._stepPendingAttacks(state, now);
     this._stepPunchWindows(state, now);
     this._stepProjectiles(state, dt, now);
   }
@@ -617,7 +620,13 @@ export class ArenaRoom {
     attacker[cooldownField] = now + cooldown;
     attacker.action = kind;
     attacker.actionStartedAt = now;
-    attacker.actionUntil = now + (kind === "doubleAttack" ? 520 : kind === "attack" ? 280 : 310);
+    const windupMs = kind === "base" ? 300 : kind === "special" ? 440 : 0;
+    attacker.actionUntil = now + (kind === "doubleAttack" ? 520 : kind === "attack" ? 280 : windupMs + 300);
+    attacker.pendingAttack = windupMs > 0 ? {
+      slot: kind,
+      releaseAt: now + windupMs,
+      direction: Math.sign(Number(attacker.facing) || 0) || (role === "challenger" ? 1 : -1),
+    } : null;
     attacker.flashUntil = now + 140;
     attacker.landedPunchWindows = [];
 
@@ -629,26 +638,42 @@ export class ArenaRoom {
       return;
     }
 
-    const direction = Math.sign(Number(attacker.facing) || 0) || (role === "challenger" ? 1 : -1);
-    const projectile = {
-      id: role + "-" + now + "-" + state.projectiles.length,
-      ownerRole: role,
-      slot: kind,
-      x: attacker.x + direction * 38,
-      y: attacker.y,
-      vx: direction * (kind === "special" ? 600 : 500),
-      vy: 0,
-      radius: kind === "special" ? 15 : 11,
-      height: 0,
-      createdAt: now,
-      expiresAt: now + 2400,
-    };
-    state.projectiles.push(projectile);
     state.log.push({
-      text: "@" + attacker.username + " fired " + (kind === "special" ? attacker.ability : "their base projectile") + ".",
+      text: "@" + attacker.username + " is charging " + (kind === "special" ? attacker.ability : "their base attack") + ".",
       at: now,
     });
     this._trimLog(state);
+  }
+
+  _stepPendingAttacks(state, now) {
+    for (const role of ["challenger", "opponent"]) {
+      const attacker = state.players[role];
+      const pending = attacker?.pendingAttack;
+      if (!pending || now < Number(pending.releaseAt || 0)) continue;
+      attacker.pendingAttack = null;
+      if (attacker.hp <= 0 || attacker.action !== pending.slot) continue;
+
+      const direction = Math.sign(Number(pending.direction) || 0) || (role === "challenger" ? 1 : -1);
+      const projectile = {
+        id: role + "-" + now + "-" + state.projectiles.length,
+        ownerRole: role,
+        slot: pending.slot,
+        x: attacker.x + direction * 38,
+        y: attacker.y,
+        vx: direction * (pending.slot === "special" ? 600 : 500),
+        vy: 0,
+        radius: pending.slot === "special" ? 15 : 11,
+        height: 0,
+        createdAt: now,
+        expiresAt: now + 2400,
+      };
+      state.projectiles.push(projectile);
+      state.log.push({
+        text: "@" + attacker.username + " released " + (pending.slot === "special" ? attacker.ability : "their base projectile") + ".",
+        at: now,
+      });
+      this._trimLog(state);
+    }
   }
 
   _applyDamage(state, role, slot, now) {
@@ -662,6 +687,28 @@ export class ArenaRoom {
     const damage = Math.max(4, Math.round(raw - target.defense * 0.16 + randomInt(-2, 3)));
     target.hp = Math.max(0, target.hp - damage);
     target.flashUntil = now + 230;
+
+    // A real hit knocks an airborne fighter down immediately instead of
+    // allowing the original jump arc to continue. Hits also cancel a base or
+    // special that has not released yet; its MP was paid at startup and stays spent.
+    const wasAirborne = Number(target.jumpUntil || 0) > now || Number(target.jumpHeight || 0) > 0;
+    const pending = target.pendingAttack;
+    const interruptedCharge = pending && now < Number(pending.releaseAt || 0);
+    if (wasAirborne || interruptedCharge) {
+      target.jumpUntil = now;
+      target.jumpHeight = 0;
+      target.pendingAttack = null;
+      target.action = "hitstun";
+      target.actionStartedAt = now;
+      target.actionUntil = now + 260;
+      target.input = { x: 0, y: 0 };
+      if (interruptedCharge) {
+        state.log.push({
+          text: "@" + target.username + "'s " + pending.slot + " attack was interrupted; the MP is lost.",
+          at: now,
+        });
+      }
+    }
     state.log.push({
       text: "@" + attacker.username + " " + (
         slot === "special" ? "hit with " + attacker.ability
@@ -816,6 +863,7 @@ export class ArenaRoom {
         p.jumpStartedAt = 0;
         p.jumpUntil = 0;
         p.jumpHeight = 0;
+        p.pendingAttack = null;
         p.action = "idle";
         p.actionStartedAt = now;
         p.actionUntil = 0;
