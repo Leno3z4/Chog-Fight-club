@@ -60,21 +60,21 @@ const OPPONENT_METADATA = {
 };
 
 const BASE_RIG_POSE = {
-  // Compact boxer guard: right/lead glove and left/rear glove protect the chin.
-  leadArmRotation: 0.22,
-  leadArmLowerRotation: -1.84,
-  rearArmRotation: -1.0,
-  rearArmLowerRotation: -2.0,
-  // Narrow, bent-knee stance. The pivot-based rig keeps segment lengths fixed.
-  leadLegRotation: 0.08,
-  leadLegLowerRotation: 0.18,
-  rearLegRotation: -0.74,
-  rearLegLowerRotation: 0.78,
+  // Relaxed boxer guard: right/lead hand is primary, left/rear hand stays home.
+  leadArmRotation: -0.04,
+  leadArmLowerRotation: -1.14,
+  rearArmRotation: -1.2,
+  rearArmLowerRotation: -1.28,
+  // Wider, less crouched stance while keeping both soles close to level.
+  leadLegRotation: -0.14,
+  leadLegLowerRotation: 0.0,
+  rearLegRotation: -0.5,
+  rearLegLowerRotation: 0.68,
   torsoRotation: 0,
   headRotation: 0,
   leadArmX: 0,
   leadArmY: 0,
-  rearArmX: 0,
+  rearArmX: 5,
   rearArmY: 0,
   leadLegX: 0,
   leadLegY: 0,
@@ -1409,11 +1409,11 @@ class ArenaScene extends Phaser.Scene {
       const tuck = {
         ...readyPose,
         ...guard,
-        // Both knees tuck inward to remove the old wide, dangling split.
-        leadLegRotation: -0.96,
-        leadLegLowerRotation: 1.6,
-        rearLegRotation: -1.3,
-        rearLegLowerRotation: 1.2,
+        // Softer tuck: draw both knees inward without a flat lead-thigh block.
+        leadLegRotation: -0.8,
+        leadLegLowerRotation: 1.66,
+        rearLegRotation: -1.1,
+        rearLegLowerRotation: 1.02,
         leadLegY: -4,
         rearLegY: -3,
         torsoRotation: -0.02,
