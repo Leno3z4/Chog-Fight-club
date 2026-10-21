@@ -28,7 +28,7 @@ class MockStatement {
   run() { return this.db.run(this.sql, this.values); }
 }
 class MockD1 {
-  constructor() { this.players = new Map(); }
+  constructor() { this.players = new Map(); this.invites = new Map(); }
   prepare(sql) { return new MockStatement(this, sql); }
   async first() { return null; }
   async all(sql, values) {
@@ -43,6 +43,17 @@ class MockD1 {
   }
   async run(sql, values) {
     const q=sql.replace(/\s+/g," ").trim();
+    if (q.startsWith("UPDATE chog_challenge_invites SET opponent_discord_id = ?1")) {
+      const [discordId, username, expiresAt, updatedAt, usernameTarget] = values;
+      let changes = 0;
+      for (const row of this.invites.values()) {
+        if (row.opponent_discord_id === usernameTarget && row.status === "PENDING_ACCEPTANCE" && row.challenger_discord_id !== discordId) {
+          Object.assign(row, { opponent_discord_id: discordId, opponent_username: username, expires_at: expiresAt, updated_at: updatedAt });
+          changes += 1;
+        }
+      }
+      return { success: true, meta: { changes } };
+    }
     assert.match(q,/INSERT INTO chog_players/);
     const [discord_id,username,display_name,avatar_url,wallet_address,last_seen,created_at]=values;
     const previous=this.players.get(discord_id);
@@ -80,6 +91,34 @@ test("upserts the authenticated Discord player identity, not a client-submitted 
   assert.equal(row.discord_id,ownerId);
   assert.equal(row.username,"real_handle");
   assert.equal(row.display_name,"Real Display");
+});
+
+test("verified signup binds pending username reservations to the Discord user ID", async () => {
+  env.CHOG_DB = new MockD1();
+  env.CHOG_DB.invites.set("reserve-1", {
+    id: "reserve-1",
+    challenger_discord_id: ownerId,
+    opponent_discord_id: "username:future_rival",
+    opponent_username: "@future_rival",
+    status: "PENDING_ACCEPTANCE",
+    expires_at: null,
+  });
+  env.CHOG_DB.invites.set("reserve-2", {
+    id: "reserve-2",
+    challenger_discord_id: ownerId,
+    opponent_discord_id: "username:someone_else",
+    opponent_username: "@someone_else",
+    status: "PENDING_ACCEPTANCE",
+    expires_at: null,
+  });
+  const cookieHeader = await sessionCookie({ discordId: otherId, username: "future_rival", displayName: "Future Rival" });
+  const result = await handlePlayerDirectoryRequest({ method: "POST", url: "/api/players", cookieHeader, env });
+  assert.equal(result.status, 200);
+  const claimed = env.CHOG_DB.invites.get("reserve-1");
+  assert.equal(claimed.opponent_discord_id, otherId);
+  assert.equal(claimed.opponent_username, "future_rival");
+  assert.ok(Date.parse(claimed.expires_at) > Date.now());
+  assert.equal(env.CHOG_DB.invites.get("reserve-2").opponent_discord_id, "username:someone_else");
 });
 
 test("search returns username/display-name matches but never returns the searching player", async () => {
