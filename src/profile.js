@@ -431,7 +431,8 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
     }
     const inviteUrl = payload.inviteUrl;
     const targeted = Boolean(selectedOpponent);
-    const usernameReserved = Boolean(selectedOpponent?.unregistered);
+    // Trust the server's lookup result: the player may have registered since search ran.
+    const usernameReserved = Boolean(payload.invite.registrationPending && selectedOpponent?.username);
     status.textContent = usernameReserved
       ? `Invite reserved for @${selectedOpponent.username}. It will stay pending until they register.`
       : targeted
