@@ -91,12 +91,12 @@ const LAYER_ORDER = [
   "right-upper-leg", "left-upper-leg",
   "right-lower-leg", "left-lower-leg",
   "right-foot", "left-foot",
-  // Let the torso cover the top of the rear upper arm to hide chest seams.
-  "left-upper-arm", "body",
-  // Keep the rear forearm and fists in front so the cross still reads clearly.
-  "left-lower-arm",
-  "right-upper-arm", "right-lower-arm",
-  "left-hand", "right-hand",
+  // Keep the complete rear arm behind the torso during guard and movement.
+  // This hides stray shoulder/elbow pixels and stops the rear fist crossing
+  // over the lead arm. Rear forearm and fist move forward only for a cross.
+  "left-upper-arm", "left-lower-arm", "left-hand", "body",
+  // The lead arm stays in front; its glove should be the closest fist at rest.
+  "right-upper-arm", "right-lower-arm", "right-hand",
   "head", "eyes", "mouth",
 ];
 
@@ -302,6 +302,31 @@ export function createChogVisual(scene, x, y, mirrored = false) {
   root.rig = rig;
   root.setScale(mirrored ? -1 : 1, 1);
   return root;
+}
+
+/**
+ * Put the rear forearm and fist in front for the double-tap rear cross.
+ * Keep the upper arm behind the torso and keep all hands below the head.
+ * The default order is restored when the striking window ends.
+ */
+export function setChogRearCrossLayer(root, active) {
+  const rig = root?.rig;
+  if (!rig?.defaultLayerOrder || !rig.layers) return;
+
+  const order = [...rig.defaultLayerOrder];
+  if (active) {
+    const rearForearm = rig.layers["left-lower-arm"];
+    const rearHand = rig.layers["left-hand"];
+    const leadForearm = rig.layers["right-lower-arm"];
+    const frontOrder = order.filter((child) => child !== rearForearm && child !== rearHand);
+    const insertAt = frontOrder.indexOf(leadForearm);
+    if (insertAt < 0) return;
+    frontOrder.splice(insertAt + 1, 0, rearForearm, rearHand);
+    frontOrder.forEach((child, index) => root.moveTo(child, index));
+  } else {
+    order.forEach((child, index) => root.moveTo(child, index));
+  }
+  rig.rearCrossInFront = Boolean(active);
 }
 
 export function applyChogPose(rig, pose) {
