@@ -268,12 +268,18 @@ async function loadInvites(view) {
       const url = `${accepted || !incoming ? "/battle-lobby.html" : "/invite.html"}?id=${encodeURIComponent(invite.id)}`;
       const canRespond = incoming && status === "PENDING_ACCEPTANCE";
       const canCancel = !incoming && status === "PENDING_ACCEPTANCE";
-      const inviteSummary = invite.condition ? escapeHtml(invite.condition) : "Choose Chogs and conditions after joining";
+      const targetPending = Boolean(invite.registrationPending && invite.targetUsername);
+      const inviteSummary = targetPending
+        ? `Waiting for @${escapeHtml(invite.targetUsername)} to register in the Arena. This invitation is reserved.`
+        : invite.condition ? escapeHtml(invite.condition) : "Choose Chogs and conditions after joining";
+      const expiryLabel = targetPending
+        ? "No expiry while awaiting registration"
+        : invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : "No expiry";
       return `<article class="invite-list-item">
         <div>
           <h3>${incoming ? "Challenge from" : "Challenge to"} ${escapeHtml(other?.username || "Discord player")}</h3>
           <p>${escapeHtml(other?.tokenId ? `Chog #${other.tokenId}` : "Fighter not selected")} · ${inviteSummary}</p>
-          <div class="invite-list-meta"><span class="invite-state">${escapeHtml(status.replaceAll("_"," "))}</span><span class="invite-state">Expires ${escapeHtml(invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : "No expiry")}</span></div>
+          <div class="invite-list-meta"><span class="invite-state">${escapeHtml(status.replaceAll("_"," "))}</span><span class="invite-state">Expires ${escapeHtml(expiryLabel)}</span></div>
         </div>
         <div class="invite-item-actions">
           <a class="invite-open-button" href="${url}">${canRespond ? "Join lobby" : accepted ? "Join lobby" : incoming ? "Review challenge" : "Wait in lobby"}</a>
