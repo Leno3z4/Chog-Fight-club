@@ -483,7 +483,7 @@ assert.ok(rightRig.poseJoints.left.wrist.x <= rightRig.poseJoints.right.wrist.x 
 // head remains the final sprite layer above both gloves.
 const finalLayers = rightRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
 assert.ok(finalLayers.indexOf("left-hand") < finalLayers.indexOf("right-hand"), "rear glove should stay behind the lead glove");
-assert.ok(finalLayers.indexOf("right-hand") < finalLayers.indexOf("head"), "the head should remain above the lead glove");
+assert.ok(finalLayers.indexOf("right-hand") > finalLayers.indexOf("head"), "the lead glove should remain visible in front of the face");
 assert.ok(finalLayers.indexOf("left-hand") > finalLayers.indexOf("head"), "the rear glove should stay visible in front of the head rather than being hidden under the jaw");
 assert.equal(rightRig.parts["left-upper-arm"].image.mask, undefined,
   "rear upper arm is covered by the body layer, not a bitmap mask");
