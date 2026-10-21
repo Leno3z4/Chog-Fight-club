@@ -13,8 +13,10 @@ const SCALE = RENDER_SIZE / SOURCE_SIZE;
 export const CHOG_POSE_LIMITS = Object.freeze({
   leadArmRotation: { min: -2.65, max: 1.05 },
   rearArmRotation: { min: -2.65, max: 1.05 },
-  leadArmLowerRotation: { min: -1.5, max: 2.0 },
-  rearArmLowerRotation: { min: -1.5, max: 2.0 },
+  // Allow the forearms to fold inward far enough to keep both fists at the
+  // chin in the boxer guard without exceeding the sprite rig's local limits.
+  leadArmLowerRotation: { min: -2.1, max: 2.0 },
+  rearArmLowerRotation: { min: -2.1, max: 2.0 },
   leadLegRotation: { min: -1.45, max: 1.35 },
   rearLegRotation: { min: -1.45, max: 1.35 },
   leadLegLowerRotation: { min: -1.7, max: 1.7 },
