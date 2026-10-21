@@ -263,3 +263,67 @@ const limitedKoRig = createChogVisual(scene, 0, 0, false).rig;
 applyChogPose(limitedKoRig, koSettled);
 assert.ok(Number.isFinite(limitedKoRig.parts["right-hand"].image.x));
 assert.ok(Number.isFinite(limitedKoRig.parts["left-foot"].image.y));
+
+
+// The chin guard requires deeper elbow folds than the previous limits allowed.
+assert.deepEqual(
+  clampChogPose({ leadArmLowerRotation: -1.84, rearArmLowerRotation: -2.0 }),
+  { leadArmLowerRotation: -1.84, rearArmLowerRotation: -2.0 },
+  "both forearms must be allowed to fold inward into a compact boxer guard",
+);
+
+// This is a pivot-based sprite rig, not a weighted mesh. Every pose must keep
+// the segment distances fixed while the elbow/wrist and knee/ankle follow their
+// parent joints through guard, jab and jump poses.
+const segmentRig = createChogVisual(scene, 0, 0, false).rig;
+const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const fixedLengths = {
+  rightUpperArm: distance(segmentRig.parts["right-upper-arm"].image, segmentRig.joints.right.elbow),
+  rightForearm: Math.hypot(
+    segmentRig.joints.right.wrist.x - segmentRig.joints.right.elbow.x,
+    segmentRig.joints.right.wrist.y - segmentRig.joints.right.elbow.y,
+  ),
+  rightThigh: Math.hypot(
+    segmentRig.joints.right.knee.x - segmentRig.parts["right-upper-leg"].rest.x,
+    segmentRig.joints.right.knee.y - segmentRig.parts["right-upper-leg"].rest.y,
+  ),
+  rightShin: Math.hypot(
+    segmentRig.joints.right.ankle.x - segmentRig.joints.right.knee.x,
+    segmentRig.joints.right.ankle.y - segmentRig.joints.right.knee.y,
+  ),
+};
+const articulationPoses = [
+  {
+    leadArmRotation: 0.22, leadArmLowerRotation: -1.84,
+    rearArmRotation: -1.0, rearArmLowerRotation: -2.0,
+    leadLegRotation: 0.08, leadLegLowerRotation: 0.18,
+    rearLegRotation: -0.74, rearLegLowerRotation: 0.78,
+  },
+  {
+    leadArmRotation: -1.47, leadArmLowerRotation: 0.90,
+    rearArmRotation: -1.0, rearArmLowerRotation: -2.0,
+    leadLegRotation: -0.04, leadLegLowerRotation: 0.40,
+    rearLegRotation: -0.64, rearLegLowerRotation: 0.56,
+    torsoRotation: 0.025, torsoX: -1, torsoY: 1,
+  },
+  {
+    leadArmRotation: 0.22, leadArmLowerRotation: -1.84,
+    rearArmRotation: -1.0, rearArmLowerRotation: -2.0,
+    leadLegRotation: -0.96, leadLegLowerRotation: 1.6,
+    rearLegRotation: -1.3, rearLegLowerRotation: 1.2,
+    leadLegY: -4, rearLegY: -3, torsoRotation: -0.02, torsoY: -3,
+  },
+];
+for (const pose of articulationPoses) {
+  applyChogPose(segmentRig, pose);
+  const elbow = segmentRig.parts["right-lower-arm"].image;
+  const wrist = segmentRig.parts["right-hand"].image;
+  const knee = segmentRig.parts["right-lower-leg"].image;
+  const ankle = segmentRig.parts["right-foot"].image;
+  assert.ok(Number.isFinite(elbow.x) && Number.isFinite(wrist.y), "arm joints remain finite across pose transitions");
+  assert.ok(Number.isFinite(knee.x) && Number.isFinite(ankle.y), "leg joints remain finite across pose transitions");
+  const forearmLength = distance(elbow, wrist);
+  const shinLength = distance(knee, ankle);
+  assert.ok(Math.abs(forearmLength - fixedLengths.rightForearm) < 1e-8, "forearm-to-wrist distance must not stretch");
+  assert.ok(Math.abs(shinLength - fixedLengths.rightShin) < 1e-8, "knee-to-ankle distance must not stretch");
+}
