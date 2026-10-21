@@ -256,6 +256,12 @@ export function createChogVisual(scene, x, y, mirrored = false) {
   const parts = {};
   for (const name of LAYER_ORDER) parts[name] = createPart(scene, root, name);
 
+  // The rear upper-arm artwork extends beyond the body's silhouette. Reuse
+  // the body's alpha channel as a mask so only that stray material is clipped.
+  // The mask source shares the same parent, origin convention, and transform.
+  const rearUpperArmMask = parts.body.image.createBitmapMask();
+  parts["left-upper-arm"].image.setMask(rearUpperArmMask);
+
   const rest = {
     torso: parts.body.rest,
     head: parts.head.rest,
