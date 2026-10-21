@@ -33,7 +33,9 @@ function validDiscordId(value) {
 }
 function normalizeDiscordUsername(value) {
   const username = String(value ?? "").trim().replace(/^@/, "").toLowerCase();
-  return /^[a-z0-9][a-z0-9._]{0,30}[a-z0-9_]$/.test(username) ? username : "";
+  return /^[a-z0-9](?:[a-z0-9._]{0,30}[a-z0-9])$/.test(username) && !username.includes("..")
+    ? username
+    : "";
 }
 function usernameInviteTarget(row) {
   return typeof row?.opponent_discord_id === "string" && row.opponent_discord_id.startsWith("username:")
