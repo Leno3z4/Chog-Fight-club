@@ -38,7 +38,7 @@ const visual = createChogVisual(scene, 320, 400, false);
 const rig = visual.rig;
 assert.equal(Object.keys(rig.parts).length, 16, "all separated Chog layers should be rigged");
 const layerNames = visual.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
-assert.ok(layerNames.indexOf("left-upper-arm") > layerNames.indexOf("body"), "the rear upper arm should remain visible over the torso");
+assert.ok(layerNames.indexOf("left-upper-arm") < layerNames.indexOf("body"), "the torso should cover the rear upper-arm shoulder edge");
 assert.ok(layerNames.indexOf("left-lower-arm") > layerNames.indexOf("body"), "the rear forearm should remain visible over the torso");
 for (const hand of ["left-hand", "right-hand"]) {
   const handIndex = layerNames.indexOf(hand);
@@ -97,10 +97,9 @@ assert.equal(
   rig.parts["left-lower-arm"].image.rotation,
   "hand should follow forearm rotation",
 );
-assert.equal(
-  rig.parts["left-foot"].image.rotation,
-  rig.parts["left-lower-leg"].image.rotation,
-  "foot should follow lower leg rotation",
+assert.ok(
+  Math.abs(rig.parts["left-foot"].image.rotation - rig.parts["left-lower-leg"].image.rotation * 0.35) < 1e-9,
+  "foot should follow only 35% of the lower-leg angle to keep the sole flatter",
 );
 
 const transform = (point, origin, angle, offsetX = 0, offsetY = 0) => {
@@ -265,11 +264,23 @@ assert.ok(Number.isFinite(limitedKoRig.parts["right-hand"].image.x));
 assert.ok(Number.isFinite(limitedKoRig.parts["left-foot"].image.y));
 
 
-// The chin guard requires deeper elbow folds than the previous limits allowed.
+// The revised, looser guard values should pass through the rig limits unchanged.
 assert.deepEqual(
-  clampChogPose({ leadArmLowerRotation: -1.84, rearArmLowerRotation: -2.0 }),
-  { leadArmLowerRotation: -1.84, rearArmLowerRotation: -2.0 },
-  "both forearms must be allowed to fold inward into a compact boxer guard",
+  clampChogPose({
+    leadArmRotation: -0.04,
+    leadArmLowerRotation: -1.14,
+    rearArmRotation: -1.2,
+    rearArmLowerRotation: -1.28,
+    rearArmX: 5,
+  }),
+  {
+    leadArmRotation: -0.04,
+    leadArmLowerRotation: -1.14,
+    rearArmRotation: -1.2,
+    rearArmLowerRotation: -1.28,
+    rearArmX: 5,
+  },
+  "the relaxed guard and rear-shoulder tuck should remain within pose limits",
 );
 
 // This is a pivot-based sprite rig, not a weighted mesh. Every pose must keep
@@ -278,10 +289,10 @@ assert.deepEqual(
 const segmentRig = createChogVisual(scene, 0, 0, false).rig;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const guardPose = {
-  leadArmRotation: 0.22, leadArmLowerRotation: -1.84,
-  rearArmRotation: -1.0, rearArmLowerRotation: -2.0,
-  leadLegRotation: 0.08, leadLegLowerRotation: 0.18,
-  rearLegRotation: -0.74, rearLegLowerRotation: 0.78,
+  leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
+  rearArmRotation: -1.2, rearArmLowerRotation: -1.28, rearArmX: 5,
+  leadLegRotation: -0.14, leadLegLowerRotation: 0.0,
+  rearLegRotation: -0.5, rearLegLowerRotation: 0.68,
 };
 applyChogPose(segmentRig, guardPose);
 assert.ok(segmentRig.parts["right-hand"].image.y >= 6 && segmentRig.parts["right-hand"].image.y <= 16,
@@ -309,10 +320,10 @@ const fixedLengths = {
 };
 const articulationPoses = [
   {
-    leadArmRotation: 0.22, leadArmLowerRotation: -1.84,
-    rearArmRotation: -1.0, rearArmLowerRotation: -2.0,
-    leadLegRotation: 0.08, leadLegLowerRotation: 0.18,
-    rearLegRotation: -0.74, rearLegLowerRotation: 0.78,
+    leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
+    rearArmRotation: -1.2, rearArmLowerRotation: -1.28, rearArmX: 5,
+    leadLegRotation: -0.14, leadLegLowerRotation: 0.0,
+    rearLegRotation: -0.5, rearLegLowerRotation: 0.68,
   },
   {
     leadArmRotation: -1.47, leadArmLowerRotation: 0.90,
@@ -324,8 +335,8 @@ const articulationPoses = [
   {
     leadArmRotation: 0.22, leadArmLowerRotation: -1.84,
     rearArmRotation: -1.0, rearArmLowerRotation: -2.0,
-    leadLegRotation: -0.96, leadLegLowerRotation: 1.6,
-    rearLegRotation: -1.3, rearLegLowerRotation: 1.2,
+    leadLegRotation: -0.8, leadLegLowerRotation: 1.66,
+    rearLegRotation: -1.1, rearLegLowerRotation: 1.02,
     leadLegY: -4, rearLegY: -3, torsoRotation: -0.02, torsoY: -3,
   },
 ];
