@@ -130,7 +130,9 @@ const FACE_LAYER_ORDER = ["head", "eyes", "mouth"];
  */
 export function getLayerOrder() {
   const armOrder = [
-    "left-upper-arm", "left-lower-arm", "body", "left-hand",
+    // Tuck the rear bicep behind the torso; keep the forearm visible as it rises
+    // toward the rear glove at cheek level. The body covers only the overlap.
+    "left-upper-arm", "body", "left-lower-arm", "left-hand",
     "right-upper-arm", "right-lower-arm", "right-hand",
   ];
   return [...LEG_LAYER_ORDER, ...armOrder, ...FACE_LAYER_ORDER];
