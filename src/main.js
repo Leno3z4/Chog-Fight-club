@@ -611,7 +611,7 @@ class ArenaScene extends Phaser.Scene {
       return;
     }
 
-    if ([CHARACTER_STATES.ATTACK_STARTUP, CHARACTER_STATES.ATTACK_ACTIVE, CHARACTER_STATES.ATTACK_RECOVERY].includes(this.playerCharacter.stateMachine.currentName)) return;
+    if ([CHARACTER_STATES.ATTACK_ACTIVE, CHARACTER_STATES.ATTACK_RECOVERY].includes(this.playerCharacter.stateMachine.currentName)) return;
     this.nextOpponentAttack -= delta;
     if (this.nextOpponentAttack <= 0) {
       const requestedPattern = getOpponentAttackPattern(this.opponentAttackIndex, this.opponentBattleDNA.abilitySet);
@@ -661,6 +661,19 @@ class ArenaScene extends Phaser.Scene {
     }
     if (defender === this.player) {
       this.player.setVelocityX(direction * 180);
+      const wasAirborne = this.playerCombatant.airborne
+        || !(this.player.body.blocked.down || this.player.body.touching.down);
+      if (wasAirborne) {
+        // A confirmed hit interrupts the jump arc and drops the fighter onto
+        // the arena floor immediately; gravity must not continue the old arc.
+        this.player.setVelocityY(0);
+        this.player.setY(this.floorY - 72);
+        this.player.body.updateFromGameObject();
+        this.playerCombatant.airborne = false;
+        this.playerCombatant.jumpTime = 0;
+        this.playerCombatant.evadeWindow = 0;
+        this.createDust(this.player.x, this.floorY - 3);
+      }
       this.playerCharacter.stateMachine.change(CHARACTER_STATES.HITSTUN);
     }
     this.cameras.main.shake(counter ? 120 : heavy ? 120 : 70, counter ? 0.006 : heavy ? 0.007 : 0.004);
