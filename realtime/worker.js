@@ -69,7 +69,7 @@ export default {
 const MAP_W = 960;
 const MAP_H = 540;
 const ARENA_MARGIN = 42;
-const MIN_FIGHTER_DISTANCE = 132;
+const MIN_FIGHTER_DISTANCE = 150;
 const MAX_LOG = 60;
 const TOTAL_ROUNDS = 3;
 const ROUND_TIME_MS = 60_000;
@@ -235,8 +235,8 @@ export class ArenaRoom {
         x: Number.isFinite(inputX) ? clamp(Math.sign(inputX), -1, 1) : 0,
         y: Number.isFinite(inputY) ? clamp(Math.sign(inputY), -1, 1) : 0,
       };
-      if (player.input.x !== 0) player.facing = player.input.x;
-
+      // Facing follows the rival's position in _step, not the movement key.
+      // That lets opposite input act as a backstep instead of turning around.
       if (state.phase === "IN_BATTLE") {
         if (message.action === "attack" || message.action === "doubleAttack") {
           this._attack(state, attachment.role, message.action);
@@ -582,6 +582,20 @@ export class ArenaRoom {
       a.y = clamp(a.y - ny * overlap, ARENA_TOP, ARENA_BOTTOM);
       b.x = clamp(b.x + nx * overlap, ARENA_LEFT, ARENA_RIGHT);
       b.y = clamp(b.y + ny * overlap, ARENA_TOP, ARENA_BOTTOM);
+    }
+
+    // Keep grounded, uncommitted fighters facing the rival. If the opponent
+    // remains in front, opposite input is a backstep. If they get behind,
+    // turn toward them instead of continuing to face away.
+    for (const role of ["challenger", "opponent"]) {
+      const fighter = state.players[role];
+      const rival = state.players[role === "challenger" ? "opponent" : "challenger"];
+      if (!fighter || !rival || now < Number(fighter.jumpUntil || 0)
+        || Number(fighter.actionUntil || 0) > now) continue;
+      const horizontalDelta = Number(rival.x) - Number(fighter.x);
+      if (horizontalDelta && horizontalDelta * Number(fighter.facing || 0) < 0) {
+        fighter.facing = Math.sign(horizontalDelta);
+      }
     }
 
     this._stepPendingAttacks(state, now);
