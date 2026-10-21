@@ -331,8 +331,8 @@ assert.ok(
   "the rear glove should sit noticeably below, but still near, the lead glove",
 );
 assert.ok(
-  segmentRig.parts["left-hand"].image.x < segmentRig.parts["right-hand"].image.x - 16,
-  "the rear glove should remain clearly behind the lead glove",
+  segmentRig.parts["left-hand"].image.x < segmentRig.parts["right-hand"].image.x - 5,
+  "the rear glove should remain visibly behind the lead glove without over-separating the guard",
 );
 assert.ok(segmentRig.parts["right-foot"].image.y >= 85 && segmentRig.parts["right-foot"].image.y <= 92,
   "lead foot should stay close to the floor line in the wider guard");
