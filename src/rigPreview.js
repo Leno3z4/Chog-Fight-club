@@ -19,7 +19,7 @@ function getPose(name) {
     rearArmLowerRotation: -1.18,
     leadArmX: 0,
     leadArmY: 0,
-    rearArmX: 16,
+    rearArmX: 20,
     rearArmY: 0,
     leadLegRotation: -0.14,
     leadLegLowerRotation: 0,
