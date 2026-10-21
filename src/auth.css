@@ -225,13 +225,16 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 .combat-card { border-color: rgba(133, 103, 255, .45); }
 .combat-fighters { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:16px; align-items:center; margin:20px 0; }
 .combat-fighter { min-width:0; padding:16px; border:1px solid rgba(176,155,255,.2); border-radius:16px; background:rgba(14,8,28,.42); }
-.combat-fighter-head { display:flex; flex-wrap:wrap; justify-content:space-between; gap:8px; margin-bottom:10px; }
-.combat-fighter-head strong { overflow-wrap:anywhere; }
-.combat-fighter-head span { color:#ffd64b; font-weight:800; }
-.combat-hp-track { height:10px; overflow:hidden; border-radius:99px; background:#30213f; margin-bottom:10px; }
-.combat-hp-track span { display:block; width:100%; height:100%; border-radius:inherit; background:linear-gradient(90deg,#79e28c,#ffd64b); transition:width .25s ease; }
-.combat-mp-track { height:6px; overflow:hidden; border-radius:99px; background:#30213f; margin:-4px 0 10px; }
-.combat-mp-track span { display:block; width:100%; height:100%; border-radius:inherit; background:linear-gradient(90deg,#8a75f5,#63d9f5); transition:width .25s ease; }
+.combat-fighter-head { display:flex; align-items:center; gap:10px; min-width:0; margin-bottom:10px; }
+.combat-fighter-avatar { display:block; width:42px; height:42px; flex:0 0 42px; border-radius:50%; object-fit:cover; background:#171717; border:2px solid rgba(255,255,255,.28); }
+.combat-fighter-identity { display:flex; flex:1 1 auto; flex-direction:column; gap:3px; min-width:0; }
+.combat-fighter-identity strong { overflow-wrap:anywhere; color:#fff; font-size:14px; line-height:1.2; }
+.combat-fighter-identity small { color:#c8b8e8; font-size:11px; line-height:1.2; overflow-wrap:anywhere; }
+.combat-fighter-head > span { flex:0 0 auto; color:#b9ffbf; font-weight:800; font-size:12px; }
+.combat-hp-track { height:12px; overflow:hidden; border-radius:99px; background:#17251b; margin-bottom:9px; border:1px solid rgba(255,255,255,.12); }
+.combat-hp-track span { display:block; width:100%; height:100%; border-radius:inherit; background:#22d35a; transition:width .25s ease; }
+.combat-mp-track { height:7px; overflow:hidden; border-radius:99px; background:#303030; margin:-3px 0 10px; }
+.combat-mp-track span { display:block; width:100%; height:100%; border-radius:inherit; background:#050505; transition:width .25s ease; }
 .combat-fighter small { display:block; color:#c8b8e8; line-height:1.6; overflow-wrap:anywhere; }
 .combat-versus { color:#ffd64b; font-weight:900; }
 .combat-moves { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:18px 0; }
@@ -313,7 +316,9 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 .solo-health strong{font-size:13px}
 .solo-health b{font:11px 'DM Mono',monospace;color:var(--club-yellow)}
 .solo-health .combat-hp-track{height:11px}
-.solo-health .combat-hp-track i{display:block;width:100%;height:100%;border-radius:inherit;background:linear-gradient(90deg,#79e28c,#ffd64b);transition:width .2s}
+.solo-health .combat-hp-track i{display:block;width:100%;height:100%;border-radius:inherit;background:#22d35a;transition:width .2s}
+.solo-health .combat-mp-track i{background:#050505!important}
+.solo-health .combat-mp-track{background:#303030!important}
 .arena-controls-note{margin:8px 0 12px;color:var(--club-muted);font-size:12px}
 .arena-controls-note kbd{margin-right:3px}
 .arena-mobile-controls{display:none;align-items:center;justify-content:space-between;gap:18px;margin:16px 0}
