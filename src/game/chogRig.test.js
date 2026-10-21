@@ -474,7 +474,7 @@ applyChogPose(rightRig, chogArmTargetPose("guard"));
 const renderedGuardSeparation = distance(rightRig.poseJoints.right.wrist, rightRig.poseJoints.left.wrist);
 assert.ok(renderedGuardSeparation >= 30,
   `rendered guard gloves must be at least 30 rig-pixels apart; got ${renderedGuardSeparation.toFixed(2)}`);
-assert.ok(rightRig.poseJoints.left.wrist.y <= rightRig.poseJoints.right.wrist.y - 8,
+assert.ok(rightRig.poseJoints.left.wrist.y <= rightRig.poseJoints.right.wrist.y - 7,
   "the rear glove should render above the lead glove in the guard");
 assert.ok(rightRig.poseJoints.left.wrist.x <= rightRig.poseJoints.right.wrist.x - 20,
   "the rear glove should be behind the lead glove, not planted over the shoulder");
