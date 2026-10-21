@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BootScene } from "./bootScene.js";
-import { applyChogPose, createChogKnockoutPose, createChogVisual, flashChog, setChogFacingLayerOrder, setChogRearCrossLayer } from "./game/chogRig.js";
+import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -134,8 +134,6 @@ class LiveArenaScene extends Phaser.Scene {
     const y = 265;
     const root = createChogVisual(this, x, y, role === "opponent");
     root.setScale((role === "opponent" ? -1 : 1) * SCALE, SCALE);
-    root.rig.defaultLayerOrder = [...root.list];
-    root.rig.rearCrossInFront = false;
     root.setDepth(100 + y);
     const accent = ACCENTS[role];
     const name = this.add.text(x, y - 146, "", {
@@ -277,7 +275,6 @@ class LiveArenaScene extends Phaser.Scene {
       root.x = Phaser.Math.Linear(root.x, fighter.targetX, blend);
       root.y = Phaser.Math.Linear(root.y, fighter.targetY - fighter.jumpHeight, blend);
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
-      setChogFacingLayerOrder(root, fighter.facing);
       root.setDepth(100 + root.y);
       const horizontalDelta = root.x - fromX;
       const horizontalTravel = Math.abs(horizontalDelta);
@@ -320,16 +317,16 @@ class LiveArenaScene extends Phaser.Scene {
         torsoY: -bodyBob * 2 * gait - Math.max(0, Math.sin(idlePhase)) * 0.4 * (1 - gait),
         headRotation: stride * 0.01 * gait,
       };
-      let pose = guard;
+      const boxerGuard = { ...guard, ...chogArmTargetPose("guard") };
+      const guardTargets = chogArmTargetPose("guard");
+      let pose = gait > 0.02 ? guard : boxerGuard;
       const actionAge = now - fighter.actionStartedAt;
       const duration = Math.max(1, fighter.actionUntil - fighter.actionStartedAt);
       const activeAction = actionAge >= 0 && actionAge < duration;
-      let rearCrossStriking = false;
-
       if (fighter.hp <= 0) {
         const koAge = Math.max(0, now - (fighter.koStartedAt || now));
         // Match the solo fall arc; knockout state itself is still server-owned.
-        pose = createChogKnockoutPose(guard, koAge);
+        pose = createChogKnockoutPose(boxerGuard, koAge);
       } else if (fighter.action === "jump" && activeAction) {
         const p = clamp(actionAge / duration, 0, 1);
         const launch = {
@@ -374,17 +371,10 @@ class LiveArenaScene extends Phaser.Scene {
             : phase < 0.80
               ? Math.sin(Math.PI * ((phase - startupRatio) / (0.80 - startupRatio)))
               : 0;
+        const attackTargets = chogArmTargetPose("jab");
         pose = {
           ...guard,
-          // Single taps are one right-hand jab, with the elbow straightening
-          // and folding back as a boxer returns to guard.
-          leadArmRotation: GUARD.leadArmRotation + pulse * (-1.47 - GUARD.leadArmRotation),
-          leadArmLowerRotation: GUARD.leadArmLowerRotation + pulse * (0.90 - GUARD.leadArmLowerRotation),
-          leadArmX: pulse * (heavy ? 16 : 15),
-          leadArmY: -pulse * 2,
-          rearArmRotation: GUARD.rearArmRotation,
-          rearArmLowerRotation: GUARD.rearArmLowerRotation,
-          rearArmY: 0,
+          ...blendPose(guardTargets, attackTargets, pulse),
           leadLegRotation: GUARD.leadLegRotation - pulse * (heavy ? 0.10 : 0.12),
           rearLegRotation: GUARD.rearLegRotation + pulse * (heavy ? 0.12 : 0.08),
           leadLegLowerRotation: GUARD.leadLegLowerRotation + pulse * 0.12,
@@ -400,19 +390,12 @@ class LiveArenaScene extends Phaser.Scene {
         const t = clamp(actionAge / duration, 0, 1);
         const jabPulse = t < 0.25 ? Math.sin(Math.PI * t / 0.25) : 0;
         const crossPulse = t >= 0.44 && t < 0.80 ? Math.sin(Math.PI * (t - 0.44) / 0.36) : 0;
-        rearCrossStriking = t >= 0.44 && t < 0.80;
+        const jabTargets = blendPose(guardTargets, chogArmTargetPose("jab"), jabPulse);
+        const crossTargets = blendPose(guardTargets, chogArmTargetPose("cross"), crossPulse);
+        const comboTargets = crossPulse > 0 ? crossTargets : jabTargets;
         pose = {
           ...guard,
-          leadArmRotation: GUARD.leadArmRotation
-            + jabPulse * (-1.47 - GUARD.leadArmRotation) - crossPulse * 0.12,
-          leadArmLowerRotation: GUARD.leadArmLowerRotation
-            + jabPulse * (0.90 - GUARD.leadArmLowerRotation) - crossPulse * 0.10,
-          leadArmX: jabPulse * 15 - crossPulse * 2,
-          leadArmY: -jabPulse * 2 - crossPulse * 2,
-          rearArmRotation: GUARD.rearArmRotation + crossPulse * (-1.48 - GUARD.rearArmRotation),
-          rearArmLowerRotation: GUARD.rearArmLowerRotation + crossPulse * (0.92 - GUARD.rearArmLowerRotation),
-          rearArmX: crossPulse * 18,
-          rearArmY: -crossPulse * 2 - jabPulse * 1.5,
+          ...comboTargets,
           leadLegRotation: GUARD.leadLegRotation - jabPulse * 0.12 - crossPulse * 0.10,
           rearLegRotation: GUARD.rearLegRotation + jabPulse * 0.08 + crossPulse * 0.16,
           leadLegLowerRotation: GUARD.leadLegLowerRotation + jabPulse * 0.12,
@@ -424,6 +407,8 @@ class LiveArenaScene extends Phaser.Scene {
           torsoY: -jabPulse * 1.4 - crossPulse * 2,
           headRotation: -jabPulse * 0.03 - crossPulse * 0.04,
         };
+      } else if ((fighter.action === "block" || fighter.action === "defense") && activeAction) {
+        pose = { ...boxerGuard, ...chogArmTargetPose("block") };
       } else if (fighter.action === "dash" && activeAction) {
         const pulse = Math.sin(Math.PI * clamp(actionAge / duration, 0, 1));
         pose = {
@@ -441,16 +426,15 @@ class LiveArenaScene extends Phaser.Scene {
           rearLegLowerRotation: GUARD.rearLegLowerRotation - pulse * 0.30,
         };
       }
-      if (rearCrossStriking !== root.rig.rearCrossInFront) {
-        setChogRearCrossLayer(root, rearCrossStriking);
-      }
-
       if (fighter.flashUntil > now) {
         const react = Math.max(0, Math.sin(Math.PI * clamp((fighter.flashUntil - now) / 230, 0, 1)));
+        const currentTargets = Object.fromEntries(Object.keys(guardTargets).map((key) => [
+          key,
+          pose[key] ?? guardTargets[key],
+        ]));
         pose = {
           ...pose,
-          leadArmRotation: pose.leadArmRotation - 0.12 * react,
-          rearArmRotation: pose.rearArmRotation - 0.16 * react,
+          ...blendPose(currentTargets, chogArmTargetPose("hit"), react),
           leadLegRotation: pose.leadLegRotation - 0.06 * react,
           rearLegRotation: pose.rearLegRotation + 0.08 * react,
           torsoRotation: pose.torsoRotation + 0.11 * react,

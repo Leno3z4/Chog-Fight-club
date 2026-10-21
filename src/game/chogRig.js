@@ -27,6 +27,10 @@ export const CHOG_POSE_LIMITS = Object.freeze({
   rearArmX: { min: -24, max: 24 },
   leadArmY: { min: -14, max: 14 },
   rearArmY: { min: -14, max: 14 },
+  leadHandTargetX: { min: -90, max: 90 },
+  leadHandTargetY: { min: -80, max: 70 },
+  rearHandTargetX: { min: -90, max: 90 },
+  rearHandTargetY: { min: -80, max: 70 },
   leadLegX: { min: -18, max: 18 },
   rearLegX: { min: -18, max: 18 },
   leadLegY: { min: -12, max: 12 },
@@ -36,6 +40,27 @@ export const CHOG_POSE_LIMITS = Object.freeze({
   headX: { min: -10, max: 10 },
   headY: { min: -10, max: 10 },
 });
+
+// Wrist-pivot targets in the shared 250-unit Chog canvas. Root mirroring turns
+// the same boxer guard and punches into the opposite-facing version.
+export const CHOG_ARM_TARGETS = Object.freeze({
+  guard: Object.freeze({ lead: Object.freeze([42, 0]), rear: Object.freeze([0, 9]) }),
+  jab: Object.freeze({ lead: Object.freeze([64, -7]), rear: Object.freeze([0, 9]) }),
+  cross: Object.freeze({ lead: Object.freeze([5, 11]), rear: Object.freeze([29, -7]) }),
+  hit: Object.freeze({ lead: Object.freeze([27, 8]), rear: Object.freeze([0, 9]) }),
+  block: Object.freeze({ lead: Object.freeze([36, -6]), rear: Object.freeze([0, 9]) }),
+});
+
+export function chogArmTargetPose(name) {
+  const targets = CHOG_ARM_TARGETS[name];
+  if (!targets) throw new RangeError(`Unknown Chog arm pose: ${name}`);
+  return {
+    leadHandTargetX: targets.lead[0],
+    leadHandTargetY: targets.lead[1],
+    rearHandTargetX: targets.rear[0],
+    rearHandTargetY: targets.rear[1],
+  };
+}
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -87,15 +112,14 @@ export function createChogKnockoutPose(basePose = {}, elapsedMs = 0) {
 }
 
 const LAYER_ORDER = [
-  // The left-facing fighter keeps the existing leg order; right-facing order is swapped below.
+  // A single facing-independent depth order: rear upper arm behind the torso,
+  // rear forearm/glove visible above it, and the entire lead arm in front.
   "right-upper-leg", "left-upper-leg",
   "right-lower-leg", "left-lower-leg",
   "right-foot", "left-foot",
-  // Both upper arms sit behind the torso to hide shoulder sockets and stray pixels.
-  // The rear forearm and glove remain behind the torso until a rear-cross strike.
-  "left-upper-arm", "right-upper-arm",
-  "left-lower-arm", "left-hand", "body",
-  // The lead forearm/glove stay in front for readable guard and jabs.
+  "left-upper-arm", "body",
+  "left-lower-arm", "left-hand",
+  "right-upper-arm",
   "right-lower-arm", "right-hand",
   "head", "eyes", "mouth",
 ];
@@ -171,23 +195,91 @@ function layeredJoint(point, parentPoint, localAngle) {
   return transformPoint(point, parentPoint, localAngle);
 }
 
+export function solveTwoBoneIK(shoulder, target, upperLength, lowerLength, bendDirection = 1) {
+  const dx = target.x - shoulder.x;
+  const dy = target.y - shoulder.y;
+  const requestedDistance = Math.hypot(dx, dy);
+  const minDistance = Math.abs(upperLength - lowerLength) + 1e-4;
+  const maxDistance = upperLength + lowerLength - 1e-4;
+  const distance = clamp(requestedDistance || minDistance, minDistance, maxDistance);
+  const directionX = requestedDistance > 1e-8 ? dx / requestedDistance : 1;
+  const directionY = requestedDistance > 1e-8 ? dy / requestedDistance : 0;
+  const solvedTarget = {
+    x: shoulder.x + directionX * distance,
+    y: shoulder.y + directionY * distance,
+  };
+  const baseAngle = Math.atan2(solvedTarget.y - shoulder.y, solvedTarget.x - shoulder.x);
+  const cosine = clamp(
+    (upperLength ** 2 + distance ** 2 - lowerLength ** 2) / (2 * upperLength * distance),
+    -1,
+    1,
+  );
+  const elbowAngle = baseAngle + (bendDirection < 0 ? -1 : 1) * Math.acos(cosine);
+  const elbow = {
+    x: shoulder.x + Math.cos(elbowAngle) * upperLength,
+    y: shoulder.y + Math.sin(elbowAngle) * upperLength,
+  };
+  return {
+    shoulder: { x: shoulder.x, y: shoulder.y },
+    elbow,
+    wrist: solvedTarget,
+    requestedTarget: { x: target.x, y: target.y },
+    requestedDistance,
+    upperLength,
+    lowerLength,
+  };
+}
+
 function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   const upper = rig.parts[`${side}-upper-arm`];
   const lower = rig.parts[`${side}-lower-arm`];
   const hand = rig.parts[`${side}-hand`];
   const joints = rig.joints[side];
   const upperPoseKey = side === "right" ? "leadArm" : "rearArm";
-  const upperAngle = pose[`${upperPoseKey}Rotation`] ?? 0;
+  let upperAngle = pose[`${upperPoseKey}Rotation`] ?? 0;
   // Elbow articulation is authored by each pose.  Inferring a bend from the
   // shoulder angle made any pose that did not explicitly set this value curl
   // the forearm unpredictably, which is especially visible in a straight jab.
-  const lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? 0;
-  const upperX = pose[`${upperPoseKey}X`] ?? 0;
-  const upperY = pose[`${upperPoseKey}Y`] ?? 0;
+  let lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? 0;
+  let upperX = pose[`${upperPoseKey}X`] ?? 0;
+  let upperY = pose[`${upperPoseKey}Y`] ?? 0;
 
-  const shoulder = worldJoint(upper.rest, torsoOrigin, torsoAngle, torsoX, torsoY);
+  let shoulder = worldJoint(upper.rest, torsoOrigin, torsoAngle, torsoX, torsoY);
   shoulder.x += upperX;
   shoulder.y += upperY;
+
+  const targetKey = side === "right" ? "leadHandTarget" : "rearHandTarget";
+  const targetX = pose[`${targetKey}X`];
+  const targetY = pose[`${targetKey}Y`];
+  const hasTarget = Number.isFinite(targetX) && Number.isFinite(targetY);
+  if (hasTarget) {
+    upperX = 0;
+    upperY = 0;
+    shoulder = worldJoint(upper.rest, torsoOrigin, torsoAngle, torsoX, torsoY);
+    const target = worldJoint({ x: targetX, y: targetY }, torsoOrigin, torsoAngle, torsoX, torsoY);
+    const upperVector = {
+      x: joints.elbow.x - upper.rest.x,
+      y: joints.elbow.y - upper.rest.y,
+    };
+    const lowerVector = {
+      x: joints.wrist.x - joints.elbow.x,
+      y: joints.wrist.y - joints.elbow.y,
+    };
+    const solution = solveTwoBoneIK(
+      shoulder,
+      target,
+      Math.hypot(upperVector.x, upperVector.y),
+      Math.hypot(lowerVector.x, lowerVector.y),
+      1,
+    );
+    const upperRestAngle = Math.atan2(upperVector.y, upperVector.x);
+    const lowerRestAngle = Math.atan2(lowerVector.y, lowerVector.x);
+    upperAngle = Math.atan2(solution.elbow.y - shoulder.y, solution.elbow.x - shoulder.x)
+      - torsoAngle - upperRestAngle;
+    lowerAngle = Math.atan2(solution.wrist.y - solution.elbow.y, solution.wrist.x - solution.elbow.x)
+      - torsoAngle - upperAngle - lowerRestAngle;
+  }
+
   movePart(upper, shoulder, torsoAngle + upperAngle);
 
   // Transform the elbow with the upper arm, then extend the forearm from
@@ -216,6 +308,7 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
     shoulder: { x: shoulder.x, y: shoulder.y },
     elbow: { x: elbow.x, y: elbow.y },
     wrist: { x: wrist.x, y: wrist.y },
+    target: hasTarget ? worldJoint({ x: targetX, y: targetY }, torsoOrigin, torsoAngle, torsoX, torsoY) : null,
   };
 }
 
@@ -264,12 +357,6 @@ export function createChogVisual(scene, x, y, mirrored = false) {
   const parts = {};
   for (const name of LAYER_ORDER) parts[name] = createPart(scene, root, name);
 
-  // The rear upper-arm artwork extends beyond the body's silhouette. Reuse
-  // the body's alpha channel as a mask so only that stray material is clipped.
-  // The mask source shares the same parent, origin convention, and transform.
-  const rearUpperArmMask = parts.body.image.createBitmapMask();
-  parts["left-upper-arm"].image.setMask(rearUpperArmMask);
-
   const rest = {
     torso: parts.body.rest,
     head: parts.head.rest,
@@ -314,99 +401,9 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     landingUntil: 0,
   };
 
-  rig.baseLayerOrder = [...root.list];
-  rig.defaultLayerOrder = [...root.list];
-  rig.frontLegSide = null;
-  rig.frontHandSide = null;
-  rig.rearCrossInFront = false;
   root.rig = rig;
   root.setScale(mirrored ? -1 : 1, 1);
-  setChogFacingLayerOrder(root, mirrored ? -1 : 1);
   return root;
-}
-
-/**
- * The existing leg order is correct for a left-facing rival. When the fighter
- * faces right, put the right/short-looking leg in front without reversing the
- * opponent's leg order. The active rear-cross layer is preserved on a turn.
- */
-export function setChogFacingLayerOrder(root, facing = 1) {
-  const rig = root?.rig;
-  if (!rig?.baseLayerOrder || !rig.layers) return;
-
-  const frontLegSide = Number(facing) < 0 ? "left" : "right";
-  const frontHandSide = frontLegSide;
-  if (rig.frontLegSide === frontLegSide && rig.frontHandSide === frontHandSide) return;
-
-  const legNames = frontLegSide === "right"
-    ? [
-      "left-upper-leg", "right-upper-leg",
-      "left-lower-leg", "right-lower-leg",
-      "left-foot", "right-foot",
-    ]
-    : [
-      "right-upper-leg", "left-upper-leg",
-      "right-lower-leg", "left-lower-leg",
-      "right-foot", "left-foot",
-    ];
-  const legObjects = new Set([
-    rig.layers["left-upper-leg"], rig.layers["right-upper-leg"],
-    rig.layers["left-lower-leg"], rig.layers["right-lower-leg"],
-    rig.layers["left-foot"], rig.layers["right-foot"],
-  ]);
-  const nextOrder = [...rig.baseLayerOrder];
-  const slots = [];
-  for (let index = 0; index < nextOrder.length; index += 1) {
-    if (legObjects.has(nextOrder[index])) slots.push(index);
-  }
-  if (slots.length !== legNames.length) return;
-
-  slots.forEach((slot, index) => {
-    nextOrder[slot] = rig.layers[legNames[index]];
-  });
-
-  // The glove on the camera-facing side sits on top of the other glove and
-  // face. The opposite glove keeps its existing boxer-guard depth.
-  const frontHand = rig.layers[`${frontHandSide}-hand`];
-  const frontHandIndex = nextOrder.indexOf(frontHand);
-  if (frontHandIndex < 0) return;
-  nextOrder.splice(frontHandIndex, 1);
-  nextOrder.push(frontHand);
-
-  rig.frontLegSide = frontLegSide;
-  rig.frontHandSide = frontHandSide;
-  rig.defaultLayerOrder = nextOrder;
-
-  if (rig.rearCrossInFront) {
-    setChogRearCrossLayer(root, true);
-  } else {
-    nextOrder.forEach((child, index) => root.moveTo(child, index));
-  }
-}
-
-/**
- * Put the rear forearm and fist in front for the double-tap rear cross.
- * Keep the upper arm behind the torso and keep all hands below the head.
- * The default order is restored when the striking window ends.
- */
-export function setChogRearCrossLayer(root, active) {
-  const rig = root?.rig;
-  if (!rig?.defaultLayerOrder || !rig.layers) return;
-
-  const order = [...rig.defaultLayerOrder];
-  if (active) {
-    const rearForearm = rig.layers["left-lower-arm"];
-    const rearHand = rig.layers["left-hand"];
-    const leadForearm = rig.layers["right-lower-arm"];
-    const frontOrder = order.filter((child) => child !== rearForearm && child !== rearHand);
-    const insertAt = frontOrder.indexOf(leadForearm);
-    if (insertAt < 0) return;
-    frontOrder.splice(insertAt + 1, 0, rearForearm, rearHand);
-    frontOrder.forEach((child, index) => root.moveTo(child, index));
-  } else {
-    order.forEach((child, index) => root.moveTo(child, index));
-  }
-  rig.rearCrossInFront = Boolean(active);
 }
 
 export function applyChogPose(rig, pose) {

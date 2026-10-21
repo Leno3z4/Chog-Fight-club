@@ -8,7 +8,7 @@ import { StateMachine } from "./game/stateMachine.js";
 import { InputBuffer } from "./game/inputBuffer.js";
 import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
-import { applyChogPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog, setChogFacingLayerOrder, setChogRearCrossLayer } from "./game/chogRig.js";
+import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
 import { stopMovementTowardOpponent } from "./game/fighterSpacing.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
@@ -111,7 +111,8 @@ function impactEnvelope(age, duration) {
 
 function blendRigPose(from, to, progress) {
   const t = clamp01(progress);
-  return Object.fromEntries(Object.keys(BASE_RIG_POSE).map((key) => [
+  const keys = new Set([...Object.keys(from), ...Object.keys(to)]);
+  return Object.fromEntries([...keys].map((key) => [
     key,
     Phaser.Math.Linear(from[key] ?? 0, to[key] ?? 0, t),
   ]));
@@ -210,8 +211,6 @@ class ArenaScene extends Phaser.Scene {
 
     this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 120, false);
     this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 120, true);
-    this.playerVisual.rig.defaultLayerOrder = [...this.playerVisual.list];
-    this.playerVisual.rig.rearCrossInFront = false;
     this.playerHurtbox = this.createHurtbox(this.player);
     this.opponentHurtbox = this.createHurtbox(this.opponent);
 
@@ -1007,7 +1006,6 @@ class ArenaScene extends Phaser.Scene {
       this.playerVisual.scaleX = newMagnitude * this.playerFacing;
       this.playerVisual.scaleY = Phaser.Math.Linear(this.playerVisual.scaleY, targetY, blend);
     }
-    setChogFacingLayerOrder(this.playerVisual, this.playerFacing);
     if (!this.wasGrounded && grounded) {
       this.createDust(this.player.x, this.floorY - 3);
       this.playerVisual.scaleY = 0.88;
@@ -1017,16 +1015,7 @@ class ArenaScene extends Phaser.Scene {
     this.wasGrounded = grounded;
 
     const playerPose = this.getPlayerRigPose(time, grounded, moving);
-    const currentAttack = this.playerCharacter.attack;
-    const rearCrossStriking = state === CHARACTER_STATES.ATTACK_ACTIVE
-      && Boolean(currentAttack?.combo)
-      && currentAttack.elapsed >= 170
-      && currentAttack.elapsed < 290;
-    const playerRig = this.playerVisual.rig;
-    if (rearCrossStriking !== playerRig.rearCrossInFront) {
-      setChogRearCrossLayer(playerRig.root, rearCrossStriking);
-    }
-    applyChogPose(playerRig, playerPose);
+    applyChogPose(this.playerVisual.rig, playerPose);
     this.lastPlayerPose = { ...playerPose };
     applyChogPose(this.opponentVisual.rig, this.getOpponentRigPose(time));
   }
@@ -1093,18 +1082,16 @@ class ArenaScene extends Phaser.Scene {
   }
 
   getAttackPose(attack, state, time, phase, readyPose = BASE_RIG_POSE) {
-    const windUp = { ...readyPose };
-    const action = { ...readyPose };
     const abilityType = attack.ability?.type ?? attack.motion ?? "burst";
     const power = attack.slot === "special" ? 1 : attack.slot === "base" ? 0.72 : 0.42;
+    const armAction = abilityType === "defense"
+      ? "block"
+      : attack.slot === "basic" && attack.hand === "rear" ? "cross" : "jab";
+    const windUp = { ...readyPose, ...chogArmTargetPose("guard") };
+    const action = { ...readyPose, ...chogArmTargetPose(armAction) };
 
-    // Pull the lead shoulder back a little and close the rear hand toward the
-    // chin before the strike; the launch should read as a punch, not a twitch.
-    windUp.leadArmRotation += 0.10 + power * 0.06;
-    windUp.leadArmLowerRotation -= 0.10;
-    windUp.rearArmRotation -= 0.07;
-    windUp.rearArmLowerRotation -= 0.05;
-    windUp.rearArmY = (windUp.rearArmY ?? 0) - 2;
+    // Keep both fists set in the same authored guard while the existing
+    // startup timing loads the torso and stance.
     windUp.torsoRotation -= 0.035 * power;
     windUp.torsoX = (windUp.torsoX ?? 0) - 1.5 - power * 2;
     windUp.torsoY -= 1.5 + power * 2;
@@ -1117,24 +1104,14 @@ class ArenaScene extends Phaser.Scene {
       // hand, return to guard, then rotate through the rear shoulder and hip.
       const load = {
         ...readyPose,
-        leadArmRotation: (readyPose.leadArmRotation ?? 0) + 0.12,
-        leadArmLowerRotation: (readyPose.leadArmLowerRotation ?? 0) - 0.08,
-        rearArmRotation: (readyPose.rearArmRotation ?? 0) - 0.08,
-        rearArmLowerRotation: (readyPose.rearArmLowerRotation ?? 0) - 0.06,
+        ...chogArmTargetPose("guard"),
         torsoRotation: (readyPose.torsoRotation ?? 0) + 0.04,
         torsoX: (readyPose.torsoX ?? 0) - 2,
         torsoY: (readyPose.torsoY ?? 0) + 1,
       };
       const jab = {
         ...readyPose,
-        leadArmRotation: -1.47,
-        leadArmLowerRotation: 0.92,
-        leadArmX: 15,
-        leadArmY: -1,
-        // Keep the off-hand left/rear fist at the chin during the right jab.
-        rearArmRotation: readyPose.rearArmRotation ?? BASE_RIG_POSE.rearArmRotation,
-        rearArmLowerRotation: readyPose.rearArmLowerRotation ?? BASE_RIG_POSE.rearArmLowerRotation,
-        rearArmY: readyPose.rearArmY ?? 0,
+        ...chogArmTargetPose("jab"),
         torsoRotation: -0.14,
         torsoX: 8,
         torsoY: -1,
@@ -1146,21 +1123,12 @@ class ArenaScene extends Phaser.Scene {
       };
       const resetGuard = {
         ...readyPose,
-        leadArmRotation: (readyPose.leadArmRotation ?? 0) + 0.02,
-        leadArmLowerRotation: (readyPose.leadArmLowerRotation ?? 0) - 0.04,
-        rearArmRotation: (readyPose.rearArmRotation ?? 0) - 0.04,
-        rearArmLowerRotation: (readyPose.rearArmLowerRotation ?? 0) - 0.05,
+        ...chogArmTargetPose("guard"),
         torsoRotation: (readyPose.torsoRotation ?? 0) + 0.015,
       };
       const cross = {
         ...readyPose,
-        rearArmRotation: -1.48,
-        rearArmLowerRotation: 0.92,
-        rearArmX: 18,
-        rearArmY: -2,
-        leadArmRotation: (readyPose.leadArmRotation ?? 0) - 0.10,
-        leadArmLowerRotation: (readyPose.leadArmLowerRotation ?? 0) - 0.12,
-        leadArmY: -2,
+        ...chogArmTargetPose("cross"),
         torsoRotation: -0.22,
         torsoX: 13,
         torsoY: -2,
@@ -1197,22 +1165,11 @@ class ArenaScene extends Phaser.Scene {
       if (attack.hand === "rear") {
         // Left-hand rear cross: load the rear side and rotate harder through
         // the torso before driving the rear fist across the center line.
-        windUp.rearArmRotation = (readyPose.rearArmRotation ?? 0) - 0.12;
-        windUp.rearArmLowerRotation = (readyPose.rearArmLowerRotation ?? 0) - 0.14;
-        windUp.leadArmRotation = (readyPose.leadArmRotation ?? 0) - 0.06;
-        windUp.leadArmLowerRotation = (readyPose.leadArmLowerRotation ?? 0) - 0.05;
         windUp.torsoRotation = (readyPose.torsoRotation ?? 0) + 0.07;
         windUp.torsoX = (readyPose.torsoX ?? 0) - 4;
         windUp.torsoY = (readyPose.torsoY ?? 0) + 1;
         windUp.rearLegRotation = (readyPose.rearLegRotation ?? 0) + 0.06;
 
-        action.rearArmRotation = -1.45;
-        action.rearArmLowerRotation = 0.90;
-        action.rearArmX = 20;
-        action.rearArmY = -2;
-        action.leadArmRotation = (readyPose.leadArmRotation ?? 0) - 0.12;
-        action.leadArmLowerRotation = (readyPose.leadArmLowerRotation ?? 0) - 0.15;
-        action.leadArmX = (readyPose.leadArmX ?? 0) - 2;
         action.torsoRotation = -0.22;
         action.torsoX = 14;
         action.torsoY = -2;
@@ -1225,21 +1182,9 @@ class ArenaScene extends Phaser.Scene {
       } else {
         // Right-hand lead jab: keep the rear fist at the chin and drive the
         // lead elbow out, followed by a small step through the lead leg.
-        windUp.leadArmRotation = (readyPose.leadArmRotation ?? 0) + 0.14;
-        windUp.leadArmLowerRotation = (readyPose.leadArmLowerRotation ?? 0) - 0.10;
-        windUp.rearArmRotation = (readyPose.rearArmRotation ?? 0) - 0.07;
-        windUp.rearArmLowerRotation = (readyPose.rearArmLowerRotation ?? 0) - 0.05;
         windUp.torsoRotation = (readyPose.torsoRotation ?? 0) + 0.03;
         windUp.torsoX = (readyPose.torsoX ?? 0) - 2;
 
-        action.leadArmRotation = -1.47;
-        action.leadArmLowerRotation = 0.90;
-        action.leadArmX = 14;
-        action.leadArmY = -1;
-        // Keep the off-hand at the chin so the primary right-hand jab is isolated.
-        action.rearArmRotation = readyPose.rearArmRotation ?? BASE_RIG_POSE.rearArmRotation;
-        action.rearArmLowerRotation = readyPose.rearArmLowerRotation ?? BASE_RIG_POSE.rearArmLowerRotation;
-        action.rearArmY = readyPose.rearArmY ?? 0;
         action.torsoRotation = -0.14;
         action.torsoX = 8;
         action.torsoY = -1;
@@ -1250,12 +1195,6 @@ class ArenaScene extends Phaser.Scene {
         action.headRotation = -0.03;
       }
     } else if (abilityType === "control" || abilityType === "disruption") {
-      action.leadArmRotation -= 0.45 * power;
-      action.rearArmRotation += 0.52 * power;
-      action.leadArmLowerRotation = 0.72;
-      action.rearArmLowerRotation += 0.22 * power;
-      action.leadArmX = (action.leadArmX ?? 0) + 5 * power;
-      action.rearArmX = (action.rearArmX ?? 0) - 2 * power;
       action.torsoRotation = -0.08 * power;
       action.torsoY -= 6 * power;
       action.leadLegRotation = (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.08 * power;
@@ -1263,10 +1202,6 @@ class ArenaScene extends Phaser.Scene {
       action.leadLegX = (action.leadLegX ?? 0) + 4 * power;
       action.rearLegX = (action.rearLegX ?? 0) - 2 * power;
     } else if (abilityType === "mobility") {
-      action.leadArmRotation -= 0.70 * power;
-      action.rearArmRotation -= 0.30 * power;
-      action.leadArmLowerRotation = 0.80;
-      action.rearArmLowerRotation -= 0.08;
       action.torsoRotation = -0.18 * power;
       action.torsoX = (action.torsoX ?? 0) + 10 * power;
       action.leadLegRotation = (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.20 * power;
@@ -1274,20 +1209,8 @@ class ArenaScene extends Phaser.Scene {
       action.leadLegX = (action.leadLegX ?? 0) + 8 * power;
       action.rearLegX = (action.rearLegX ?? 0) - 5 * power;
     } else if (abilityType === "defense") {
-      action.leadArmRotation -= 0.25 * power;
-      action.rearArmRotation -= 0.28 * power;
-      action.leadArmLowerRotation -= 0.12;
-      action.rearArmLowerRotation -= 0.10;
-      action.leadArmY = (action.leadArmY ?? 0) - 3;
-      action.rearArmY = (action.rearArmY ?? 0) - 3;
       action.torsoY -= 3 * power;
     } else {
-      action.leadArmRotation -= 0.38 * power;
-      action.rearArmRotation += 0.46 * power;
-      action.leadArmLowerRotation = 0.78;
-      action.rearArmLowerRotation = 0.54;
-      action.leadArmX = (action.leadArmX ?? 0) + 7 * power;
-      action.rearArmX = (action.rearArmX ?? 0) - 7 * power;
       action.torsoRotation = -0.13 * power;
       action.torsoX = (action.torsoX ?? 0) + 3 * power;
       action.leadLegRotation = (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.13 * power;
@@ -1326,10 +1249,13 @@ class ArenaScene extends Phaser.Scene {
   }
 
   getHitPose(time, phase, intensity, readyPose = BASE_RIG_POSE) {
+    const armRecovery = blendRigPose(
+      { ...readyPose, ...chogArmTargetPose("guard") },
+      { ...readyPose, ...chogArmTargetPose("hit") },
+      intensity,
+    );
     return {
-      ...readyPose,
-      leadArmRotation: readyPose.leadArmRotation - 0.12 * intensity,
-      rearArmRotation: readyPose.rearArmRotation - 0.16 * intensity,
+      ...armRecovery,
       leadLegRotation: (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.06 * intensity,
       rearLegRotation: (readyPose.rearLegRotation ?? BASE_RIG_POSE.rearLegRotation) + 0.08 * intensity,
       torsoRotation: 0.11 * intensity,
@@ -1370,7 +1296,8 @@ class ArenaScene extends Phaser.Scene {
     const rig = this.playerVisual.rig;
     const state = this.playerCharacter.stateMachine.currentName;
     const attack = this.playerCharacter.attack;
-    const readyPose = this.getPlayerReadyPose(time, rig.phase);
+    const locomotionPose = this.getPlayerReadyPose(time, rig.phase);
+    const readyPose = { ...locomotionPose, ...chogArmTargetPose("guard") };
     if (state !== CHARACTER_STATES.DEFEATED) rig.koStartedAt = 0;
     if (attack && ATTACK_STATES.has(state)) return this.getAttackPose(attack, state, time, rig.phase, readyPose);
     if (state === CHARACTER_STATES.DEFEATED) {
@@ -1391,13 +1318,13 @@ class ArenaScene extends Phaser.Scene {
       const vmax = Math.abs(combatData.movement.jumpVelocity);
       const p = Phaser.Math.Clamp((this.player.body.velocity.y + vmax) / (2 * vmax), 0, 1);
       const guard = {
-        leadArmRotation: readyPose.leadArmRotation,
-        rearArmRotation: readyPose.rearArmRotation,
-        leadArmLowerRotation: readyPose.leadArmLowerRotation,
-        rearArmLowerRotation: readyPose.rearArmLowerRotation,
+        leadArmRotation: locomotionPose.leadArmRotation,
+        rearArmRotation: locomotionPose.rearArmRotation,
+        leadArmLowerRotation: locomotionPose.leadArmLowerRotation,
+        rearArmLowerRotation: locomotionPose.rearArmLowerRotation,
       };
       const launch = {
-        ...readyPose,
+        ...locomotionPose,
         ...guard,
         leadLegRotation: 0.0,
         leadLegLowerRotation: 0.05,
@@ -1408,7 +1335,7 @@ class ArenaScene extends Phaser.Scene {
         torsoY: -2,
       };
       const tuck = {
-        ...readyPose,
+        ...locomotionPose,
         ...guard,
         // Softer tuck: draw both knees inward without a flat lead-thigh block.
         leadLegRotation: -0.8,
@@ -1421,7 +1348,7 @@ class ArenaScene extends Phaser.Scene {
         torsoY: -3,
       };
       const reach = {
-        ...readyPose,
+        ...locomotionPose,
         ...guard,
         // Return to the narrow base stance before the landing compression.
         torsoY: -2,
@@ -1440,25 +1367,27 @@ class ArenaScene extends Phaser.Scene {
     }
     if (rig.landingUntil > time) {
       const landing = blendRigPose(
-        readyPose,
-        this.getCrouchPose(time, rig.phase, readyPose),
+        locomotionPose,
+        this.getCrouchPose(time, rig.phase, locomotionPose),
         0.8,
       );
       const progress = 1 - ((rig.landingUntil - time) / 180);
       if (progress < 0.3) {
-        return blendRigPose(rig.landingFromPose ?? readyPose, landing, easeInOutCubic(progress / 0.3));
+        return blendRigPose(rig.landingFromPose ?? locomotionPose, landing, easeInOutCubic(progress / 0.3));
       }
-      return blendRigPose(landing, readyPose, easeInOutCubic((progress - 0.3) / 0.7));
+      return blendRigPose(landing, locomotionPose, easeInOutCubic((progress - 0.3) / 0.7));
     }
+    if (moving || this.walkBlend > 0.02) return locomotionPose;
     return readyPose;
   }
 
   getOpponentRigPose(time) {
     const rig = this.opponentVisual.rig;
+    const readyPose = { ...this.getReadyPose(time, rig.phase, false), ...chogArmTargetPose("guard") };
     if (this.opponentCombatant?.hp <= 0) {
       if (!rig.koStartedAt) rig.koStartedAt = time || 1;
       const koAge = Math.max(0, time - rig.koStartedAt);
-      return createChogKnockoutPose(BASE_RIG_POSE, koAge);
+      return createChogKnockoutPose(readyPose, koAge);
     }
     rig.koStartedAt = 0;
     if (this.incomingAttack) {
@@ -1472,20 +1401,20 @@ class ArenaScene extends Phaser.Scene {
         timing: pattern.timing,
         elapsed,
       };
-      if (elapsed < attack.timing.startup) return this.getAttackPose(attack, CHARACTER_STATES.ATTACK_STARTUP, time, rig.phase);
+      if (elapsed < attack.timing.startup) return this.getAttackPose(attack, CHARACTER_STATES.ATTACK_STARTUP, time, rig.phase, readyPose);
       if (elapsed < attack.timing.startup + attack.timing.active) {
         attack.elapsed = elapsed - attack.timing.startup;
-        return this.getAttackPose(attack, CHARACTER_STATES.ATTACK_ACTIVE, time, rig.phase);
+        return this.getAttackPose(attack, CHARACTER_STATES.ATTACK_ACTIVE, time, rig.phase, readyPose);
       }
       attack.elapsed = elapsed - attack.timing.startup - attack.timing.active;
-      return this.getAttackPose(attack, CHARACTER_STATES.ATTACK_RECOVERY, time, rig.phase);
+      return this.getAttackPose(attack, CHARACTER_STATES.ATTACK_RECOVERY, time, rig.phase, readyPose);
     }
     if (rig.hitReactUntil > time) {
       const duration = rig.hitReactDuration ?? 180;
       const age = duration - (rig.hitReactUntil - time);
       return this.getHitPose(time, rig.phase, impactEnvelope(age, duration));
     }
-    return this.getReadyPose(time, rig.phase, false);
+    return readyPose;
   }
 
   updateHealthBars(force = false) {
