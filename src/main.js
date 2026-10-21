@@ -63,8 +63,9 @@ const BASE_RIG_POSE = {
   // Relaxed boxer guard: right/lead hand is primary, left/rear hand stays home.
   leadArmRotation: -0.04,
   leadArmLowerRotation: -1.14,
-  rearArmRotation: -1.2,
-  rearArmLowerRotation: -1.28,
+  // Tuck the rear elbow and put its glove lower/back from the lead glove.
+  rearArmRotation: -1.1,
+  rearArmLowerRotation: -1.3,
   // Wider, less crouched stance while keeping both soles close to level.
   leadLegRotation: -0.14,
   leadLegLowerRotation: 0.0,
@@ -74,7 +75,7 @@ const BASE_RIG_POSE = {
   headRotation: 0,
   leadArmX: 0,
   leadArmY: 0,
-  rearArmX: 5,
+  rearArmX: 2,
   rearArmY: 0,
   leadLegX: 0,
   leadLegY: 0,
