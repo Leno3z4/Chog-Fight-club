@@ -48,6 +48,10 @@ class MockD1 {
     if (normalized.startsWith("SELECT discord_id, username, display_name FROM chog_players WHERE discord_id = ?1")) {
       return clone(this.players.get(v[0]) || null);
     }
+    if (normalized.startsWith("SELECT discord_id, username, display_name FROM chog_players WHERE username = ?1 COLLATE NOCASE LIMIT 1")) {
+      const target = String(v[0]).toLowerCase();
+      return clone([...this.players.values()].find((player) => String(player.username).toLowerCase() === target) || null);
+    }
     if (normalized.startsWith("SELECT * FROM chog_challenge_invites WHERE id = ?1")) {
       return clone(this.rows.get(v[0]) || null);
     }
@@ -502,22 +506,45 @@ test("returns an explicit configuration error if Cloudflare D1 binding is absent
 });
 
 
-test("requires a fixed Discord user ID for targeted invitations", async () => {
+test("reserves a username invite indefinitely until the exact Discord username registers", async () => {
   const db = new MockD1();
   env.CHOG_DB = db;
   const challengerCookie = await makeLinkedSession({ discordId: challengerId, username: "challenger", walletAccount: account });
+  const created = await handleInviteRequest({
+    method: "POST",
+    url: "/api/invites",
+    cookieHeader: challengerCookie,
+    env,
+    origin,
+    body: { action: "create", opponentDiscordId: "", opponentUsername: "new_rival" },
+  });
+  const id = created.body.invite.id;
+  const row = db.rows.get(id);
+  assert.equal(created.status, 201);
+  assert.equal(row.opponent_discord_id, "username:new_rival");
+  assert.equal(row.opponent_username, "@new_rival");
+  assert.equal(row.expires_at, null);
+  assert.equal(created.body.invite.targetUsername, "new_rival");
+  assert.equal(created.body.invite.registrationPending, true);
+
+  const wrongCookie = await makeLinkedSession({ discordId: "345678901234567890", username: "wrong_rival", walletAccount: opponentAccount });
   await assert.rejects(
-    handleInviteRequest({
-      method: "POST",
-      url: "/api/invites",
-      cookieHeader: challengerCookie,
-      env,
-      origin,
-      body: { action: "create", opponentDiscordId: "", opponentUsername: "new_rival" },
-    }),
-    (error) => error instanceof InviteApiError && error.code === "DISCORD_USER_ID_REQUIRED" && error.status === 409,
+    handleInviteRequest({ method: "GET", url: `/api/invites?id=${id}`, cookieHeader: wrongCookie, env, origin }),
+    (error) => error instanceof InviteApiError && error.code === "INVITE_FORBIDDEN",
   );
-  assert.equal(db.rows.size, 0);
+
+  const recipientCookie = await makeLinkedSession({ discordId: "456789012345678901", username: "new_rival", walletAccount: opponentAccount });
+  const visible = await handleInviteRequest({
+    method: "GET", url: `/api/invites?id=${id}`, cookieHeader: recipientCookie, env, origin,
+  });
+  assert.equal(visible.body.invite.registrationPending, true);
+  const accepted = await handleInviteRequest({
+    method: "POST", url: "/api/invites", cookieHeader: recipientCookie, env, origin,
+    body: { action: "accept", id },
+  });
+  assert.equal(accepted.body.invite.status, "TERMS_ACCEPTED");
+  assert.equal(accepted.body.invite.opponent.discordId, "456789012345678901");
+  assert.equal(db.rows.get(id).opponent_discord_id, "456789012345678901");
 });
 
 
