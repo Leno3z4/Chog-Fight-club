@@ -5,6 +5,16 @@ export async function onRequest({ request, env }) {
     return Response.json({ error: "Method not allowed." }, { status: 405, headers: { Allow: "GET, POST" } });
   }
   const url = new URL(request.url);
+  const configuredOrigin = String(env.DISCORD_APP_ORIGIN || "").trim();
+  let appOrigin = url.origin;
+  if (configuredOrigin) {
+    try {
+      const configuredUrl = new URL(configuredOrigin);
+      if (configuredUrl.protocol === "https:" && !configuredUrl.username && !configuredUrl.password) {
+        appOrigin = configuredUrl.origin;
+      }
+    } catch { /* Fall back to the request origin if configuration is invalid. */ }
+  }
   const body = request.method === "POST" ? await request.json().catch(() => ({})) : {};
   try {
     const result = await handleInviteRequest({
@@ -13,7 +23,7 @@ export async function onRequest({ request, env }) {
       cookieHeader: request.headers.get("Cookie") || "",
       env,
       body,
-      origin: url.origin,
+      origin: appOrigin,
     });
     return Response.json(result.body, {
       status: result.status,
