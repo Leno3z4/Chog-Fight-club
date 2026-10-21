@@ -268,10 +268,11 @@ async function loadInvites(view) {
       const url = `${accepted || !incoming ? "/battle-lobby.html" : "/invite.html"}?id=${encodeURIComponent(invite.id)}`;
       const canRespond = incoming && status === "PENDING_ACCEPTANCE";
       const canCancel = !incoming && status === "PENDING_ACCEPTANCE";
+      const inviteSummary = invite.condition ? escapeHtml(invite.condition) : "Choose Chogs and conditions after joining";
       return `<article class="invite-list-item">
         <div>
           <h3>${incoming ? "Challenge from" : "Challenge to"} ${escapeHtml(other?.username || "Discord player")}</h3>
-          <p>${escapeHtml(other?.tokenId ? `Chog #${other.tokenId}` : "Fighter not selected")} · ${escapeHtml(invite.condition)}</p>
+          <p>${escapeHtml(other?.tokenId ? `Chog #${other.tokenId}` : "Fighter not selected")} · ${inviteSummary}</p>
           <div class="invite-list-meta"><span class="invite-state">${escapeHtml(status.replaceAll("_"," "))}</span><span class="invite-state">Expires ${escapeHtml(invite.expiresAt ? new Date(invite.expiresAt).toLocaleDateString() : "No expiry")}</span></div>
         </div>
         <div class="invite-item-actions">
