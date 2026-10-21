@@ -325,11 +325,7 @@ async function searchArenaPlayers(query, sequence) {
     if (!response.ok) throw new Error(payload.error || "Player search failed.");
     const players = Array.isArray(payload.players) ? payload.players : [];
     if (!players.length) {
-      const handle = query.replace(/^@/, "").toLowerCase();
-      const validHandle = /^[a-z0-9][a-z0-9._]{0,30}[a-z0-9_]$/.test(handle);
-      opponentResults.innerHTML = '<div class="player-search-empty">No matching Arena account found.</div>' + (validHandle
-        ? `<button type="button" class="player-search-option player-search-invite-handle" data-invite-username="${escapeHtml(handle)}"><span class="player-search-avatar">@</span><span class="player-search-name"><strong>Invite @${escapeHtml(handle)}</strong><small>They can claim this invite after signing in with that username.</small></span><span class="player-search-select">Invite</span></button>`
-        : '<div class="player-search-empty">To invite someone who has not joined yet, enter their exact Discord username (not their display name).</div>');
+      opponentResults.innerHTML = '<div class="player-search-empty">No matching Arena account found. Ask them to sign in to the Arena first, or create a shareable link for anyone.</div>';
       return;
     }
     opponentResults.innerHTML = players.map((player) => `
@@ -361,16 +357,6 @@ opponentSearch.addEventListener("input", () => {
 });
 
 opponentResults.addEventListener("click", (event) => {
-  const inviteHandle = event.target.closest("[data-invite-username]");
-  if (inviteHandle) {
-    chooseOpponent({
-      discordId: "",
-      username: inviteHandle.dataset.inviteUsername,
-      displayName: `@${inviteHandle.dataset.inviteUsername}`,
-      unregistered: true,
-    });
-    return;
-  }
   const option = event.target.closest("[data-select-player]");
   if (!option) return;
   chooseOpponent({
