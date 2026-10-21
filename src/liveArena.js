@@ -327,7 +327,7 @@ class LiveArenaScene extends Phaser.Scene {
             ? -Math.sin((phase / startupRatio) * Math.PI / 2) * 0.24
             : phase < 0.80
               ? Math.sin(Math.PI * ((phase - startupRatio) / (0.80 - startupRatio)))
-              : Math.sin(Math.PI * ((phase - 0.80) / 0.20)) * 0.25;
+              : 0;
         pose = {
           ...guard,
           // Single taps are one right-hand jab, with the elbow straightening
