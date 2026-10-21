@@ -8,7 +8,7 @@ import { StateMachine } from "./game/stateMachine.js";
 import { InputBuffer } from "./game/inputBuffer.js";
 import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
-import { applyChogPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog, setChogRearCrossLayer } from "./game/chogRig.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
   beginOffensiveAction,
@@ -1016,14 +1016,7 @@ class ArenaScene extends Phaser.Scene {
       && currentAttack.elapsed < 290;
     const playerRig = this.playerVisual.rig;
     if (rearCrossStriking !== playerRig.rearCrossInFront) {
-      if (rearCrossStriking) {
-        playerRig.root.bringToTop(playerRig.layers["left-upper-arm"]);
-        playerRig.root.bringToTop(playerRig.layers["left-lower-arm"]);
-        playerRig.root.bringToTop(playerRig.layers["left-hand"]);
-      } else {
-        playerRig.defaultLayerOrder.forEach((child, index) => playerRig.root.moveTo(child, index));
-      }
-      playerRig.rearCrossInFront = rearCrossStriking;
+      setChogRearCrossLayer(playerRig.root, rearCrossStriking);
     }
     applyChogPose(playerRig, playerPose);
     this.lastPlayerPose = { ...playerPose };

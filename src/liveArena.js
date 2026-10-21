@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BootScene } from "./bootScene.js";
-import { applyChogPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, createChogKnockoutPose, createChogVisual, flashChog, setChogRearCrossLayer } from "./game/chogRig.js";
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -440,14 +440,7 @@ class LiveArenaScene extends Phaser.Scene {
         };
       }
       if (rearCrossStriking !== root.rig.rearCrossInFront) {
-        if (rearCrossStriking) {
-          root.bringToTop(root.rig.layers["left-upper-arm"]);
-          root.bringToTop(root.rig.layers["left-lower-arm"]);
-          root.bringToTop(root.rig.layers["left-hand"]);
-        } else {
-          root.rig.defaultLayerOrder.forEach((child, index) => root.moveTo(child, index));
-        }
-        root.rig.rearCrossInFront = rearCrossStriking;
+        setChogRearCrossLayer(root, rearCrossStriking);
       }
 
       if (fighter.flashUntil > now) {

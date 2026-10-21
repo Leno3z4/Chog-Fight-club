@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { applyChogPose, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual } from "./chogRig.js";
+import { applyChogPose, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual, setChogRearCrossLayer } from "./chogRig.js";
 
 class FakeObject {
   constructor(x = 0, y = 0, texture = "") {
@@ -24,6 +24,13 @@ class FakeObject {
 class FakeContainer extends FakeObject {
   constructor(x, y) { super(x, y); this.list = []; }
   add(child) { this.list.push(child); return this; }
+  moveTo(child, index) {
+    const current = this.list.indexOf(child);
+    if (current < 0) return this;
+    this.list.splice(current, 1);
+    this.list.splice(Math.max(0, Math.min(index, this.list.length)), 0, child);
+    return this;
+  }
 }
 
 const scene = {
@@ -38,14 +45,28 @@ const visual = createChogVisual(scene, 320, 400, false);
 const rig = visual.rig;
 assert.equal(Object.keys(rig.parts).length, 16, "all separated Chog layers should be rigged");
 const layerNames = visual.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
-assert.ok(layerNames.indexOf("left-upper-arm") < layerNames.indexOf("body"), "the torso should cover the rear upper-arm shoulder edge");
-assert.ok(layerNames.indexOf("left-lower-arm") > layerNames.indexOf("body"), "the rear forearm should remain visible over the torso");
-for (const hand of ["left-hand", "right-hand"]) {
-  const handIndex = layerNames.indexOf(hand);
-  assert.ok(handIndex > layerNames.indexOf("left-lower-arm"), `${hand} should render above the rear forearm`);
-  assert.ok(handIndex > layerNames.indexOf("right-lower-arm"), `${hand} should render above the lead forearm`);
-  assert.ok(handIndex < layerNames.indexOf("head"), `${hand} should remain behind the head`);
-}
+const bodyLayer = layerNames.indexOf("body");
+assert.ok(layerNames.indexOf("left-upper-arm") < bodyLayer, "the rear upper arm should stay behind the torso to hide shoulder seams");
+assert.ok(layerNames.indexOf("left-lower-arm") < bodyLayer, "the rear forearm should stay behind the torso in guard");
+assert.ok(layerNames.indexOf("left-hand") < bodyLayer, "the rear glove should stay behind the torso and lead glove at rest");
+assert.ok(layerNames.indexOf("right-upper-arm") > bodyLayer, "the lead upper arm should render in front of the torso");
+assert.ok(layerNames.indexOf("right-lower-arm") > bodyLayer, "the lead forearm should render in front of the torso");
+assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("right-lower-arm"), "the lead glove should render above its forearm");
+assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("left-hand"), "the lead glove should be in front of the rear glove at rest");
+assert.ok(layerNames.indexOf("right-hand") < layerNames.indexOf("head"), "the lead glove should remain behind the head");
+
+// Rear crosses temporarily advance only the rear forearm and glove. The upper
+// arm remains tucked behind the torso and the hands stay below the head.
+rig.defaultLayerOrder = [...visual.list];
+setChogRearCrossLayer(visual, true);
+const crossLayers = visual.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
+assert.ok(crossLayers.indexOf("left-upper-arm") < crossLayers.indexOf("body"), "the rear upper arm must remain behind the torso during a cross");
+assert.ok(crossLayers.indexOf("left-lower-arm") > crossLayers.indexOf("right-lower-arm"), "the rear forearm should advance for the cross");
+assert.ok(crossLayers.indexOf("left-hand") > crossLayers.indexOf("left-lower-arm"), "the rear glove should follow its forearm during the cross");
+assert.ok(crossLayers.indexOf("left-hand") < crossLayers.indexOf("right-hand"), "the lead glove should still remain in front of the rear glove");
+assert.ok(crossLayers.indexOf("left-hand") < crossLayers.indexOf("head"), "the rear glove must not jump in front of the head");
+setChogRearCrossLayer(visual, false);
+assert.deepEqual(visual.list, rig.defaultLayerOrder, "the default rear-arm order should restore after the cross");
 for (const name of [
   "body", "head", "eyes", "mouth",
   "left-upper-arm", "left-lower-arm", "left-hand",
