@@ -91,10 +91,10 @@ const LAYER_ORDER = [
   "right-upper-leg", "left-upper-leg",
   "right-lower-leg", "left-lower-leg",
   "right-foot", "left-foot",
-  "body",
-  // Keep the torso-obscured rear arm visible across the body silhouette.
-  "left-upper-arm", "left-lower-arm",
-  // Both fists render above the forearms so an overlapping arm cannot hide them.
+  // Let the torso cover the top of the rear upper arm to hide chest seams.
+  "left-upper-arm", "body",
+  // Keep the rear forearm and fists in front so the cross still reads clearly.
+  "left-lower-arm",
   "right-upper-arm", "right-lower-arm",
   "left-hand", "right-hand",
   "head", "eyes", "mouth",
@@ -244,7 +244,8 @@ function placeLeg(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
     x: knee.x + ankleVectorX * cos - ankleVectorY * sin,
     y: knee.y + ankleVectorX * sin + ankleVectorY * cos,
   };
-  movePart(foot, ankle, lowerLegAngle);
+  // Keep the sole flatter than the shin through stance and jump poses.
+  movePart(foot, ankle, lowerLegAngle * 0.35);
 }
 
 export function createChogVisual(scene, x, y, mirrored = false) {
