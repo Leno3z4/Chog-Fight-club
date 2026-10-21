@@ -509,7 +509,7 @@ class ArenaScene extends Phaser.Scene {
     this.playerCharacter.stateMachine.change(CHARACTER_STATES.ATTACK_STARTUP, {
       attack: {
         slot,
-        hand: "lead",
+        hand: "lead", // Right-hand default; only the combo's second strike uses the left/rear arm.
         combo: Boolean(combo),
         landedComboHits: [],
         ability,
@@ -1137,9 +1137,9 @@ class ArenaScene extends Phaser.Scene {
         torsoRotation: -0.14,
         torsoX: 8,
         torsoY: -1,
-        leadLegRotation: -0.12,
-        leadLegX: 8,
-        rearLegRotation: 0.08,
+        leadLegRotation: (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.12,
+        leadLegX: (readyPose.leadLegX ?? 0) + 8,
+        rearLegRotation: (readyPose.rearLegRotation ?? BASE_RIG_POSE.rearLegRotation) + 0.08,
         headX: 2,
         headRotation: -0.03,
       };
@@ -1215,10 +1215,10 @@ class ArenaScene extends Phaser.Scene {
         action.torsoRotation = -0.22;
         action.torsoX = 14;
         action.torsoY = -2;
-        action.rearLegRotation = 0.16;
-        action.rearLegLowerRotation = -0.15;
-        action.rearLegX = 6;
-        action.leadLegRotation = -0.10;
+        action.rearLegRotation = (readyPose.rearLegRotation ?? BASE_RIG_POSE.rearLegRotation) + 0.16;
+        action.rearLegLowerRotation = (readyPose.rearLegLowerRotation ?? BASE_RIG_POSE.rearLegLowerRotation) - 0.15;
+        action.rearLegX = (readyPose.rearLegX ?? 0) + 6;
+        action.leadLegRotation = (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.10;
         action.headX = 3;
         action.headRotation = -0.04;
       } else {
@@ -1242,9 +1242,9 @@ class ArenaScene extends Phaser.Scene {
         action.torsoRotation = -0.14;
         action.torsoX = 8;
         action.torsoY = -1;
-        action.leadLegRotation = -0.12;
-        action.leadLegX = 8;
-        action.rearLegRotation = 0.08;
+        action.leadLegRotation = (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.12;
+        action.leadLegX = (readyPose.leadLegX ?? 0) + 8;
+        action.rearLegRotation = (readyPose.rearLegRotation ?? BASE_RIG_POSE.rearLegRotation) + 0.08;
         action.headX = 2;
         action.headRotation = -0.03;
       }
@@ -1257,8 +1257,8 @@ class ArenaScene extends Phaser.Scene {
       action.rearArmX = (action.rearArmX ?? 0) - 2 * power;
       action.torsoRotation = -0.08 * power;
       action.torsoY -= 6 * power;
-      action.leadLegRotation = -0.08 * power;
-      action.rearLegRotation = 0.10 * power;
+      action.leadLegRotation = (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.08 * power;
+      action.rearLegRotation = (readyPose.rearLegRotation ?? BASE_RIG_POSE.rearLegRotation) + 0.10 * power;
       action.leadLegX = (action.leadLegX ?? 0) + 4 * power;
       action.rearLegX = (action.rearLegX ?? 0) - 2 * power;
     } else if (abilityType === "mobility") {
@@ -1268,8 +1268,8 @@ class ArenaScene extends Phaser.Scene {
       action.rearArmLowerRotation -= 0.08;
       action.torsoRotation = -0.18 * power;
       action.torsoX = (action.torsoX ?? 0) + 10 * power;
-      action.leadLegRotation = -0.20 * power;
-      action.rearLegRotation = 0.14 * power;
+      action.leadLegRotation = (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.20 * power;
+      action.rearLegRotation = (readyPose.rearLegRotation ?? BASE_RIG_POSE.rearLegRotation) + 0.14 * power;
       action.leadLegX = (action.leadLegX ?? 0) + 8 * power;
       action.rearLegX = (action.rearLegX ?? 0) - 5 * power;
     } else if (abilityType === "defense") {
@@ -1289,8 +1289,8 @@ class ArenaScene extends Phaser.Scene {
       action.rearArmX = (action.rearArmX ?? 0) - 7 * power;
       action.torsoRotation = -0.13 * power;
       action.torsoX = (action.torsoX ?? 0) + 3 * power;
-      action.leadLegRotation = -0.13 * power;
-      action.rearLegRotation = 0.15 * power;
+      action.leadLegRotation = (readyPose.leadLegRotation ?? BASE_RIG_POSE.leadLegRotation) - 0.13 * power;
+      action.rearLegRotation = (readyPose.rearLegRotation ?? BASE_RIG_POSE.rearLegRotation) + 0.15 * power;
       action.leadLegX = (action.leadLegX ?? 0) + 8 * power;
       action.rearLegX = (action.rearLegX ?? 0) - 8 * power;
     }
