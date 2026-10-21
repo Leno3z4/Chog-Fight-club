@@ -1470,17 +1470,17 @@ class ArenaScene extends Phaser.Scene {
     this.matchOverlay.add([overlayShade, this.matchOverlayTitle, this.matchOverlayDetail]);
 
     this.playerGhostBar = this.add.rectangle(32, 106, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
-    this.playerBar = this.add.rectangle(32, 106, 300, 18, 0x53d769, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
-    this.playerEnergyBar = this.add.rectangle(32, 145, 300, 10, 0x39d96a, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
-    this.playerEnergyGhostBar = this.add.rectangle(32, 145, 300, 10, 0xffffff, 0.12).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
+    this.playerBar = this.add.rectangle(32, 106, 300, 18, 0x22d35a, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
+    this.playerEnergyBar = this.add.rectangle(32, 145, 300, 10, 0x050505, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
+    this.playerEnergyGhostBar = this.add.rectangle(32, 145, 300, 10, 0x303030, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
     this.playerEnergyText = this.add.text(32, 156, "", { ...textStyle, fontSize: "11px" }).setScrollFactor(0).setDepth(12);
 
     this.opponentGhostBar = this.add.rectangle(0, 106, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
-    this.opponentBar = this.add.rectangle(0, 106, 300, 18, 0xf04b61, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
-    this.opponentEnergyBar = this.add.rectangle(0, 145, 300, 10, 0xb89eff, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
-    this.opponentEnergyGhostBar = this.add.rectangle(0, 145, 300, 10, 0xffffff, 0.12).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
+    this.opponentBar = this.add.rectangle(0, 106, 300, 18, 0x22d35a, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
+    this.opponentEnergyBar = this.add.rectangle(0, 145, 300, 10, 0x050505, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
+    this.opponentEnergyGhostBar = this.add.rectangle(0, 145, 300, 10, 0x303030, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
     this.opponentEnergyText = this.add.text(0, 156, "", { ...textStyle, fontSize: "11px", align: "right" }).setOrigin(1, 0).setScrollFactor(0).setDepth(12);
-    this.opponentLabel = this.add.text(0, 120, "OPPONENT", { ...textStyle, fontSize: "14px" }).setScrollFactor(0);
+    this.opponentLabel = this.add.text(0, 120, "ARENA BOT · CHOG #973", { ...textStyle, fontSize: "12px", fontStyle: "800" }).setScrollFactor(0);
     this.positionHud(this.arenaWidth, this.arenaHeight);
   }
 
