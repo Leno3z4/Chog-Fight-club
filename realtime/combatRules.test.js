@@ -45,11 +45,15 @@ state.players.opponent.x = 240;
 state.players.challenger.nextBaseAt = 0;
 const hpBeforeProjectile = state.players.opponent.hp;
 state.players.challenger.energy = 100;
+const baseStart = Date.now();
 room._attack(state, "challenger", "base");
-assert.equal(state.players.opponent.hp, hpBeforeProjectile, "a base move travels as a projectile instead of dealing instant damage");
-assert.equal(state.projectiles.length, 1, "the server creates a physical projectile");
-assert.equal(state.players.challenger.energy, 90, "base projectile spends 10 MP");
-assert.equal(state.players.challenger.nextBaseAt > Date.now(), true, "base projectile has a cooldown");
+assert.equal(state.players.opponent.hp, hpBeforeProjectile, "a base move does not deal instant damage");
+assert.equal(state.projectiles.length, 0, "a base projectile waits for its wind-up to finish");
+assert.equal(state.players.challenger.pendingAttack.slot, "base", "the base attack is pending release during its wind-up");
+assert.equal(state.players.challenger.energy, 90, "base attack spends 10 MP at startup");
+assert.equal(state.players.challenger.nextBaseAt > baseStart, true, "base attack has a cooldown");
+room._step(state, baseStart + 320);
+assert.equal(state.projectiles.length, 1, "the base projectile launches after its wind-up");
 
 const now = Date.now();
 const punchState = {
@@ -145,4 +149,35 @@ assert.equal(matchState.status, "FINISHED");
 assert.equal(matchState.winnerDiscordId, "challenger-id", "most round wins determines the winner");
 assert.equal(dbUpdates.length, 2, "the final result updates the battle and invite records");
 
-console.log("Multiplayer hitbox, projectile, combo cooldown and three-round checks passed.");
+
+const interruptNow = Date.now();
+const interruptState = {
+  status: "IN_BATTLE", phase: "IN_BATTLE", lastTick: interruptNow, roundStartedAt: interruptNow - 1000,
+  round: 1, roundWins: { challenger: 0, opponent: 0 }, timeRemainingMs: 59000, projectiles: [], log: [],
+  players: {
+    challenger: { username: "Charge", role: "challenger", x: 280, y: 270, facing: 1, hp: 100, maxHp: 100, energy: 100, maxEnergy: 100, attack: 30, defense: 5, speed: 14, nextAttackAt: 0, nextBaseAt: 0, nextSpecialAt: 0, nextDashAt: 0, nextJumpAt: 0, jumpStartedAt: 0, jumpUntil: 0, jumpHeight: 0, input: { x: 0, y: 0 }, action: "idle", actionStartedAt: 0, actionUntil: 0, pendingAttack: null, landedPunchWindows: [] },
+    opponent: { username: "Interrupt", role: "opponent", x: 415, y: 270, facing: -1, hp: 100, maxHp: 100, energy: 100, maxEnergy: 100, attack: 20, defense: 5, speed: 14, nextAttackAt: 0, nextBaseAt: 0, nextSpecialAt: 0, nextDashAt: 0, nextJumpAt: 0, jumpStartedAt: 0, jumpUntil: 0, jumpHeight: 0, input: { x: 0, y: 0 }, action: "idle", actionStartedAt: 0, actionUntil: 0, pendingAttack: null, landedPunchWindows: [] },
+  },
+};
+const interruptRoom = new ArenaRoom({}, {});
+interruptRoom._attack(interruptState, "challenger", "special");
+assert.equal(interruptState.players.challenger.energy, 65, "special MP is spent when charging begins");
+assert.equal(interruptState.players.challenger.pendingAttack.slot, "special");
+interruptRoom._applyDamage(interruptState, "opponent", "basic", interruptNow + 100);
+assert.equal(interruptState.players.challenger.hp < 100, true, "the interrupting hit still deals damage");
+assert.equal(interruptState.players.challenger.pendingAttack, null, "a hit cancels a special before release");
+assert.equal(interruptState.players.challenger.energy, 65, "interrupted special MP is not refunded");
+interruptRoom._step(interruptState, interruptNow + 500);
+assert.equal(interruptState.projectiles.length, 0, "an interrupted special never launches");
+
+const airborne = interruptState.players.challenger;
+airborne.hp = 100;
+airborne.action = "jump";
+airborne.jumpStartedAt = interruptNow;
+airborne.jumpUntil = interruptNow + 600;
+airborne.jumpHeight = 35;
+interruptRoom._applyDamage(interruptState, "opponent", "basic", interruptNow + 120);
+assert.equal(airborne.jumpUntil, interruptNow + 120, "a hit ends the jump immediately");
+assert.equal(airborne.jumpHeight, 0, "a hit forces an airborne fighter straight to the ground");
+assert.equal(airborne.action, "hitstun", "the landing hit transitions into hitstun");
+console.log("Multiplayer hitbox, wind-up interruption, air knockdown, combo cooldown and three-round checks passed.");
