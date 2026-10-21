@@ -76,7 +76,7 @@ const BASE_RIG_POSE = {
   headRotation: 0,
   leadArmX: 0,
   leadArmY: 0,
-  rearArmX: 16,
+  rearArmX: 20,
   rearArmY: 0,
   leadLegX: 0,
   leadLegY: 0,
