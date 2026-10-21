@@ -44,12 +44,15 @@ export const CHOG_POSE_LIMITS = Object.freeze({
 // Wrist-pivot targets in the shared 250-unit Chog canvas. Root mirroring turns
 // the same boxer guard and punches into the opposite-facing version.
 export const CHOG_ARM_TARGETS = Object.freeze({
-  // Keep the rear glove tucked high near the cheek instead of parked on the shoulder.
-  guard: Object.freeze({ lead: Object.freeze([42, 0]), rear: Object.freeze([12, -12]) }),
-  jab: Object.freeze({ lead: Object.freeze([64, -7]), rear: Object.freeze([12, -12]) }),
-  cross: Object.freeze({ lead: Object.freeze([5, 11]), rear: Object.freeze([29, -7]) }),
-  hit: Object.freeze({ lead: Object.freeze([27, 8]), rear: Object.freeze([12, -12]) }),
-  block: Object.freeze({ lead: Object.freeze([36, -6]), rear: Object.freeze([12, -12]) }),
+  // Targets are wrist pivots in rig-local space. Both guard fists live at cheek
+  // height; the rear glove sits slightly back and high while the lead stays forward.
+  guard: Object.freeze({ lead: Object.freeze([42, -34]), rear: Object.freeze([8, -42]) }),
+  // Straight jabs travel forward without dropping toward the chest.
+  jab: Object.freeze({ lead: Object.freeze([58, -34]), rear: Object.freeze([8, -42]) }),
+  // The rear cross advances the left fist while the right fist protects the face.
+  cross: Object.freeze({ lead: Object.freeze([8, -34]), rear: Object.freeze([20, -42]) }),
+  hit: Object.freeze({ lead: Object.freeze([26, -27]), rear: Object.freeze([8, -42]) }),
+  block: Object.freeze({ lead: Object.freeze([38, -42]), rear: Object.freeze([8, -48]) }),
 });
 
 export function chogArmTargetPose(name) {
@@ -121,21 +124,19 @@ const LEG_LAYER_ORDER = [
 const FACE_LAYER_ORDER = ["head", "eyes", "mouth"];
 
 /**
- * Mirror the entire assembled sprite rig rather than swapping depth by facing.
- * The pose channels remain semantic (left = rear, right = lead); swapping only
- * their render order on a root flip makes the rear arm jump through the torso.
- *
- * The rear upper and lower arm segments sit behind the body, whose opaque pixels
- * cover their inner edges. Only the rear glove is rendered over the torso.
+ * All arm pieces share the character canvas and its pivots. Both upper arms
+ * begin behind the torso, the forearms remain visible over the chest, and the
+ * gloves render last so neither fist is hidden by the head/face layers.
  */
 export function getLayerOrder() {
   const armOrder = [
-    // Tuck the rear bicep behind the torso; keep the forearm visible as it rises
-    // toward the rear glove at cheek level. The body covers only the overlap.
-    "left-upper-arm", "body", "left-lower-arm", "left-hand",
-    "right-upper-arm", "right-lower-arm", "right-hand",
+    "left-upper-arm", "right-upper-arm",
+    "body",
+    "left-lower-arm", "right-lower-arm",
+    ...FACE_LAYER_ORDER,
+    "left-hand", "right-hand",
   ];
-  return [...LEG_LAYER_ORDER, ...armOrder, ...FACE_LAYER_ORDER];
+  return [...LEG_LAYER_ORDER, ...armOrder];
 }
 
 // The PNGs have different pixel dimensions, but their artwork shares one normalized canvas.
