@@ -6,18 +6,18 @@ const WIDTH = 960;
 const HEIGHT = 540;
 const SCALE = 0.66;
 const GUARD = {
-  // Match solo mode: the right/lead hand is the primary strike hand.
-  leadArmRotation: 0.22,
-  leadArmLowerRotation: -1.84,
-  rearArmRotation: -1.0,
-  rearArmLowerRotation: -2.0,
-  leadLegRotation: 0.08,
-  leadLegLowerRotation: 0.18,
-  rearLegRotation: -0.74,
-  rearLegLowerRotation: 0.78,
+  // Match solo mode: a relaxed right/lead guard with the left/rear glove home.
+  leadArmRotation: -0.04,
+  leadArmLowerRotation: -1.14,
+  rearArmRotation: -1.2,
+  rearArmLowerRotation: -1.28,
+  leadLegRotation: -0.14,
+  leadLegLowerRotation: 0.0,
+  rearLegRotation: -0.5,
+  rearLegLowerRotation: 0.68,
   leadArmX: 0,
   leadArmY: 0,
-  rearArmX: 0,
+  rearArmX: 5,
   rearArmY: 0,
   leadLegX: 0,
   leadLegY: 0,
@@ -342,10 +342,10 @@ class LiveArenaScene extends Phaser.Scene {
         };
         const tuck = {
           ...guard,
-          leadLegRotation: -0.96,
-          leadLegLowerRotation: 1.6,
-          rearLegRotation: -1.3,
-          rearLegLowerRotation: 1.2,
+          leadLegRotation: -0.8,
+          leadLegLowerRotation: 1.66,
+          rearLegRotation: -1.1,
+          rearLegLowerRotation: 1.02,
           leadLegY: -4,
           rearLegY: -3,
           torsoRotation: -0.02,
