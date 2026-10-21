@@ -40,9 +40,10 @@ function usernameInviteTarget(row) {
     ? row.opponent_discord_id.slice("username:".length)
     : "";
 }
-function isUsernameInviteFor(row, user) {
-  const target = usernameInviteTarget(row);
-  return Boolean(target && normalizeDiscordUsername(user?.discordUsername) === target);
+function isUsernameInviteFor() {
+  // Discord usernames can change. Targeted invites must bind to the immutable Discord user ID.
+  // This deliberately prevents older username-only invitations from being claimed by name.
+  return false;
 }
 function validPrototypeFighter(value) {
   const id = String(value ?? "");
@@ -193,16 +194,15 @@ async function createInvite({ user, body, env, origin }) {
       opponentName = String(opponent.display_name || opponent.username || "Discord player");
     } else {
       if (requestedDiscordId) {
-        throw new InviteApiError("Select a player from the username results, or clear the field to make a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
+        throw new InviteApiError("Select a player from the Arena search results, or clear the field to create a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
       }
       if (!requestedUsername) {
-        throw new InviteApiError("Choose a valid Discord username from the results, or leave the field empty to create a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
+        throw new InviteApiError("Select a registered Arena player, or leave the target empty to create a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
       }
-      if (requestedUsername === normalizeDiscordUsername(user.discordUsername)) {
-        throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
-      }
-      opponentDiscordId = `username:${requestedUsername}`;
-      opponentName = `@${requestedUsername}`;
+      throw new InviteApiError(
+        "This player needs to sign in to the Arena before you can target them by Discord ID. You can create a shareable link for anyone instead.",
+        { status: 409, code: "DISCORD_USER_ID_REQUIRED" },
+      );
     }
   }
 
