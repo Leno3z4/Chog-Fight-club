@@ -139,6 +139,35 @@ export function getLayerOrder(mirrored = false) {
   return [...LEG_LAYER_ORDER, ...armOrder, ...FACE_LAYER_ORDER];
 }
 
+/**
+ * A rear upper-arm sprite can contain colored edge pixels outside the torso
+ * silhouette. Depth ordering cannot hide those pixels because no torso pixel
+ * covers them. Use the torso's alpha as a bitmap mask on the rear upper arm,
+ * while leaving the front arm untouched.
+ */
+function syncRearArmMask(rig, mirrored) {
+  const rearSide = mirrored ? "right" : "left";
+  const rearArm = rig.parts[`${rearSide}-upper-arm`].image;
+  const otherSide = rearSide === "left" ? "right" : "left";
+  const otherArm = rig.parts[`${otherSide}-upper-arm`].image;
+
+  if (!rig.bodyAlphaMask && typeof rig.parts.body.image.createBitmapMask === "function") {
+    rig.bodyAlphaMask = rig.parts.body.image.createBitmapMask();
+  }
+
+  if (rig.maskedRearSide && rig.maskedRearSide !== rearSide) {
+    const previousArm = rig.parts[`${rig.maskedRearSide}-upper-arm`].image;
+    if (typeof previousArm.clearMask === "function") previousArm.clearMask();
+    else previousArm.setMask(null);
+  }
+
+  if (rig.bodyAlphaMask) rearArm.setMask(rig.bodyAlphaMask);
+  if (otherArm.mask === rig.bodyAlphaMask && typeof otherArm.clearMask === "function") {
+    otherArm.clearMask();
+  }
+  rig.maskedRearSide = rearSide;
+}
+
 // The PNGs have different pixel dimensions, but their artwork shares one normalized canvas.
 const PARTS = {
   // All the source images represent the same 1024-unit character canvas,
@@ -422,6 +451,7 @@ export function createChogVisual(scene, x, y, mirrored = false) {
 
   root.rig = rig;
   root.setScale(mirrored ? -1 : 1, 1);
+  syncRearArmMask(rig, mirrored);
   return root;
 }
 
@@ -431,11 +461,14 @@ export function applyChogPose(rig, pose) {
   // Check facing on every pose update, but only move layers when the sign flips.
   // This keeps Phaser's Container list in sync with root.setScale() in both scenes.
   const mirrored = Number(rig.root?.scaleX) < 0;
-  if (rig.layerOrderMirrored !== mirrored && typeof rig.root?.moveTo === "function") {
-    getLayerOrder(mirrored).forEach((name, index) => {
-      rig.root.moveTo(rig.layers[name], index + 1); // index 0 belongs to the floor shadow
-    });
+  if (rig.layerOrderMirrored !== mirrored) {
+    if (typeof rig.root?.moveTo === "function") {
+      getLayerOrder(mirrored).forEach((name, index) => {
+        rig.root.moveTo(rig.layers[name], index + 1); // index 0 belongs to the floor shadow
+      });
+    }
     rig.layerOrderMirrored = mirrored;
+    syncRearArmMask(rig, mirrored);
   }
 
   const safePose = clampChogPose(pose);
