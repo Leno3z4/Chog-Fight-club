@@ -285,14 +285,14 @@ assert.deepEqual(
     leadArmLowerRotation: -1.14,
     rearArmRotation: -1.24,
     rearArmLowerRotation: -1.18,
-    rearArmX: 16,
+    rearArmX: 20,
   }),
   {
     leadArmRotation: -0.04,
     leadArmLowerRotation: -1.14,
     rearArmRotation: -1.24,
     rearArmLowerRotation: -1.18,
-    rearArmX: 16,
+    rearArmX: 20,
   },
   "the relaxed guard and rear-shoulder tuck should remain within pose limits",
 );
@@ -304,7 +304,7 @@ const segmentRig = createChogVisual(scene, 0, 0, false).rig;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const guardPose = {
   leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
-  rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 16,
+  rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 20,
   leadLegRotation: -0.14, leadLegLowerRotation: 0.0,
   rearLegRotation: -0.5, rearLegLowerRotation: 0.68,
 };
@@ -347,7 +347,7 @@ const fixedLengths = {
 const articulationPoses = [
   {
     leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
-    rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 16,
+    rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 20,
     leadLegRotation: -0.14, leadLegLowerRotation: 0.0,
     rearLegRotation: -0.5, rearLegLowerRotation: 0.68,
   },
@@ -360,7 +360,7 @@ const articulationPoses = [
   },
   {
     leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
-    rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 16,
+    rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 20,
     leadLegRotation: -0.8, leadLegLowerRotation: 1.66,
     rearLegRotation: -1.1, rearLegLowerRotation: 1.02,
     leadLegY: -4, rearLegY: -3, torsoRotation: -0.02, torsoY: -3,
