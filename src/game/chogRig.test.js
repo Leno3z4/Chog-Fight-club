@@ -333,8 +333,8 @@ const articulationPoses = [
     torsoRotation: 0.025, torsoX: -1, torsoY: 1,
   },
   {
-    leadArmRotation: 0.22, leadArmLowerRotation: -1.84,
-    rearArmRotation: -1.0, rearArmLowerRotation: -2.0,
+    leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
+    rearArmRotation: -1.2, rearArmLowerRotation: -1.28, rearArmX: 5,
     leadLegRotation: -0.8, leadLegLowerRotation: 1.66,
     rearLegRotation: -1.1, rearLegLowerRotation: 1.02,
     leadLegY: -4, rearLegY: -3, torsoRotation: -0.02, torsoY: -3,
@@ -356,4 +356,8 @@ for (const pose of articulationPoses) {
   assert.ok(Math.abs(forearmLength - fixedLengths.rightForearm) < 1e-8, "forearm-to-wrist distance must not stretch");
   assert.ok(Math.abs(thighLength - fixedLengths.rightThigh) < 1e-8, "hip-to-knee distance must not stretch");
   assert.ok(Math.abs(shinLength - fixedLengths.rightShin) < 1e-8, "knee-to-ankle distance must not stretch");
+  assert.ok(
+    Math.abs(segmentRig.parts["right-foot"].image.rotation - segmentRig.parts["right-lower-leg"].image.rotation * 0.35) < 1e-9,
+    "lead foot stays flatter than the shin during guard, jab and jump poses",
+  );
 }
