@@ -611,7 +611,7 @@ class ArenaScene extends Phaser.Scene {
       return;
     }
 
-    if ([CHARACTER_STATES.ATTACK_STARTUP, CHARACTER_STATES.ATTACK_ACTIVE, CHARACTER_STATES.ATTACK_RECOVERY].includes(this.playerCharacter.stateMachine.currentName)) return;
+    if ([CHARACTER_STATES.ATTACK_ACTIVE, CHARACTER_STATES.ATTACK_RECOVERY].includes(this.playerCharacter.stateMachine.currentName)) return;
     this.nextOpponentAttack -= delta;
     if (this.nextOpponentAttack <= 0) {
       const requestedPattern = getOpponentAttackPattern(this.opponentAttackIndex, this.opponentBattleDNA.abilitySet);
