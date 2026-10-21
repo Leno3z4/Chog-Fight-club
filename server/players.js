@@ -108,7 +108,15 @@ export async function handlePlayerDirectoryRequest({
     `).bind(user.discordId, prefix, query).all();
     return {
       status: 200,
-      body: { players, queryTooShort: false },
+      body: {
+        players: (rows.results ?? []).map((row) => ({
+          discordId: row.discord_id,
+          username: row.username,
+          displayName: row.display_name,
+          avatar: row.avatar_url,
+        })),
+        queryTooShort: false,
+      },
       headers: { "Cache-Control": "private, no-store" },
     };
   }

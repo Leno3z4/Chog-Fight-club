@@ -180,4 +180,53 @@ interruptRoom._applyDamage(interruptState, "opponent", "basic", interruptNow + 1
 assert.equal(airborne.jumpUntil, interruptNow + 120, "a hit ends the jump immediately");
 assert.equal(airborne.jumpHeight, 0, "a hit forces an airborne fighter straight to the ground");
 assert.equal(airborne.action, "hitstun", "the landing hit transitions into hitstun");
+
+const makeFacingPlayer = (role, x, facing, inputX = 0) => ({
+  username: role, role, x, y: 270, facing, vx: 0, vy: 0,
+  hp: 100, maxHp: 100, energy: 100, maxEnergy: 100, attack: 20, defense: 10, speed: 14,
+  input: { x: inputX, y: 0 }, nextAttackAt: 0, nextBaseAt: 0, nextSpecialAt: 0, nextDashAt: 0, nextJumpAt: 0,
+  jumpStartedAt: 0, jumpUntil: 0, jumpHeight: 0, landedPunchWindows: [],
+  action: "idle", actionStartedAt: 0, actionUntil: 0, pendingAttack: null,
+});
+const facingRoom = new ArenaRoom({}, {});
+const backstepAt = Date.now();
+const backstepState = {
+  status: "IN_BATTLE", phase: "IN_BATTLE", lastTick: backstepAt, roundStartedAt: backstepAt - 1000,
+  timeRemainingMs: 59000, projectiles: [], log: [],
+  players: {
+    challenger: makeFacingPlayer("challenger", 300, 1, -1),
+    opponent: makeFacingPlayer("opponent", 520, -1, 0),
+  },
+};
+facingRoom._step(backstepState, backstepAt + 50);
+assert.ok(backstepState.players.challenger.x < 300, "opposite horizontal input should move the fighter backward");
+assert.equal(backstepState.players.challenger.facing, 1, "backstepping keeps the opponent-facing guard");
+
+const turnAt = Date.now();
+const turnState = {
+  status: "IN_BATTLE", phase: "IN_BATTLE", lastTick: turnAt, roundStartedAt: turnAt - 1000,
+  timeRemainingMs: 59000, projectiles: [], log: [],
+  players: {
+    challenger: makeFacingPlayer("challenger", 500, 1, 0),
+    opponent: makeFacingPlayer("opponent", 320, 1, 0),
+  },
+};
+facingRoom._step(turnState, turnAt + 16);
+assert.equal(turnState.players.challenger.facing, -1, "if the rival is behind, the fighter turns toward them");
+
+const gapAt = Date.now();
+const gapState = {
+  status: "IN_BATTLE", phase: "IN_BATTLE", lastTick: gapAt, roundStartedAt: gapAt - 1000,
+  timeRemainingMs: 59000, projectiles: [], log: [],
+  players: {
+    challenger: makeFacingPlayer("challenger", 500, 1, 0),
+    opponent: makeFacingPlayer("opponent", 620, -1, 0),
+  },
+};
+facingRoom._step(gapState, gapAt + 16);
+assert.ok(Math.hypot(
+  gapState.players.challenger.x - gapState.players.opponent.x,
+  gapState.players.challenger.y - gapState.players.opponent.y,
+) >= 150 - 1e-6, "fighters should keep the updated minimum separation");
+
 console.log("Multiplayer hitbox, wind-up interruption, air knockdown, combo cooldown and three-round checks passed.");
