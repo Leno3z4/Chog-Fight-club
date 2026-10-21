@@ -40,10 +40,16 @@ function usernameInviteTarget(row) {
     ? row.opponent_discord_id.slice("username:".length)
     : "";
 }
-function isUsernameInviteFor() {
-  // Discord usernames can change. Targeted invites must bind to the immutable Discord user ID.
-  // This deliberately prevents older username-only invitations from being claimed by name.
-  return false;
+function isUsernameInviteFor(row, user) {
+  const target = usernameInviteTarget(row);
+  // Until the target registers, only the Discord OAuth identity currently holding the exact
+  // username may view/respond. Registration binds the row to that account's immutable user ID.
+  return Boolean(
+    target &&
+    row?.status === "PENDING_ACCEPTANCE" &&
+    !row?.expires_at &&
+    target === normalizeDiscordUsername(user?.discordUsername)
+  );
 }
 function validPrototypeFighter(value) {
   const id = String(value ?? "");
@@ -110,6 +116,7 @@ function presentInvite(row, currentDiscordId) {
   const pendingDemand = row.condition_text === PENDING_DEMAND;
   const challengerDemand = pendingDemand ? "" : (row.condition_text || "");
   const opponentDemand = row.opponent_demand_text || "";
+  const reservedUsername = usernameInviteTarget(row);
   return {
     id: row.id,
     challenger: {
@@ -121,14 +128,16 @@ function presentInvite(row, currentDiscordId) {
       ready: Boolean(row.challenger_ready),
     },
     opponent: {
-      discordId: row.opponent_discord_id,
-      username: row.opponent_username,
+      discordId: reservedUsername ? null : row.opponent_discord_id,
+      username: reservedUsername ? `@${reservedUsername}` : row.opponent_username,
       wallet: row.opponent_wallet || null,
       tokenId: row.opponent_token_id || null,
       termsAccepted: Boolean(row.opponent_terms_accepted),
       ready: Boolean(row.opponent_ready),
     },
     condition: challengerDemand,
+    targetUsername: reservedUsername || null,
+    registrationPending: Boolean(reservedUsername),
     gameMode: row.game_mode === "PRACTICE" ? "PRACTICE" : "OFFICIAL",
     challengerDemand,
     opponentDemand,
@@ -173,9 +182,10 @@ async function createInvite({ user, body, env, origin }) {
   const requestedUsername = normalizeDiscordUsername(rawUsername);
   let opponentDiscordId = "anyone";
   let opponentName = "Anyone with this link";
+  let unresolvedUsernameTarget = false;
 
-  // Targeting someone is optional. With no target, the link can be shared anywhere
-  // and the first eligible person who accepts it claims the invitation.
+  // A blank target creates a link any eligible holder can claim. A username target can be
+  // reserved before signup; on verified registration the row is bound to that user's Discord ID.
   if (requestedDiscordId || rawUsername) {
     if (validDiscordId(requestedDiscordId)) {
       if (requestedDiscordId === user.discordId) {
@@ -194,15 +204,28 @@ async function createInvite({ user, body, env, origin }) {
       opponentName = String(opponent.display_name || opponent.username || "Discord player");
     } else {
       if (requestedDiscordId) {
-        throw new InviteApiError("Select a player from the Arena search results, or clear the field to create a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
+        throw new InviteApiError("Select a registered player, enter a valid Discord username, or clear the field to create a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
       }
       if (!requestedUsername) {
-        throw new InviteApiError("Select a registered Arena player, or leave the target empty to create a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
+        throw new InviteApiError("Enter a valid Discord username, select a registered player, or leave the target empty to create a shareable link.", { status: 400, code: "OPPONENT_USERNAME_INVALID" });
       }
-      throw new InviteApiError(
-        "This player needs to sign in to the Arena before you can target them by Discord ID. You can create a shareable link for anyone instead.",
-        { status: 409, code: "DISCORD_USER_ID_REQUIRED" },
-      );
+      if (requestedUsername === normalizeDiscordUsername(user.discordUsername)) {
+        throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
+      }
+      const registeredOpponent = await db.prepare(
+        "SELECT discord_id, username, display_name FROM chog_players WHERE username = ?1 COLLATE NOCASE LIMIT 1"
+      ).bind(requestedUsername).first();
+      if (registeredOpponent) {
+        if (registeredOpponent.discord_id === user.discordId) {
+          throw new InviteApiError("You cannot challenge yourself.", { status: 400, code: "SELF_CHALLENGE" });
+        }
+        opponentDiscordId = registeredOpponent.discord_id;
+        opponentName = String(registeredOpponent.display_name || registeredOpponent.username || requestedUsername);
+      } else {
+        opponentDiscordId = `username:${requestedUsername}`;
+        opponentName = `@${requestedUsername}`;
+        unresolvedUsernameTarget = true;
+      }
     }
   }
 
@@ -245,7 +268,7 @@ async function createInvite({ user, body, env, origin }) {
     status: "PENDING_ACCEPTANCE",
     created_at: now.toISOString(),
     updated_at: now.toISOString(),
-    expires_at: inviteExpiryAt(now),
+    expires_at: unresolvedUsernameTarget ? null : inviteExpiryAt(now),
   };
 
   await db.prepare(
