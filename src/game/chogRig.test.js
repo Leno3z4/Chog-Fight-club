@@ -50,19 +50,16 @@ assert.equal(Object.keys(rig.parts).length, 16, "all separated Chog layers shoul
 const layerNames = visual.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
 const bodyLayer = layerNames.indexOf("body");
 assert.ok(layerNames.indexOf("left-upper-arm") < bodyLayer, "the rear upper arm should stay behind the torso to hide shoulder seams");
-assert.ok(layerNames.indexOf("left-lower-arm") > bodyLayer, "the rear forearm should remain visible over the torso");
+assert.ok(layerNames.indexOf("left-lower-arm") > bodyLayer, "the rear forearm should remain visible in front of the torso as it rises to the cheek");
 assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("left-lower-arm"), "the rear glove should follow its forearm");
 assert.ok(layerNames.indexOf("left-hand") < layerNames.indexOf("right-hand"), "the rear glove should render behind the lead glove");
 assert.ok(layerNames.indexOf("right-upper-arm") > bodyLayer, "the lead upper arm should reveal its shoulder over the torso");
 assert.ok(layerNames.indexOf("right-lower-arm") > layerNames.indexOf("right-upper-arm"), "the lead forearm should follow its upper arm in front of the torso");
 assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("right-lower-arm"), "the lead glove should render above its forearm");
 assert.ok(layerNames.indexOf("right-hand") < layerNames.indexOf("head"), "the head should remain above both gloves");
-assert.equal(
-  rig.parts["left-upper-arm"].image.mask.source,
-  rig.parts.body.image,
-  "the rear upper arm must be clipped to the torso alpha to hide colored pixels beyond its silhouette",
-);
-assert.equal(rig.parts["right-upper-arm"].image.mask, undefined, "the front upper arm should not be clipped by the torso");
+assert.equal(rig.parts["left-upper-arm"].image.mask, undefined, "the rear upper arm should not use the misaligned torso bitmap mask");
+assert.equal(rig.parts["left-lower-arm"].image.mask, undefined, "the rear forearm should not use an alpha mask");
+assert.equal(rig.parts["right-upper-arm"].image.mask, undefined, "the lead arm should not use an alpha mask");
 for (const name of [
   "body", "head", "eyes", "mouth",
   "left-upper-arm", "left-lower-arm", "left-hand",
@@ -401,31 +398,26 @@ const rightRig = rightRoot.rig;
 const leftRig = leftRoot.rig;
 const rightOrder = rightRoot.list.map((layer) => layer.texture || "shadow");
 const leftOrder = leftRoot.list.map((layer) => layer.texture || "shadow");
-assert.notDeepEqual(leftOrder, rightOrder, "flipping should switch the physical front/back arm stack");
+assert.deepEqual(leftOrder, rightOrder,
+  "root mirroring should mirror the complete composited rig without exchanging semantic lead/rear layers");
 assert.deepEqual(
   rightOrder.slice(1),
-  getLayerOrder(false).map((name) => `chog-${name}`),
-  "right-facing fighters should use the right-facing layer stack",
+  getLayerOrder().map((name) => `chog-${name}`),
+  "fighters should use the semantic rear-arm-behind-torso stack",
 );
 assert.deepEqual(
   leftOrder.slice(1),
-  getLayerOrder(true).map((name) => `chog-${name}`),
-  "mirrored fighters should use the mirrored layer stack",
+  getLayerOrder().map((name) => `chog-${name}`),
+  "mirroring should preserve the arm stack so the rear arm does not cut through the torso",
 );
 assert.equal(rightRoot.scaleX, 1, "right-facing root should use positive horizontal scale");
 assert.equal(leftRoot.scaleX, -1, "left-facing root should mirror with negative horizontal scale");
-assert.equal(
-  rightRig.parts["left-upper-arm"].image.mask.source,
-  rightRig.parts.body.image,
-  "right-facing fighter should mask the left/rear upper arm",
-);
-assert.equal(
-  leftRig.parts["right-upper-arm"].image.mask.source,
-  leftRig.parts.body.image,
-  "left-facing fighter should mask the right/rear upper arm",
-);
-assert.equal(leftRig.parts["left-upper-arm"].image.mask, undefined,
-  "left-facing fighter should leave the front upper arm unmasked");
+for (const testRig of [rightRig, leftRig]) {
+  assert.equal(testRig.parts["left-upper-arm"].image.mask, undefined,
+    "rear upper arm must use body-over-arm occlusion, not a bitmap mask");
+  assert.equal(testRig.parts["left-lower-arm"].image.mask, undefined,
+    "rear forearm must remain unmasked so there is no transparent hole");
+}
 
 const armLengths = (testRig, side) => {
   const upper = testRig.parts[`${side}-upper-arm`].rest;
@@ -471,10 +463,18 @@ const guardSeparation = Math.hypot(
   guardTargets.lead[1] - guardTargets.rear[1],
 );
 assert.ok(guardSeparation >= 30, `guard gloves must be at least 30 rig-pixels apart; got ${guardSeparation.toFixed(2)}`);
+assert.ok(guardTargets.rear[1] <= guardTargets.lead[1] - 8,
+  "the rear glove target should be raised to cheek level instead of sitting on the shoulder");
+assert.ok(guardTargets.rear[0] <= guardTargets.lead[0] - 20,
+  "the rear glove target should stay tucked behind the lead glove");
 applyChogPose(rightRig, chogArmTargetPose("guard"));
 const renderedGuardSeparation = distance(rightRig.poseJoints.right.wrist, rightRig.poseJoints.left.wrist);
 assert.ok(renderedGuardSeparation >= 30,
   `rendered guard gloves must be at least 30 rig-pixels apart; got ${renderedGuardSeparation.toFixed(2)}`);
+assert.ok(rightRig.poseJoints.left.wrist.y <= rightRig.poseJoints.right.wrist.y - 8,
+  "the rear glove should render above the lead glove in the guard");
+assert.ok(rightRig.poseJoints.left.wrist.x <= rightRig.poseJoints.right.wrist.x - 20,
+  "the rear glove should be behind the lead glove, not planted over the shoulder");
 
 // The authored wrist pivots keep all layers at their established size and the
 // head remains the final sprite layer above both gloves.
@@ -482,13 +482,10 @@ const finalLayers = rightRoot.list.slice(1).map((layer) => layer.texture.replace
 assert.ok(finalLayers.indexOf("left-hand") < finalLayers.indexOf("right-hand"), "rear glove should stay behind the lead glove");
 assert.ok(finalLayers.indexOf("right-hand") < finalLayers.indexOf("head"), "the head should remain above the lead glove");
 assert.ok(finalLayers.indexOf("left-hand") < finalLayers.indexOf("head"), "the head should remain above the rear glove");
-assert.equal(
-  rightRig.parts["left-upper-arm"].image.mask.source,
-  rightRig.parts.body.image,
-  "right-facing fighter should mask the left/rear upper arm",
-);
-assert.equal(rightRig.parts["right-upper-arm"].image.mask, undefined,
-  "right-facing fighter should leave the right/front upper arm unmasked");
+assert.equal(rightRig.parts["left-upper-arm"].image.mask, undefined,
+  "rear upper arm is covered by the body layer, not a bitmap mask");
+assert.equal(rightRig.parts["left-lower-arm"].image.mask, undefined,
+  "rear forearm remains visible outside the silhouette with no mask");
 
 const ik = solveTwoBoneIK({ x: 0, y: 0 }, { x: 200, y: 0 }, 30, 20);
 assert.ok(Math.hypot(ik.wrist.x, ik.wrist.y) <= 50, "two-bone IK must clamp an unreachable target to maximum reach");
@@ -535,29 +532,26 @@ assert.ok(distance(shiftedTargetRig.poseJoints.left.elbow, shiftedTargetRig.pose
 assert.ok(distance(shiftedTargetRig.poseJoints.left.wrist, shiftedTargetRig.poseJoints.left.target) < 1e-6,
   "the shifted IK arm should still reach the authored target");
 
-// Layer order also updates if a practice fighter changes facing after creation.
+// Flipping during Practice should only mirror positions; it must not exchange
+// logical lead/rear draw order or add a bitmap mask that cuts a hole into either arm.
 rightRoot.setScale(-1, 1);
 applyChogPose(rightRig, chogArmTargetPose("guard"));
 assert.deepEqual(
   rightRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", "")),
-  getLayerOrder(true),
-  "applyChogPose should update the container after a horizontal flip",
+  getLayerOrder(),
+  "flipping should preserve the whole-rig compositing order",
 );
-assert.equal(rightRig.parts["right-upper-arm"].image.mask.source, rightRig.parts.body.image,
-  "after flipping, the right upper arm should become the masked rear arm");
 assert.equal(rightRig.parts["left-upper-arm"].image.mask, undefined,
-  "after flipping, the former rear arm should have its mask cleared");
+  "a facing change should not reintroduce the misaligned rear-arm mask");
+assert.equal(rightRig.parts["right-upper-arm"].image.mask, undefined,
+  "neither upper arm should be bitmap-masked");
 rightRoot.setScale(1, 1);
 applyChogPose(rightRig, chogArmTargetPose("guard"));
 assert.deepEqual(
   rightRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", "")),
-  getLayerOrder(false),
-  "the original layer stack should be restored when the fighter turns back",
+  getLayerOrder(),
+  "turning back should keep the same composited stack",
 );
-assert.equal(rightRig.parts["left-upper-arm"].image.mask.source, rightRig.parts.body.image,
-  "turning back should restore the left rear-arm mask");
-assert.equal(rightRig.parts["right-upper-arm"].image.mask, undefined,
-  "turning back should clear the right rear-arm mask");
 
 assert.deepEqual(CHOG_POSE_LIMITS.leadArmLowerRotation, { min: -2.8, max: 2.8 });
 assert.deepEqual(CHOG_POSE_LIMITS.rearArmLowerRotation, { min: -2.8, max: 2.8 });

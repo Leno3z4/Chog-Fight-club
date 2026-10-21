@@ -44,11 +44,12 @@ export const CHOG_POSE_LIMITS = Object.freeze({
 // Wrist-pivot targets in the shared 250-unit Chog canvas. Root mirroring turns
 // the same boxer guard and punches into the opposite-facing version.
 export const CHOG_ARM_TARGETS = Object.freeze({
-  guard: Object.freeze({ lead: Object.freeze([42, 0]), rear: Object.freeze([0, 9]) }),
-  jab: Object.freeze({ lead: Object.freeze([64, -7]), rear: Object.freeze([0, 9]) }),
+  // Keep the rear glove tucked high near the cheek instead of parked on the shoulder.
+  guard: Object.freeze({ lead: Object.freeze([42, 0]), rear: Object.freeze([12, -12]) }),
+  jab: Object.freeze({ lead: Object.freeze([64, -7]), rear: Object.freeze([12, -12]) }),
   cross: Object.freeze({ lead: Object.freeze([5, 11]), rear: Object.freeze([29, -7]) }),
-  hit: Object.freeze({ lead: Object.freeze([27, 8]), rear: Object.freeze([0, 9]) }),
-  block: Object.freeze({ lead: Object.freeze([36, -6]), rear: Object.freeze([0, 9]) }),
+  hit: Object.freeze({ lead: Object.freeze([27, 8]), rear: Object.freeze([12, -12]) }),
+  block: Object.freeze({ lead: Object.freeze([36, -6]), rear: Object.freeze([12, -12]) }),
 });
 
 export function chogArmTargetPose(name) {
@@ -120,52 +121,21 @@ const LEG_LAYER_ORDER = [
 const FACE_LAYER_ORDER = ["head", "eyes", "mouth"];
 
 /**
- * Arm depth follows the fighter's physical facing. Flipping the root swaps
- * which side is behind the torso and which side sits in front.
+ * Mirror the entire assembled sprite rig rather than swapping depth by facing.
+ * The pose channels remain semantic (left = rear, right = lead); swapping only
+ * their render order on a root flip makes the rear arm jump through the torso.
+ *
+ * The rear upper and lower arm segments sit behind the body, whose opaque pixels
+ * cover their inner edges. Only the rear glove is rendered over the torso.
  */
-export function getLayerOrder(mirrored = false) {
-  const armOrder = mirrored
-    ? [
-      "right-upper-arm", "body",
-      "right-lower-arm", "right-hand",
-      "left-upper-arm", "left-lower-arm", "left-hand",
-    ]
-    : [
-      "left-upper-arm", "body",
-      "left-lower-arm", "left-hand",
-      "right-upper-arm", "right-lower-arm", "right-hand",
-    ];
-
+export function getLayerOrder() {
+  const armOrder = [
+    // Tuck the rear bicep behind the torso; keep the forearm visible as it rises
+    // toward the rear glove at cheek level. The body covers only the overlap.
+    "left-upper-arm", "body", "left-lower-arm", "left-hand",
+    "right-upper-arm", "right-lower-arm", "right-hand",
+  ];
   return [...LEG_LAYER_ORDER, ...armOrder, ...FACE_LAYER_ORDER];
-}
-
-/**
- * A rear upper-arm sprite can contain colored edge pixels outside the torso
- * silhouette. Depth ordering cannot hide those pixels because no torso pixel
- * covers them. Use the torso's alpha as a bitmap mask on the rear upper arm,
- * while leaving the front arm untouched.
- */
-function syncRearArmMask(rig, mirrored) {
-  const rearSide = mirrored ? "right" : "left";
-  const rearArm = rig.parts[`${rearSide}-upper-arm`].image;
-  const otherSide = rearSide === "left" ? "right" : "left";
-  const otherArm = rig.parts[`${otherSide}-upper-arm`].image;
-
-  if (!rig.bodyAlphaMask && typeof rig.parts.body.image.createBitmapMask === "function") {
-    rig.bodyAlphaMask = rig.parts.body.image.createBitmapMask();
-  }
-
-  if (rig.maskedRearSide && rig.maskedRearSide !== rearSide) {
-    const previousArm = rig.parts[`${rig.maskedRearSide}-upper-arm`].image;
-    if (typeof previousArm.clearMask === "function") previousArm.clearMask();
-    else previousArm.setMask(null);
-  }
-
-  if (rig.bodyAlphaMask) rearArm.setMask(rig.bodyAlphaMask);
-  if (otherArm.mask === rig.bodyAlphaMask && typeof otherArm.clearMask === "function") {
-    otherArm.clearMask();
-  }
-  rig.maskedRearSide = rearSide;
 }
 
 // The PNGs have different pixel dimensions, but their artwork shares one normalized canvas.
@@ -179,7 +149,7 @@ const PARTS = {
   eyes:              { pivot: [505, 450] },
   mouth:             { pivot: [505, 450] },
 
-  // Left arm is the rear arm when facing right; right arm is the lead arm.
+  // Left = semantic rear arm and right = semantic lead arm; root flipping mirrors the complete rig.
   "left-upper-arm":  { pivot: [412, 485] },
   "left-lower-arm":  { pivot: [350, 610] },
   "left-hand":       { pivot: [270, 665] },
@@ -402,7 +372,7 @@ export function createChogVisual(scene, x, y, mirrored = false) {
   root.add(shadow);
 
   const parts = {};
-  for (const name of getLayerOrder(mirrored)) parts[name] = createPart(scene, root, name);
+  for (const name of getLayerOrder()) parts[name] = createPart(scene, root, name);
 
   const rest = {
     torso: parts.body.rest,
@@ -426,7 +396,6 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     tintLayers: Object.values(parts).map((part) => part.image),
     rest,
     poseJoints: { left: {}, right: {} },
-    layerOrderMirrored: Boolean(mirrored),
     joints: {
       // A child pivot is the parent's next joint. Matching these coordinates
       // preserves the artist's original overlap with every pose at rest.
@@ -451,25 +420,11 @@ export function createChogVisual(scene, x, y, mirrored = false) {
 
   root.rig = rig;
   root.setScale(mirrored ? -1 : 1, 1);
-  syncRearArmMask(rig, mirrored);
   return root;
 }
 
 export function applyChogPose(rig, pose) {
   if (!rig) return;
-
-  // Check facing on every pose update, but only move layers when the sign flips.
-  // This keeps Phaser's Container list in sync with root.setScale() in both scenes.
-  const mirrored = Number(rig.root?.scaleX) < 0;
-  if (rig.layerOrderMirrored !== mirrored) {
-    if (typeof rig.root?.moveTo === "function") {
-      getLayerOrder(mirrored).forEach((name, index) => {
-        rig.root.moveTo(rig.layers[name], index + 1); // index 0 belongs to the floor shadow
-      });
-    }
-    rig.layerOrderMirrored = mirrored;
-    syncRearArmMask(rig, mirrored);
-  }
 
   const safePose = clampChogPose(pose);
   const torsoAngle = safePose.torsoRotation ?? 0;
