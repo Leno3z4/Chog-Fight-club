@@ -108,17 +108,25 @@
           <button id="combat-start" class="discord-button" type="button" hidden>Start battle ↗</button>
           <div class="combat-fighters">
             <div class="combat-fighter">
-              <div class="combat-fighter-head"><strong id="combat-challenger-name">Challenger</strong><span id="combat-challenger-hp-text">Waiting</span></div>
-              <div class="combat-hp-track"><span id="combat-challenger-hp-bar"></span></div>
-              <div class="combat-mp-track"><span id="combat-challenger-mp-bar"></span></div>
+              <div class="combat-fighter-head">
+                <img id="combat-challenger-avatar" class="combat-fighter-avatar" alt="" referrerpolicy="no-referrer" />
+                <div class="combat-fighter-identity"><strong id="combat-challenger-name">Challenger</strong><small id="combat-challenger-chog">Chog #—</small></div>
+                <span id="combat-challenger-hp-text">Waiting</span>
+              </div>
+              <div class="combat-hp-track" aria-label="Health"><span id="combat-challenger-hp-bar"></span></div>
+              <div class="combat-mp-track" aria-label="Mana"><span id="combat-challenger-mp-bar"></span></div>
               <small id="combat-challenger-dna">Waiting for battle data</small>
               <small id="combat-challenger-energy">In lobby</small>
             </div>
             <div class="combat-versus">VS</div>
             <div class="combat-fighter">
-              <div class="combat-fighter-head"><strong id="combat-opponent-name">Opponent</strong><span id="combat-opponent-hp-text">Waiting</span></div>
-              <div class="combat-hp-track"><span id="combat-opponent-hp-bar"></span></div>
-              <div class="combat-mp-track"><span id="combat-opponent-mp-bar"></span></div>
+              <div class="combat-fighter-head">
+                <img id="combat-opponent-avatar" class="combat-fighter-avatar" alt="" referrerpolicy="no-referrer" />
+                <div class="combat-fighter-identity"><strong id="combat-opponent-name">Opponent</strong><small id="combat-opponent-chog">Chog #—</small></div>
+                <span id="combat-opponent-hp-text">Waiting</span>
+              </div>
+              <div class="combat-hp-track" aria-label="Health"><span id="combat-opponent-hp-bar"></span></div>
+              <div class="combat-mp-track" aria-label="Mana"><span id="combat-opponent-mp-bar"></span></div>
               <small id="combat-opponent-dna">Waiting for battle data</small>
               <small id="combat-opponent-energy">In lobby</small>
             </div>
