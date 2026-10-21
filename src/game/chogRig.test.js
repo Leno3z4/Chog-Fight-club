@@ -277,6 +277,21 @@ assert.deepEqual(
 // parent joints through guard, jab and jump poses.
 const segmentRig = createChogVisual(scene, 0, 0, false).rig;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const guardPose = {
+  leadArmRotation: 0.22, leadArmLowerRotation: -1.84,
+  rearArmRotation: -1.0, rearArmLowerRotation: -2.0,
+  leadLegRotation: 0.08, leadLegLowerRotation: 0.18,
+  rearLegRotation: -0.74, rearLegLowerRotation: 0.78,
+};
+applyChogPose(segmentRig, guardPose);
+assert.ok(segmentRig.parts["right-hand"].image.y >= 6 && segmentRig.parts["right-hand"].image.y <= 16,
+  "default right/lead fist should sit in the chin guard");
+assert.ok(segmentRig.parts["left-hand"].image.y >= 6 && segmentRig.parts["left-hand"].image.y <= 18,
+  "left/rear fist should stay raised near the chin");
+assert.ok(segmentRig.parts["right-foot"].image.y >= 88 && segmentRig.parts["right-foot"].image.y <= 92,
+  "lead foot should be on the floor line in the narrow guard");
+assert.ok(segmentRig.parts["left-foot"].image.y >= 88 && segmentRig.parts["left-foot"].image.y <= 92,
+  "rear foot should be on the floor line in the narrow guard");
 const fixedLengths = {
   rightUpperArm: distance(segmentRig.parts["right-upper-arm"].image, segmentRig.joints.right.elbow),
   rightForearm: Math.hypot(
@@ -322,8 +337,12 @@ for (const pose of articulationPoses) {
   const ankle = segmentRig.parts["right-foot"].image;
   assert.ok(Number.isFinite(elbow.x) && Number.isFinite(wrist.y), "arm joints remain finite across pose transitions");
   assert.ok(Number.isFinite(knee.x) && Number.isFinite(ankle.y), "leg joints remain finite across pose transitions");
+  const upperArmLength = distance(segmentRig.parts["right-upper-arm"].image, elbow);
   const forearmLength = distance(elbow, wrist);
+  const thighLength = distance(segmentRig.parts["right-upper-leg"].image, knee);
   const shinLength = distance(knee, ankle);
+  assert.ok(Math.abs(upperArmLength - fixedLengths.rightUpperArm) < 1e-8, "shoulder-to-elbow distance must not stretch");
   assert.ok(Math.abs(forearmLength - fixedLengths.rightForearm) < 1e-8, "forearm-to-wrist distance must not stretch");
+  assert.ok(Math.abs(thighLength - fixedLengths.rightThigh) < 1e-8, "hip-to-knee distance must not stretch");
   assert.ok(Math.abs(shinLength - fixedLengths.rightShin) < 1e-8, "knee-to-ankle distance must not stretch");
 }
