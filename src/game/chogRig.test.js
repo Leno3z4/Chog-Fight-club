@@ -53,10 +53,11 @@ assert.ok(layerNames.indexOf("left-upper-arm") < bodyLayer, "the rear upper arm 
 assert.ok(layerNames.indexOf("left-lower-arm") > bodyLayer, "the rear forearm should remain visible in front of the torso as it rises to the cheek");
 assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("left-lower-arm"), "the rear glove should follow its forearm");
 assert.ok(layerNames.indexOf("left-hand") < layerNames.indexOf("right-hand"), "the rear glove should render behind the lead glove");
-assert.ok(layerNames.indexOf("right-upper-arm") > bodyLayer, "the lead upper arm should reveal its shoulder over the torso");
+assert.ok(layerNames.indexOf("right-upper-arm") < bodyLayer, "the lead upper arm should start behind the torso instead of exposing a detached shoulder cap");
 assert.ok(layerNames.indexOf("right-lower-arm") > layerNames.indexOf("right-upper-arm"), "the lead forearm should follow its upper arm in front of the torso");
 assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("right-lower-arm"), "the lead glove should render above its forearm");
-assert.ok(layerNames.indexOf("right-hand") < layerNames.indexOf("head"), "the head should remain above both gloves");
+assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("mouth"), "the rear glove should render in front of the face layers");
+assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("head"), "the lead glove should render in front of the head");
 assert.equal(rig.parts["left-upper-arm"].image.mask, undefined, "the rear upper arm should not use the misaligned torso bitmap mask");
 assert.equal(rig.parts["left-lower-arm"].image.mask, undefined, "the rear forearm should not use an alpha mask");
 assert.equal(rig.parts["right-upper-arm"].image.mask, undefined, "the lead arm should not use an alpha mask");
@@ -304,21 +305,23 @@ const segmentRig = createChogVisual(scene, 0, 0, false).rig;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const guardPose = {
   leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
-  rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 16,
+  rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 0,
   leadLegRotation: -0.14, leadLegLowerRotation: 0.0,
   rearLegRotation: -0.5, rearLegLowerRotation: 0.68,
+  ...chogArmTargetPose("guard"),
 };
 applyChogPose(segmentRig, guardPose);
-assert.ok(segmentRig.parts["right-hand"].image.y >= 6 && segmentRig.parts["right-hand"].image.y <= 16,
-  "default right/lead fist should sit in the chin guard");
+assert.ok(Math.abs(segmentRig.parts["right-hand"].image.y - guardPose.leadHandTargetY) < 1e-6,
+  "lead fist should stay at its cheek-level wrist target");
+assert.ok(Math.abs(segmentRig.parts["left-hand"].image.y - guardPose.rearHandTargetY) < 1e-6,
+  "rear fist should stay at its higher cheek-level wrist target");
 assert.ok(
-  segmentRig.parts["left-hand"].image.y >= segmentRig.parts["right-hand"].image.y + 6
-    && segmentRig.parts["left-hand"].image.y <= segmentRig.parts["right-hand"].image.y + 15,
-  "the rear glove should sit noticeably below, but still near, the lead glove",
+  segmentRig.parts["left-hand"].image.y <= segmentRig.parts["right-hand"].image.y - 7,
+  "the rear glove should sit slightly higher than the lead glove, not hang at the shoulder",
 );
 assert.ok(
-  segmentRig.parts["left-hand"].image.x < segmentRig.parts["right-hand"].image.x - 5,
-  "the rear glove should remain visibly behind the lead glove without over-separating the guard",
+  segmentRig.parts["left-hand"].image.x < segmentRig.parts["right-hand"].image.x - 20,
+  "the rear glove should be tucked behind the lead glove",
 );
 assert.ok(segmentRig.parts["right-foot"].image.y >= 85 && segmentRig.parts["right-foot"].image.y <= 92,
   "lead foot should stay close to the floor line in the wider guard");
@@ -471,7 +474,7 @@ applyChogPose(rightRig, chogArmTargetPose("guard"));
 const renderedGuardSeparation = distance(rightRig.poseJoints.right.wrist, rightRig.poseJoints.left.wrist);
 assert.ok(renderedGuardSeparation >= 30,
   `rendered guard gloves must be at least 30 rig-pixels apart; got ${renderedGuardSeparation.toFixed(2)}`);
-assert.ok(rightRig.poseJoints.left.wrist.y <= rightRig.poseJoints.right.wrist.y - 8,
+assert.ok(rightRig.poseJoints.left.wrist.y <= rightRig.poseJoints.right.wrist.y - 7,
   "the rear glove should render above the lead glove in the guard");
 assert.ok(rightRig.poseJoints.left.wrist.x <= rightRig.poseJoints.right.wrist.x - 20,
   "the rear glove should be behind the lead glove, not planted over the shoulder");
@@ -480,8 +483,8 @@ assert.ok(rightRig.poseJoints.left.wrist.x <= rightRig.poseJoints.right.wrist.x 
 // head remains the final sprite layer above both gloves.
 const finalLayers = rightRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
 assert.ok(finalLayers.indexOf("left-hand") < finalLayers.indexOf("right-hand"), "rear glove should stay behind the lead glove");
-assert.ok(finalLayers.indexOf("right-hand") < finalLayers.indexOf("head"), "the head should remain above the lead glove");
-assert.ok(finalLayers.indexOf("left-hand") < finalLayers.indexOf("head"), "the head should remain above the rear glove");
+assert.ok(finalLayers.indexOf("right-hand") > finalLayers.indexOf("head"), "the lead glove should remain visible in front of the face");
+assert.ok(finalLayers.indexOf("left-hand") > finalLayers.indexOf("head"), "the rear glove should stay visible in front of the head rather than being hidden under the jaw");
 assert.equal(rightRig.parts["left-upper-arm"].image.mask, undefined,
   "rear upper arm is covered by the body layer, not a bitmap mask");
 assert.equal(rightRig.parts["left-lower-arm"].image.mask, undefined,

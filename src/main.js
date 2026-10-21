@@ -64,7 +64,7 @@ const BASE_RIG_POSE = {
   // Relaxed boxer guard: right/lead hand is primary, left/rear hand stays home.
   leadArmRotation: -0.04,
   leadArmLowerRotation: -1.14,
-  // Tuck the rear shoulder/elbow into the torso and keep its glove lower/back.
+  // Keep the rear elbow compact; the wrist target positions the glove at cheek height.
   rearArmRotation: -1.24,
   rearArmLowerRotation: -1.18,
   // Wider, less crouched stance while keeping both soles close to level.
@@ -76,7 +76,7 @@ const BASE_RIG_POSE = {
   headRotation: 0,
   leadArmX: 0,
   leadArmY: 0,
-  rearArmX: 20,
+  rearArmX: 0,
   rearArmY: 0,
   leadLegX: 0,
   leadLegY: 0,
@@ -1074,11 +1074,14 @@ class ArenaScene extends Phaser.Scene {
   }
 
   getPlayerReadyPose(time, phase) {
-    return blendRigPose(
+    const locomotionPose = blendRigPose(
       BASE_RIG_POSE,
       this.getReadyPose(time, phase, true, this.walkDirBlend),
       this.walkBlend,
     );
+    // Rotation-only walking poses used to drop the target fields and leave the
+    // rear hand parked at the shoulder. Keep both gloves in guard while moving.
+    return { ...locomotionPose, ...chogArmTargetPose("guard") };
   }
 
   getAttackPose(attack, state, time, phase, readyPose = BASE_RIG_POSE) {
