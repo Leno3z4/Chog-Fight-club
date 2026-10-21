@@ -34,7 +34,7 @@ class MockD1 {
   async all(sql, values) {
     const q = sql.replace(/\s+/g, " ").trim();
     assert.match(q, /FROM chog_players/);
-    const prefix = String(values[1]).slice(0, -1).toLowerCase();
+    const prefix = String(values[1]).slice(0, -1).replace(/\\([\\%_])/g, "$1").toLowerCase();
     const rows = [...this.players.values()].filter((row) =>
       row.discord_id !== values[0]
       && (row.username.toLowerCase().startsWith(prefix) || row.display_name.toLowerCase().startsWith(prefix))
@@ -132,6 +132,16 @@ test("search returns username/display-name matches but never returns the searchi
   assert.equal(result.body.players[0].discordId,otherId);
   assert.equal(result.body.players[0].username,"rival_handle");
   assert.equal(result.body.players[0].displayName,"Rival Player");
+});
+
+test("search preserves underscores in a Discord username", async () => {
+  env.CHOG_DB = new MockD1();
+  env.CHOG_DB.players.set(ownerId, { discord_id: ownerId, username: "arena_owner", display_name: "Arena Owner", avatar_url: null, last_seen: "2026-10-17T20:00:00.000Z" });
+  env.CHOG_DB.players.set(otherId, { discord_id: otherId, username: "future_rival", display_name: "Future Rival", avatar_url: null, last_seen: "2026-10-17T20:00:00.000Z" });
+  const cookieHeader = await sessionCookie({ discordId: ownerId, username: "arena_owner", displayName: "Arena Owner" });
+  const result = await handlePlayerDirectoryRequest({ method: "GET", url: "/api/players?q=future_rival", cookieHeader, env });
+  assert.equal(result.body.players.length, 1);
+  assert.equal(result.body.players[0].username, "future_rival");
 });
 
 test("search requires at least two characters", async () => {
