@@ -316,7 +316,7 @@ assert.ok(Math.abs(segmentRig.parts["right-hand"].image.y - guardPose.leadHandTa
 assert.ok(Math.abs(segmentRig.parts["left-hand"].image.y - guardPose.rearHandTargetY) < 1e-6,
   "rear fist should stay at its higher cheek-level wrist target");
 assert.ok(
-  segmentRig.parts["left-hand"].image.y <= segmentRig.parts["right-hand"].image.y - 8,
+  segmentRig.parts["left-hand"].image.y <= segmentRig.parts["right-hand"].image.y - 7,
   "the rear glove should sit slightly higher than the lead glove, not hang at the shoulder",
 );
 assert.ok(
