@@ -15,8 +15,8 @@ export const CHOG_POSE_LIMITS = Object.freeze({
   rearArmRotation: { min: -2.65, max: 1.05 },
   // Allow the forearms to fold inward far enough to keep both fists at the
   // chin in the boxer guard without exceeding the sprite rig's local limits.
-  leadArmLowerRotation: { min: -2.1, max: 2.0 },
-  rearArmLowerRotation: { min: -2.1, max: 2.0 },
+  leadArmLowerRotation: { min: -2.8, max: 2.8 },
+  rearArmLowerRotation: { min: -2.8, max: 2.8 },
   leadLegRotation: { min: -1.45, max: 1.35 },
   rearLegRotation: { min: -1.45, max: 1.35 },
   leadLegLowerRotation: { min: -1.7, max: 1.7 },
@@ -111,18 +111,33 @@ export function createChogKnockoutPose(basePose = {}, elapsedMs = 0) {
   };
 }
 
-const LAYER_ORDER = [
-  // A single facing-independent depth order: rear upper arm behind the torso,
-  // rear forearm/glove visible above it, and the entire lead arm in front.
+const LEG_LAYER_ORDER = [
   "right-upper-leg", "left-upper-leg",
   "right-lower-leg", "left-lower-leg",
   "right-foot", "left-foot",
-  "left-upper-arm", "body",
-  "left-lower-arm", "left-hand",
-  "right-upper-arm",
-  "right-lower-arm", "right-hand",
-  "head", "eyes", "mouth",
 ];
+
+const FACE_LAYER_ORDER = ["head", "eyes", "mouth"];
+
+/**
+ * Arm depth follows the fighter's physical facing. Flipping the root swaps
+ * which side is behind the torso and which side sits in front.
+ */
+export function getLayerOrder(mirrored = false) {
+  const armOrder = mirrored
+    ? [
+      "right-upper-arm", "body",
+      "right-lower-arm", "right-hand",
+      "left-upper-arm", "left-lower-arm", "left-hand",
+    ]
+    : [
+      "left-upper-arm", "body",
+      "left-lower-arm", "left-hand",
+      "right-upper-arm", "right-lower-arm", "right-hand",
+    ];
+
+  return [...LEG_LAYER_ORDER, ...armOrder, ...FACE_LAYER_ORDER];
+}
 
 // The PNGs have different pixel dimensions, but their artwork shares one normalized canvas.
 const PARTS = {
@@ -241,21 +256,22 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   // shoulder angle made any pose that did not explicitly set this value curl
   // the forearm unpredictably, which is especially visible in a straight jab.
   let lowerAngle = pose[`${upperPoseKey}LowerRotation`] ?? 0;
-  let upperX = pose[`${upperPoseKey}X`] ?? 0;
-  let upperY = pose[`${upperPoseKey}Y`] ?? 0;
+  const upperX = pose[`${upperPoseKey}X`] ?? 0;
+  const upperY = pose[`${upperPoseKey}Y`] ?? 0;
 
-  let shoulder = worldJoint(upper.rest, torsoOrigin, torsoAngle, torsoX, torsoY);
-  shoulder.x += upperX;
-  shoulder.y += upperY;
+  // Apply the shoulder translation in the torso-local rest space so it rotates
+  // with the body instead of being appended in screen space after the transform.
+  const modifiedRest = {
+    x: upper.rest.x + upperX,
+    y: upper.rest.y + upperY,
+  };
+  const shoulder = worldJoint(modifiedRest, torsoOrigin, torsoAngle, torsoX, torsoY);
 
   const targetKey = side === "right" ? "leadHandTarget" : "rearHandTarget";
   const targetX = pose[`${targetKey}X`];
   const targetY = pose[`${targetKey}Y`];
   const hasTarget = Number.isFinite(targetX) && Number.isFinite(targetY);
   if (hasTarget) {
-    upperX = 0;
-    upperY = 0;
-    shoulder = worldJoint(upper.rest, torsoOrigin, torsoAngle, torsoX, torsoY);
     const target = worldJoint({ x: targetX, y: targetY }, torsoOrigin, torsoAngle, torsoX, torsoY);
     const upperVector = {
       x: joints.elbow.x - upper.rest.x,
@@ -286,9 +302,11 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   // that transformed elbow. The old code transformed the wrist from the
   // original elbow again, which made the hand drift away during movement.
   const elbowLocal = transformPoint(joints.elbow, upper.rest, upperAngle);
-  const elbow = worldJoint(elbowLocal, torsoOrigin, torsoAngle, torsoX, torsoY);
-  elbow.x += upperX;
-  elbow.y += upperY;
+  const modifiedElbowLocal = {
+    x: elbowLocal.x + upperX,
+    y: elbowLocal.y + upperY,
+  };
+  const elbow = worldJoint(modifiedElbowLocal, torsoOrigin, torsoAngle, torsoX, torsoY);
   movePart(lower, elbow, torsoAngle + upperAngle + lowerAngle);
 
   const forearmAngle = torsoAngle + upperAngle + lowerAngle;
@@ -355,7 +373,7 @@ export function createChogVisual(scene, x, y, mirrored = false) {
   root.add(shadow);
 
   const parts = {};
-  for (const name of LAYER_ORDER) parts[name] = createPart(scene, root, name);
+  for (const name of getLayerOrder(mirrored)) parts[name] = createPart(scene, root, name);
 
   const rest = {
     torso: parts.body.rest,
@@ -379,6 +397,7 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     tintLayers: Object.values(parts).map((part) => part.image),
     rest,
     poseJoints: { left: {}, right: {} },
+    layerOrderMirrored: Boolean(mirrored),
     joints: {
       // A child pivot is the parent's next joint. Matching these coordinates
       // preserves the artist's original overlap with every pose at rest.
@@ -408,6 +427,17 @@ export function createChogVisual(scene, x, y, mirrored = false) {
 
 export function applyChogPose(rig, pose) {
   if (!rig) return;
+
+  // Check facing on every pose update, but only move layers when the sign flips.
+  // This keeps Phaser's Container list in sync with root.setScale() in both scenes.
+  const mirrored = Number(rig.root?.scaleX) < 0;
+  if (rig.layerOrderMirrored !== mirrored && typeof rig.root?.moveTo === "function") {
+    getLayerOrder(mirrored).forEach((name, index) => {
+      rig.root.moveTo(rig.layers[name], index + 1); // index 0 belongs to the floor shadow
+    });
+    rig.layerOrderMirrored = mirrored;
+  }
+
   const safePose = clampChogPose(pose);
   const torsoAngle = safePose.torsoRotation ?? 0;
   const torsoX = safePose.torsoX ?? 0;

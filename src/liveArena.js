@@ -1,6 +1,7 @@
 import Phaser from "phaser";
 import { BootScene } from "./bootScene.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
+import { punchPulse, punchWindowPulse } from "./game/punchEasing.js";
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -365,7 +366,7 @@ class LiveArenaScene extends Phaser.Scene {
         // Heavy attacks visibly load back first, then release, then recover.
         // The server can cancel this wind-up before the projectile is released.
         const pulse = !heavy
-          ? Math.sin(Math.PI * phase)
+          ? punchPulse(phase)
           : phase < startupRatio
             ? -Math.sin((phase / startupRatio) * Math.PI / 2) * 0.24
             : phase < 0.80
@@ -388,8 +389,8 @@ class LiveArenaScene extends Phaser.Scene {
         };
       } else if (fighter.action === "doubleAttack" && activeAction) {
         const t = clamp(actionAge / duration, 0, 1);
-        const jabPulse = t < 0.25 ? Math.sin(Math.PI * t / 0.25) : 0;
-        const crossPulse = t >= 0.44 && t < 0.80 ? Math.sin(Math.PI * (t - 0.44) / 0.36) : 0;
+        const jabPulse = punchWindowPulse(t, 0, 0.25);
+        const crossPulse = punchWindowPulse(t, 0.44, 0.80);
         const jabTargets = blendPose(guardTargets, chogArmTargetPose("jab"), jabPulse);
         const crossTargets = blendPose(guardTargets, chogArmTargetPose("cross"), crossPulse);
         const comboTargets = crossPulse > 0 ? crossTargets : jabTargets;

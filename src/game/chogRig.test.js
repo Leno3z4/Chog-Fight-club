@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { applyChogPose, chogArmTargetPose, CHOG_ARM_TARGETS, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual, solveTwoBoneIK } from "./chogRig.js";
+import { applyChogPose, chogArmTargetPose, CHOG_ARM_TARGETS, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual, getLayerOrder, solveTwoBoneIK } from "./chogRig.js";
 
 class FakeObject {
   constructor(x = 0, y = 0, texture = "") {
@@ -395,7 +395,17 @@ const rightRig = rightRoot.rig;
 const leftRig = leftRoot.rig;
 const rightOrder = rightRoot.list.map((layer) => layer.texture || "shadow");
 const leftOrder = leftRoot.list.map((layer) => layer.texture || "shadow");
-assert.deepEqual(leftOrder, rightOrder, "facing must never reorder character layers");
+assert.notDeepEqual(leftOrder, rightOrder, "flipping should switch the physical front/back arm stack");
+assert.deepEqual(
+  rightOrder.slice(1),
+  getLayerOrder(false).map((name) => `chog-${name}`),
+  "right-facing fighters should use the right-facing layer stack",
+);
+assert.deepEqual(
+  leftOrder.slice(1),
+  getLayerOrder(true).map((name) => `chog-${name}`),
+  "mirrored fighters should use the mirrored layer stack",
+);
 assert.equal(rightRoot.scaleX, 1, "right-facing root should use positive horizontal scale");
 assert.equal(leftRoot.scaleX, -1, "left-facing root should mirror with negative horizontal scale");
 
@@ -458,3 +468,66 @@ assert.equal(rightRig.parts["left-upper-arm"].image.mask, undefined, "the rear u
 
 const ik = solveTwoBoneIK({ x: 0, y: 0 }, { x: 200, y: 0 }, 30, 20);
 assert.ok(Math.hypot(ik.wrist.x, ik.wrist.y) <= 50, "two-bone IK must clamp an unreachable target to maximum reach");
+
+// Shoulder offsets are part of the torso-local transform, not screen-space
+// corrections appended after the torso has rotated.
+const torsoAngleForOffset = 0.4;
+const unshiftedShoulderRig = createChogVisual(scene, 0, 0, false).rig;
+const shiftedShoulderRig = createChogVisual(scene, 0, 0, false).rig;
+applyChogPose(unshiftedShoulderRig, {
+  rearArmRotation: -0.7,
+  torsoRotation: torsoAngleForOffset,
+});
+applyChogPose(shiftedShoulderRig, {
+  rearArmRotation: -0.7,
+  rearArmX: 10,
+  torsoRotation: torsoAngleForOffset,
+});
+const shoulderDx = shiftedShoulderRig.poseJoints.left.shoulder.x - unshiftedShoulderRig.poseJoints.left.shoulder.x;
+const shoulderDy = shiftedShoulderRig.poseJoints.left.shoulder.y - unshiftedShoulderRig.poseJoints.left.shoulder.y;
+assert.ok(Math.abs(shoulderDx - 10 * Math.cos(torsoAngleForOffset)) < 1e-8,
+  "horizontal shoulder offsets should rotate with the torso");
+assert.ok(Math.abs(shoulderDy - 10 * Math.sin(torsoAngleForOffset)) < 1e-8,
+  "horizontal shoulder offsets should arc vertically with torso rotation");
+
+// Target-driven IK must retain the shoulder offset too; the solver then keeps
+// the elbow and wrist connected while still reaching the authored wrist target.
+const unshiftedTargetRig = createChogVisual(scene, 0, 0, false).rig;
+const shiftedTargetRig = createChogVisual(scene, 0, 0, false).rig;
+const targetPoseForOffset = {
+  ...chogArmTargetPose("guard"),
+  torsoRotation: torsoAngleForOffset,
+};
+applyChogPose(unshiftedTargetRig, targetPoseForOffset);
+applyChogPose(shiftedTargetRig, { ...targetPoseForOffset, rearArmX: 10 });
+const targetShoulderDx = shiftedTargetRig.poseJoints.left.shoulder.x - unshiftedTargetRig.poseJoints.left.shoulder.x;
+const targetShoulderDy = shiftedTargetRig.poseJoints.left.shoulder.y - unshiftedTargetRig.poseJoints.left.shoulder.y;
+assert.ok(Math.abs(targetShoulderDx - 10 * Math.cos(torsoAngleForOffset)) < 1e-8,
+  "IK should preserve the rotated shoulder offset");
+assert.ok(Math.abs(targetShoulderDy - 10 * Math.sin(torsoAngleForOffset)) < 1e-8,
+  "IK should not flatten the shoulder offset into screen space");
+assert.ok(distance(shiftedTargetRig.poseJoints.left.elbow, shiftedTargetRig.poseJoints.left.wrist)
+  > 0, "the shifted IK forearm should remain connected");
+assert.ok(distance(shiftedTargetRig.poseJoints.left.wrist, shiftedTargetRig.poseJoints.left.target) < 1e-6,
+  "the shifted IK arm should still reach the authored target");
+
+// Layer order also updates if a practice fighter changes facing after creation.
+rightRoot.setScale(-1, 1);
+applyChogPose(rightRig, chogArmTargetPose("guard"));
+assert.deepEqual(
+  rightRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", "")),
+  getLayerOrder(true),
+  "applyChogPose should update the container after a horizontal flip",
+);
+rightRoot.setScale(1, 1);
+applyChogPose(rightRig, chogArmTargetPose("guard"));
+assert.deepEqual(
+  rightRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", "")),
+  getLayerOrder(false),
+  "the original layer stack should be restored when the fighter turns back",
+);
+
+assert.deepEqual(CHOG_POSE_LIMITS.leadArmLowerRotation, { min: -2.8, max: 2.8 });
+assert.deepEqual(CHOG_POSE_LIMITS.rearArmLowerRotation, { min: -2.8, max: 2.8 });
+
+console.log("Facing-aware layering, torso-local shoulder offsets, and IK checks passed.");
