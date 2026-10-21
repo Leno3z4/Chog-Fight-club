@@ -27,10 +27,10 @@ export const CHOG_POSE_LIMITS = Object.freeze({
   rearArmX: { min: -24, max: 24 },
   leadArmY: { min: -14, max: 14 },
   rearArmY: { min: -14, max: 14 },
-  leadHandTargetX: { min: -90, max: 90 },
-  leadHandTargetY: { min: -80, max: 70 },
-  rearHandTargetX: { min: -90, max: 90 },
-  rearHandTargetY: { min: -80, max: 70 },
+  leadGloveTargetX: { min: -95, max: 95 },
+  leadGloveTargetY: { min: -80, max: 70 },
+  rearGloveTargetX: { min: -95, max: 95 },
+  rearGloveTargetY: { min: -80, max: 70 },
   leadLegX: { min: -18, max: 18 },
   rearLegX: { min: -18, max: 18 },
   leadLegY: { min: -12, max: 12 },
@@ -41,29 +41,78 @@ export const CHOG_POSE_LIMITS = Object.freeze({
   headY: { min: -10, max: 10 },
 });
 
-// Wrist-pivot targets in the shared 250-unit Chog canvas. Root mirroring turns
-// the same boxer guard and punches into the opposite-facing version.
+// Painted glove-center targets in the shared 250-unit Chog canvas. The solver
+// backs out the wrist-pivot offset so these are visual, not bone, goals.
 export const CHOG_ARM_TARGETS = Object.freeze({
-  guard: Object.freeze({ lead: Object.freeze([42, 0]), rear: Object.freeze([0, 9]) }),
-  jab: Object.freeze({ lead: Object.freeze([64, -7]), rear: Object.freeze([0, 9]) }),
-  cross: Object.freeze({ lead: Object.freeze([5, 11]), rear: Object.freeze([29, -7]) }),
-  hit: Object.freeze({ lead: Object.freeze([27, 8]), rear: Object.freeze([0, 9]) }),
-  block: Object.freeze({ lead: Object.freeze([36, -6]), rear: Object.freeze([0, 9]) }),
+  guard: Object.freeze({ lead: Object.freeze([52, -7]), rear: Object.freeze([18, 2]) }),
+  jab: Object.freeze({ lead: Object.freeze([71, -10]), rear: Object.freeze([18, 2]) }),
+  cross: Object.freeze({ lead: Object.freeze([10, 2]), rear: Object.freeze([39, 2]) }),
+  hit: Object.freeze({ lead: Object.freeze([44, -6]), rear: Object.freeze([18, 2]) }),
+  block: Object.freeze({ lead: Object.freeze([45, -7]), rear: Object.freeze([18, 2]) }),
 });
 
 export function chogArmTargetPose(name) {
   const targets = CHOG_ARM_TARGETS[name];
   if (!targets) throw new RangeError(`Unknown Chog arm pose: ${name}`);
   return {
-    leadHandTargetX: targets.lead[0],
-    leadHandTargetY: targets.lead[1],
-    rearHandTargetX: targets.rear[0],
-    rearHandTargetY: targets.rear[1],
+    leadGloveTargetX: targets.lead[0],
+    leadGloveTargetY: targets.lead[1],
+    rearGloveTargetX: targets.rear[0],
+    rearGloveTargetY: targets.rear[1],
   };
 }
 
 function clamp(value, min, max) {
   return Math.max(min, Math.min(max, value));
+}
+
+function blendArmTargets(fromName, toName, progress) {
+  const from = chogArmTargetPose(fromName);
+  const to = chogArmTargetPose(toName);
+  return Object.fromEntries(Object.keys(from).map((key) => [
+    key,
+    from[key] + (to[key] - from[key]) * progress,
+  ]));
+}
+
+function smoothStep(progress) {
+  const t = clamp(progress, 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
+/** Shared arm/body pulse values for the jab → guard → rear-cross double tap. */
+export function getChogDoublePunchPulses(progress) {
+  const p = clamp(Number.isFinite(progress) ? progress : 0, 0, 1);
+  const jab = p < 0.20
+    ? smoothStep(p / 0.20)
+    : p < 0.28
+      ? 1
+      : p < 0.48
+        ? 1 - smoothStep((p - 0.28) / 0.20)
+        : 0;
+  const cross = p < 0.48
+    ? 0
+    : p < 0.82
+      ? smoothStep((p - 0.48) / 0.34)
+      : p < 0.86
+        ? 1
+        : 1 - smoothStep((p - 0.86) / 0.14);
+  return { jab, cross };
+}
+
+/** Arm-only jab → guard → rear-cross → guard timeline for the double tap. */
+export function getChogDoublePunchArmTargets(progress) {
+  const { jab, cross } = getChogDoublePunchPulses(progress);
+  if (cross > 0) return blendArmTargets("guard", "cross", cross);
+  return blendArmTargets("guard", "jab", jab);
+}
+
+/** Smoothly raise both gloves into a compact block and return to guard. */
+export function getChogBlockArmTargets(progress) {
+  const p = clamp(Number.isFinite(progress) ? progress : 0, 0, 1);
+  if (p < 0.18) return blendArmTargets("guard", "block", smoothStep(p / 0.18));
+  if (p < 0.78) return chogArmTargetPose("block");
+  return blendArmTargets("block", "guard", smoothStep((p - 0.78) / 0.22));
 }
 
 /**
@@ -118,8 +167,8 @@ const LAYER_ORDER = [
   "right-lower-leg", "left-lower-leg",
   "right-foot", "left-foot",
   "left-upper-arm", "body",
-  "left-lower-arm", "left-hand",
   "right-upper-arm",
+  "left-lower-arm", "left-hand",
   "right-lower-arm", "right-hand",
   "head", "eyes", "mouth",
 ];
@@ -151,6 +200,13 @@ const PARTS = {
   "right-lower-leg": { pivot: [625, 820] },
   "right-foot":      { pivot: [630, 875] },
 };
+
+// Pink-fill centroid minus wrist pivot, measured on the original PNGs and
+// converted to rig pixels. The left glove is 3000px but uses the same canvas.
+const GLOVE_CENTER_OFFSET = Object.freeze({
+  left: Object.freeze({ x: -0.55 * SCALE, y: 41.34 * SCALE }),
+  right: Object.freeze({ x: 6.23 * SCALE, y: 36.98 * SCALE }),
+});
 
 function canvasPoint(point, offset = [0, 0]) {
   return {
@@ -184,6 +240,15 @@ function transformPoint(point, origin, angle, offsetX = 0, offsetY = 0) {
   return {
     x: origin.x + dx * cos - dy * sin + offsetX,
     y: origin.y + dx * sin + dy * cos + offsetY,
+  };
+}
+
+function rotateVector(vector, angle) {
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  return {
+    x: vector.x * cos - vector.y * sin,
+    y: vector.x * sin + vector.y * cos,
   };
 }
 
@@ -248,36 +313,42 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
   shoulder.x += upperX;
   shoulder.y += upperY;
 
-  const targetKey = side === "right" ? "leadHandTarget" : "rearHandTarget";
+  const targetKey = side === "right" ? "leadGloveTarget" : "rearGloveTarget";
   const targetX = pose[`${targetKey}X`];
   const targetY = pose[`${targetKey}Y`];
   const hasTarget = Number.isFinite(targetX) && Number.isFinite(targetY);
+  const gloveOffset = GLOVE_CENTER_OFFSET[side];
+  let gloveTarget = null;
+  const upperVector = {
+    x: joints.elbow.x - upper.rest.x,
+    y: joints.elbow.y - upper.rest.y,
+  };
+  const lowerVector = {
+    x: joints.wrist.x - joints.elbow.x,
+    y: joints.wrist.y - joints.elbow.y,
+  };
+  const upperLength = Math.hypot(upperVector.x, upperVector.y);
+  const gloveEndVector = {
+    x: lowerVector.x + gloveOffset.x,
+    y: lowerVector.y + gloveOffset.y,
+  };
+  const gloveEndLength = Math.hypot(gloveEndVector.x, gloveEndVector.y);
+  const upperRestAngle = Math.atan2(upperVector.y, upperVector.x);
+  const gloveEndRestAngle = Math.atan2(gloveEndVector.y, gloveEndVector.x);
+  const bendDirection = side === "right" ? 1 : -1;
   if (hasTarget) {
     upperX = 0;
     upperY = 0;
     shoulder = worldJoint(upper.rest, torsoOrigin, torsoAngle, torsoX, torsoY);
-    const target = worldJoint({ x: targetX, y: targetY }, torsoOrigin, torsoAngle, torsoX, torsoY);
-    const upperVector = {
-      x: joints.elbow.x - upper.rest.x,
-      y: joints.elbow.y - upper.rest.y,
-    };
-    const lowerVector = {
-      x: joints.wrist.x - joints.elbow.x,
-      y: joints.wrist.y - joints.elbow.y,
-    };
-    const solution = solveTwoBoneIK(
-      shoulder,
-      target,
-      Math.hypot(upperVector.x, upperVector.y),
-      Math.hypot(lowerVector.x, lowerVector.y),
-      1,
-    );
-    const upperRestAngle = Math.atan2(upperVector.y, upperVector.x);
-    const lowerRestAngle = Math.atan2(lowerVector.y, lowerVector.x);
+    gloveTarget = worldJoint({ x: targetX, y: targetY }, torsoOrigin, torsoAngle, torsoX, torsoY);
+    // Treat the rigid forearm plus its wrist-to-glove art offset as the second
+    // IK span. This solves the requested painted glove center directly without
+    // stretching either PNG bone or iterating an unstable wrist estimate.
+    const solution = solveTwoBoneIK(shoulder, gloveTarget, upperLength, gloveEndLength, bendDirection);
     upperAngle = Math.atan2(solution.elbow.y - shoulder.y, solution.elbow.x - shoulder.x)
       - torsoAngle - upperRestAngle;
     lowerAngle = Math.atan2(solution.wrist.y - solution.elbow.y, solution.wrist.x - solution.elbow.x)
-      - torsoAngle - upperAngle - lowerRestAngle;
+      - torsoAngle - upperAngle - gloveEndRestAngle;
   }
 
   movePart(upper, shoulder, torsoAngle + upperAngle);
@@ -301,6 +372,11 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
     y: elbow.y + wristVectorX * sin + wristVectorY * cos,
   };
   movePart(hand, wrist, forearmAngle);
+  const gloveOffsetWorld = rotateVector(gloveOffset, forearmAngle);
+  const gloveCenter = {
+    x: wrist.x + gloveOffsetWorld.x,
+    y: wrist.y + gloveOffsetWorld.y,
+  };
 
   // Root-local articulated anchors let tests verify the actual joints rather
   // than using sprite origins as a proxy for the elbow and wrist.
@@ -308,7 +384,8 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
     shoulder: { x: shoulder.x, y: shoulder.y },
     elbow: { x: elbow.x, y: elbow.y },
     wrist: { x: wrist.x, y: wrist.y },
-    target: hasTarget ? worldJoint({ x: targetX, y: targetY }, torsoOrigin, torsoAngle, torsoX, torsoY) : null,
+    gloveCenter,
+    target: gloveTarget,
   };
 }
 

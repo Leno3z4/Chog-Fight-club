@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BootScene } from "./bootScene.js";
-import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, chogArmTargetPose, getChogBlockArmTargets, getChogDoublePunchArmTargets, getChogDoublePunchPulses, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -388,11 +388,8 @@ class LiveArenaScene extends Phaser.Scene {
         };
       } else if (fighter.action === "doubleAttack" && activeAction) {
         const t = clamp(actionAge / duration, 0, 1);
-        const jabPulse = t < 0.25 ? Math.sin(Math.PI * t / 0.25) : 0;
-        const crossPulse = t >= 0.44 && t < 0.80 ? Math.sin(Math.PI * (t - 0.44) / 0.36) : 0;
-        const jabTargets = blendPose(guardTargets, chogArmTargetPose("jab"), jabPulse);
-        const crossTargets = blendPose(guardTargets, chogArmTargetPose("cross"), crossPulse);
-        const comboTargets = crossPulse > 0 ? crossTargets : jabTargets;
+        const { jab: jabPulse, cross: crossPulse } = getChogDoublePunchPulses(t);
+        const comboTargets = getChogDoublePunchArmTargets(t);
         pose = {
           ...guard,
           ...comboTargets,
@@ -408,7 +405,7 @@ class LiveArenaScene extends Phaser.Scene {
           headRotation: -jabPulse * 0.03 - crossPulse * 0.04,
         };
       } else if ((fighter.action === "block" || fighter.action === "defense") && activeAction) {
-        pose = { ...boxerGuard, ...chogArmTargetPose("block") };
+        pose = { ...boxerGuard, ...getChogBlockArmTargets(actionAge / duration) };
       } else if (fighter.action === "dash" && activeAction) {
         const pulse = Math.sin(Math.PI * clamp(actionAge / duration, 0, 1));
         pose = {

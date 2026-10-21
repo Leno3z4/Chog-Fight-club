@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { applyChogPose, chogArmTargetPose, CHOG_ARM_TARGETS, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual, solveTwoBoneIK } from "./chogRig.js";
+import { applyChogPose, chogArmTargetPose, CHOG_ARM_TARGETS, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual, getChogBlockArmTargets, getChogDoublePunchArmTargets, getChogDoublePunchPulses, solveTwoBoneIK } from "./chogRig.js";
 
 class FakeObject {
   constructor(x = 0, y = 0, texture = "") {
@@ -53,6 +53,9 @@ assert.ok(layerNames.indexOf("left-lower-arm") > bodyLayer, "the rear forearm sh
 assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("left-lower-arm"), "the rear glove should follow its forearm");
 assert.ok(layerNames.indexOf("left-hand") < layerNames.indexOf("right-hand"), "the rear glove should render behind the lead glove");
 assert.ok(layerNames.indexOf("right-upper-arm") > bodyLayer, "the lead upper arm should reveal its shoulder over the torso");
+assert.ok(layerNames.indexOf("left-lower-arm") > layerNames.indexOf("right-upper-arm"), "the rear forearm should remain visible over the lead upper arm");
+assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("right-upper-arm"), "the rear glove should not be buried under the lead upper arm");
+assert.ok(layerNames.indexOf("left-hand") < layerNames.indexOf("right-lower-arm"), "the rear glove should remain behind the lead forearm");
 assert.ok(layerNames.indexOf("right-lower-arm") > layerNames.indexOf("right-upper-arm"), "the lead forearm should follow its upper arm in front of the torso");
 assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("right-lower-arm"), "the lead glove should render above its forearm");
 assert.ok(layerNames.indexOf("right-hand") < layerNames.indexOf("head"), "the head should remain above both gloves");
@@ -386,7 +389,7 @@ for (const pose of articulationPoses) {
 }
 
 
-// Combat-arm regression: all glove profiles use target positions, remain
+// Combat-arm regression: all glove profiles target the painted glove centers, remain
 // within each sprite's two-bone reach, and mirror exactly with root.scaleX.
 const targetProfiles = ["guard", "jab", "cross", "hit", "block"];
 const rightRoot = createChogVisual(scene, 0, 0, false);
@@ -423,10 +426,12 @@ for (const profile of targetProfiles) {
       `${profile} ${side} shoulder-to-elbow must stay connected`);
     assert.ok(Math.abs(distance(joints.elbow, joints.wrist) - lengths.lower) < 1e-6,
       `${profile} ${side} elbow-to-wrist must stay connected`);
-    assert.ok(distance(joints.wrist, joints.target) < 1e-6,
-      `${profile} ${side} glove should reach its requested target`);
+    assert.ok(distance(joints.gloveCenter, joints.target) < 1e-5,
+      `${profile} ${side} painted glove center should reach its requested target`);
+    assert.ok(distance(joints.shoulder, joints.gloveCenter) <= reach + 12,
+      `${profile} ${side} glove center should stay within one arm plus glove offset`);
       const mirroredJoints = leftRig.poseJoints[side];
-      for (const jointName of ["shoulder", "elbow", "wrist"]) {
+      for (const jointName of ["shoulder", "elbow", "wrist", "gloveCenter"]) {
       const rightWorldX = rightRoot.scaleX * joints[jointName].x;
       const leftWorldX = leftRoot.scaleX * mirroredJoints[jointName].x;
       assert.ok(Math.abs(rightWorldX + leftWorldX) < 1e-6,
@@ -442,11 +447,29 @@ const guardSeparation = Math.hypot(
   guardTargets.lead[0] - guardTargets.rear[0],
   guardTargets.lead[1] - guardTargets.rear[1],
 );
-assert.ok(guardSeparation >= 30, `guard gloves must be at least 30 rig-pixels apart; got ${guardSeparation.toFixed(2)}`);
+assert.ok(guardSeparation >= 30, `guard gloves must stay visibly separated; got ${guardSeparation.toFixed(2)} rig-pixels`);
 applyChogPose(rightRig, chogArmTargetPose("guard"));
-const renderedGuardSeparation = distance(rightRig.poseJoints.right.wrist, rightRig.poseJoints.left.wrist);
+const renderedGuardSeparation = distance(rightRig.poseJoints.right.gloveCenter, rightRig.poseJoints.left.gloveCenter);
 assert.ok(renderedGuardSeparation >= 30,
-  `rendered guard gloves must be at least 30 rig-pixels apart; got ${renderedGuardSeparation.toFixed(2)}`);
+  `rendered guard glove centers must remain visibly separated; got ${renderedGuardSeparation.toFixed(2)} rig-pixels`);
+
+const targetsEqual = (a, b) => Object.keys(a).every((key) => Math.abs(a[key] - b[key]) < 1e-9);
+assert.ok(targetsEqual(getChogDoublePunchArmTargets(0), chogArmTargetPose("guard")), "double tap starts in guard");
+assert.ok(targetsEqual(getChogDoublePunchArmTargets(0.20), chogArmTargetPose("jab")), "double tap reaches the lead jab");
+assert.ok(targetsEqual(getChogDoublePunchArmTargets(0.48), chogArmTargetPose("guard")), "jab returns to guard before the rear cross");
+assert.ok(targetsEqual(getChogDoublePunchArmTargets(0.82), chogArmTargetPose("cross")), "double tap reaches the rear cross");
+assert.ok(targetsEqual(getChogDoublePunchArmTargets(1), chogArmTargetPose("guard")), "double tap recovers to guard");
+for (const boundary of [0.20, 0.28, 0.48, 0.82, 0.86]) {
+  const before = getChogDoublePunchArmTargets(boundary - 1e-5);
+  const after = getChogDoublePunchArmTargets(boundary + 1e-5);
+  for (const key of Object.keys(before)) {
+    assert.ok(Math.abs(before[key] - after[key]) < 0.01, `double-tap target ${key} should stay continuous at ${boundary}`);
+  }
+}
+assert.deepEqual(getChogDoublePunchPulses(0.48), { jab: 0, cross: 0 }, "combo has a brief guard reset between punches");
+assert.ok(targetsEqual(getChogBlockArmTargets(0), chogArmTargetPose("guard")), "block eases in from guard");
+assert.ok(targetsEqual(getChogBlockArmTargets(0.5), chogArmTargetPose("block")), "block holds the high guard in its active phase");
+assert.ok(targetsEqual(getChogBlockArmTargets(1), chogArmTargetPose("guard")), "block returns to guard");
 
 // The authored wrist pivots keep all layers at their established size and the
 // head remains the final sprite layer above both gloves.

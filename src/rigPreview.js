@@ -1,18 +1,28 @@
 import Phaser from "phaser";
 import { BootScene } from "./bootScene.js";
-import { applyChogPose, chogArmTargetPose, createChogVisual } from "./game/chogRig.js";
+import {
+  applyChogPose,
+  chogArmTargetPose,
+  getChogBlockArmTargets,
+  getChogDoublePunchArmTargets,
+  createChogVisual,
+} from "./game/chogRig.js";
 
 const WIDTH = 1600;
 const HEIGHT = 960;
-const POSES = ["idle", "walk", "jab", "cross", "hit", "jump"];
+const POSES = ["guard", "jab", "cross", "double-jab", "double-cross", "block", "walk", "jump"];
 const QUERY = new URLSearchParams(window.location.search);
 const FACING_FILTER = QUERY.get("facing");
+const POSE_FILTER = QUERY.get("pose");
+const VISIBLE_POSES = POSES.includes(POSE_FILTER) ? [POSE_FILTER] : POSES;
 const FACINGS = FACING_FILTER === "left" || FACING_FILTER === "right"
   ? [FACING_FILTER]
   : ["right", "left"];
 
 function getPose(name) {
-  const oldGuard = {
+  // These arm-angle values remain the existing walk/jump preview poses. No
+  // target-driven boxing values are added to either locomotion pose.
+  const legacyLocomotion = {
     leadArmRotation: -0.04,
     leadArmLowerRotation: -1.14,
     rearArmRotation: -1.24,
@@ -31,7 +41,7 @@ function getPose(name) {
   };
   if (name === "walk") {
     return {
-      ...oldGuard,
+      ...legacyLocomotion,
       leadLegRotation: -0.42,
       rearLegRotation: -0.16,
       leadLegLowerRotation: 0.18,
@@ -44,7 +54,7 @@ function getPose(name) {
   }
   if (name === "jump") {
     return {
-      ...oldGuard,
+      ...legacyLocomotion,
       leadLegRotation: -0.8,
       leadLegLowerRotation: 1.66,
       rearLegRotation: -1.1,
@@ -55,10 +65,9 @@ function getPose(name) {
       torsoY: -3,
     };
   }
-  if (name === "idle") return { ...oldGuard, ...chogArmTargetPose("guard") };
+  if (name === "guard") return chogArmTargetPose("guard");
   if (name === "jab") {
     return {
-      ...oldGuard,
       ...chogArmTargetPose("jab"),
       torsoRotation: -0.14,
       torsoX: 8,
@@ -68,9 +77,8 @@ function getPose(name) {
       leadLegX: 8,
     };
   }
-  if (name === "cross") {
+  if (name === "cross" || name === "double-cross") {
     return {
-      ...oldGuard,
       ...chogArmTargetPose("cross"),
       torsoRotation: -0.22,
       torsoX: 13,
@@ -80,8 +88,9 @@ function getPose(name) {
       rearLegX: 6,
     };
   }
+  if (name === "double-jab") return getChogDoublePunchArmTargets(0.20);
+  if (name === "block") return getChogBlockArmTargets(0.48);
   return {
-    ...oldGuard,
     ...chogArmTargetPose("hit"),
     torsoRotation: 0.11,
     torsoX: -2,
@@ -106,41 +115,44 @@ class RigPreviewScene extends Phaser.Scene {
 
   create() {
     const bothFacings = FACINGS.length === 2;
-    this.add.text(44, 28, "CHOG ARM RIG · VISUAL REGRESSION SHEET", {
+    const closeUp = VISIBLE_POSES.length === 1;
+    this.add.text(36, 24, "CHOG BOXING ARM RIG · BOTH-FACING VISUAL CHECK", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "24px",
+      fontSize: "22px",
       fontStyle: "800",
       color: "#f2f4fa",
     });
-    this.add.text(44, 61, "Target-based boxing guard and punches · unchanged legacy walk/jump poses · same root-mirrored stack", {
+    this.add.text(36, 54, "Glove-center IK · smooth jab→guard→cross · high block · original walk/jump poses retained", {
       fontFamily: "system-ui, sans-serif",
-      fontSize: "13px",
+      fontSize: "12px",
       color: "#9ba7bb",
     });
 
     FACINGS.forEach((facing, rowIndex) => {
-      const rowTop = bothFacings ? 120 + rowIndex * 418 : 210;
-      const rowCenterY = rowTop + 216;
-      this.add.text(46, rowTop - 9, facing === "right" ? "RIGHT-FACING · CONTROLLABLE" : "LEFT-FACING · OPPONENT", {
+      const rowTop = closeUp ? 130 : bothFacings ? 104 + rowIndex * 420 : 190;
+      const rowCenterY = closeUp ? 530 : rowTop + 217;
+      this.add.text(36, rowTop - 7, facing === "right" ? "RIGHT-FACING · PLAYER" : "LEFT-FACING · OPPONENT", {
         fontFamily: "system-ui, sans-serif",
-        fontSize: "14px",
+        fontSize: "13px",
         fontStyle: "800",
         color: facing === "right" ? "#7ed9bd" : "#ff9d88",
       });
 
-      POSES.forEach((name, column) => {
-        const x = 138 + column * 264;
-        const panel = this.add.rectangle(x, rowCenterY, 244, 390, 0x151b27, 1)
+      VISIBLE_POSES.forEach((name, column) => {
+        const x = closeUp ? WIDTH / 2 : 104 + column * 199;
+        const panel = this.add.rectangle(x, rowCenterY, closeUp ? 900 : 186, closeUp ? 760 : 394, 0x151b27, 1)
           .setStrokeStyle(1, 0x2d3648, 1);
         panel.setDepth(-2);
-        this.add.text(x, rowTop + 15, name.toUpperCase(), {
+        this.add.text(x, rowTop + 15, name.toUpperCase().replaceAll("-", " "), {
           fontFamily: "system-ui, sans-serif",
-          fontSize: "13px",
+          fontSize: "11px",
           fontStyle: "800",
           color: "#e5eaf3",
         }).setOrigin(0.5, 0.5);
-        this.add.rectangle(x, rowTop + 348, 215, 2, 0x2b3a37, 1);
-        const root = createChogVisual(this, x, rowTop + 227, facing === "left");
+        this.add.rectangle(x, closeUp ? rowTop + 700 : rowTop + 348, closeUp ? 720 : 162, 2, 0x2b3a37, 1);
+        const root = createChogVisual(this, x, closeUp ? rowTop + 385 : rowTop + 227, facing === "left");
+        const scale = closeUp ? 0.96 : 0.72;
+        root.setScale(facing === "left" ? -scale : scale, scale);
         root.setDepth(1);
         applyChogPose(root.rig, getPose(name));
       });
