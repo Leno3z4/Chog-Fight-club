@@ -433,10 +433,10 @@ class LiveArenaScene extends Phaser.Scene {
           torsoRotation: -pulse * 0.11,
           torsoX: pulse * 7,
           torsoY: pulse * 3,
-          leadLegRotation: -pulse * 0.16,
-          rearLegRotation: pulse * 0.18,
-          leadLegLowerRotation: pulse * 0.35,
-          rearLegLowerRotation: -pulse * 0.30,
+          leadLegRotation: GUARD.leadLegRotation - pulse * 0.16,
+          rearLegRotation: GUARD.rearLegRotation + pulse * 0.18,
+          leadLegLowerRotation: GUARD.leadLegLowerRotation + pulse * 0.35,
+          rearLegLowerRotation: GUARD.rearLegLowerRotation - pulse * 0.30,
         };
       }
       if (rearCrossStriking !== root.rig.rearCrossInFront) {
