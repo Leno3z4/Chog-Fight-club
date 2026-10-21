@@ -483,12 +483,12 @@ assert.ok(finalLayers.indexOf("left-hand") < finalLayers.indexOf("right-hand"), 
 assert.ok(finalLayers.indexOf("right-hand") < finalLayers.indexOf("head"), "the head should remain above the lead glove");
 assert.ok(finalLayers.indexOf("left-hand") < finalLayers.indexOf("head"), "the head should remain above the rear glove");
 assert.equal(
-  rightRig.parts["right-upper-arm"].image.mask.source,
+  rightRig.parts["left-upper-arm"].image.mask.source,
   rightRig.parts.body.image,
-  "after flipping, the right upper arm becomes rear and must use the torso alpha mask",
+  "right-facing fighter should mask the left/rear upper arm",
 );
-assert.equal(rightRig.parts["left-upper-arm"].image.mask, undefined,
-  "after flipping, the former rear arm must have its mask cleared");
+assert.equal(rightRig.parts["right-upper-arm"].image.mask, undefined,
+  "right-facing fighter should leave the right/front upper arm unmasked");
 
 const ik = solveTwoBoneIK({ x: 0, y: 0 }, { x: 200, y: 0 }, 30, 20);
 assert.ok(Math.hypot(ik.wrist.x, ik.wrist.y) <= 50, "two-bone IK must clamp an unreachable target to maximum reach");
@@ -543,6 +543,10 @@ assert.deepEqual(
   getLayerOrder(true),
   "applyChogPose should update the container after a horizontal flip",
 );
+assert.equal(rightRig.parts["right-upper-arm"].image.mask.source, rightRig.parts.body.image,
+  "after flipping, the right upper arm should become the masked rear arm");
+assert.equal(rightRig.parts["left-upper-arm"].image.mask, undefined,
+  "after flipping, the former rear arm should have its mask cleared");
 rightRoot.setScale(1, 1);
 applyChogPose(rightRig, chogArmTargetPose("guard"));
 assert.deepEqual(
@@ -550,6 +554,10 @@ assert.deepEqual(
   getLayerOrder(false),
   "the original layer stack should be restored when the fighter turns back",
 );
+assert.equal(rightRig.parts["left-upper-arm"].image.mask.source, rightRig.parts.body.image,
+  "turning back should restore the left rear-arm mask");
+assert.equal(rightRig.parts["right-upper-arm"].image.mask, undefined,
+  "turning back should clear the right rear-arm mask");
 
 assert.deepEqual(CHOG_POSE_LIMITS.leadArmLowerRotation, { min: -2.8, max: 2.8 });
 assert.deepEqual(CHOG_POSE_LIMITS.rearArmLowerRotation, { min: -2.8, max: 2.8 });
