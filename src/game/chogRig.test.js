@@ -297,12 +297,17 @@ const guardPose = {
 applyChogPose(segmentRig, guardPose);
 assert.ok(segmentRig.parts["right-hand"].image.y >= 6 && segmentRig.parts["right-hand"].image.y <= 16,
   "default right/lead fist should sit in the chin guard");
-assert.ok(segmentRig.parts["left-hand"].image.y >= 6 && segmentRig.parts["left-hand"].image.y <= 18,
-  "left/rear fist should stay raised near the chin");
-assert.ok(segmentRig.parts["right-foot"].image.y >= 88 && segmentRig.parts["right-foot"].image.y <= 92,
-  "lead foot should be on the floor line in the narrow guard");
+assert.ok(segmentRig.parts["left-hand"].image.y >= 17 && segmentRig.parts["left-hand"].image.y <= 24,
+  "the looser left/rear guard should sit just below chin height, not at the belly");
+assert.ok(segmentRig.parts["right-foot"].image.y >= 85 && segmentRig.parts["right-foot"].image.y <= 92,
+  "lead foot should stay close to the floor line in the wider guard");
 assert.ok(segmentRig.parts["left-foot"].image.y >= 88 && segmentRig.parts["left-foot"].image.y <= 92,
   "rear foot should be on the floor line in the narrow guard");
+assert.ok(
+  Math.abs(segmentRig.parts["right-foot"].image.x - segmentRig.parts["left-foot"].image.x) >= 60
+    && Math.abs(segmentRig.parts["right-foot"].image.x - segmentRig.parts["left-foot"].image.x) <= 70,
+  "the widened guard stance should keep the feet about 65px apart",
+);
 const fixedLengths = {
   rightUpperArm: distance(segmentRig.parts["right-upper-arm"].image, segmentRig.joints.right.elbow),
   rightForearm: Math.hypot(
