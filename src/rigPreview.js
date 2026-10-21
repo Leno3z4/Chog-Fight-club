@@ -19,8 +19,9 @@ function getPose(name) {
     rearArmLowerRotation: -1.18,
     leadArmX: 0,
     leadArmY: 0,
-    rearArmX: 20,
+    rearArmX: 0,
     rearArmY: 0,
+    ...chogArmTargetPose("guard"),
     leadLegRotation: -0.14,
     leadLegLowerRotation: 0,
     rearLegRotation: -0.5,
@@ -112,7 +113,7 @@ class RigPreviewScene extends Phaser.Scene {
       fontStyle: "800",
       color: "#f2f4fa",
     });
-    this.add.text(44, 61, "Target-based boxing guard and punches · unchanged legacy walk/jump poses · same root-mirrored stack", {
+    this.add.text(44, 61, "Cheek-level guard targets · gloves visible over face · same assembled rig in both facings", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "13px",
       color: "#9ba7bb",
