@@ -294,6 +294,22 @@ const opponentSelected = $("#opponent-selected");
 let playerSearchTimer = null;
 let playerSearchSequence = 0;
 
+function normalizeTargetUsername(value) {
+  const username = String(value ?? "").trim().replace(/^@/, "").toLowerCase();
+  return /^[a-z0-9](?:[a-z0-9._]{0,30}[a-z0-9])$/.test(username) && !username.includes("..")
+    ? username
+    : "";
+}
+function unregisteredUsernameOption(username) {
+  return `<button type="button" role="option" class="player-search-option player-search-reserve" data-select-player="true"
+    data-player-id="" data-player-username="${escapeHtml(username)}"
+    data-player-display="@${escapeHtml(username)}" data-player-avatar="" data-player-unregistered="true">
+    <span class="player-search-avatar">@</span>
+    <span class="player-search-name"><strong>Reserve invite for @${escapeHtml(username)}</strong><small>They can accept after registering with this Discord username.</small></span>
+    <span class="player-search-select">Reserve</span>
+  </button>`;
+}
+
 function chooseOpponent(player) {
   state.selectedOpponent = player;
   opponentIdInput.value = player.discordId || "";
@@ -301,7 +317,7 @@ function chooseOpponent(player) {
   opponentSearch.value = `@${player.username}`;
   opponentResults.hidden = true;
   opponentSelected.textContent = player.unregistered
-    ? `Invite @${player.username}. They can claim it after signing in with that exact Discord username.`
+    ? `Reserved for @${player.username}. It will wait until this Discord username registers in the Arena.`
     : `Selected: ${player.displayName} (@${player.username})`;
   opponentSelected.dataset.kind = "success";
 }
@@ -324,8 +340,15 @@ async function searchArenaPlayers(query, sequence) {
     if (sequence !== playerSearchSequence) return;
     if (!response.ok) throw new Error(payload.error || "Player search failed.");
     const players = Array.isArray(payload.players) ? payload.players : [];
+    const targetUsername = normalizeTargetUsername(query);
+    const hasExactRegisteredUsername = targetUsername
+      && players.some((player) => String(player.username || "").toLowerCase() === targetUsername);
+    const reserveOption = targetUsername && !hasExactRegisteredUsername
+      ? unregisteredUsernameOption(targetUsername)
+      : "";
     if (!players.length) {
-      opponentResults.innerHTML = '<div class="player-search-empty">No matching Arena account found. Ask them to sign in to the Arena first, or create a shareable link for anyone.</div>';
+      opponentResults.innerHTML = reserveOption
+        || '<div class="player-search-empty">No matching user found. Enter a valid Discord username to reserve an invite, or clear the field for a shareable link.</div>';
       return;
     }
     opponentResults.innerHTML = players.map((player) => `
@@ -337,7 +360,7 @@ async function searchArenaPlayers(query, sequence) {
         <span class="player-search-avatar">${player.avatar ? `<img src="${escapeHtml(player.avatar)}" alt="" />` : escapeHtml((player.displayName || player.username || "P").slice(0,1).toUpperCase())}</span>
         <span class="player-search-name"><strong>${escapeHtml(player.displayName || player.username)}</strong><small>@${escapeHtml(player.username)}</small></span>
         <span class="player-search-select">Select</span>
-      </button>`).join("");
+      </button>`).join("") + reserveOption;
   } catch (error) {
     if (sequence !== playerSearchSequence) return;
     opponentResults.innerHTML = `<div class="player-search-empty">${escapeHtml(error?.message || "Player search failed.")}</div>`;
@@ -364,6 +387,7 @@ opponentResults.addEventListener("click", (event) => {
     username: option.dataset.playerUsername,
     displayName: option.dataset.playerDisplay,
     avatar: option.dataset.playerAvatar || null,
+    unregistered: option.dataset.playerUnregistered === "true",
   });
 });
 
@@ -401,11 +425,19 @@ $("#create-invite-form").addEventListener("submit", async (event) => {
     }
     const inviteUrl = payload.inviteUrl;
     const targeted = Boolean(selectedOpponent);
-    status.textContent = targeted
-      ? `Invitation link created for @${selectedOpponent.username}. Copy it and send it to them.`
-      : "Shareable invitation link created. Anyone with the link can accept it.";
+    const usernameReserved = Boolean(selectedOpponent?.unregistered);
+    status.textContent = usernameReserved
+      ? `Invite reserved for @${selectedOpponent.username}. It will stay pending until they register.`
+      : targeted
+        ? `Invitation link created for @${selectedOpponent.username}. Copy it and send it to them.`
+        : "Shareable invitation link created. Anyone with the link can accept it.";
     status.dataset.kind = "success";
-    resultNode.innerHTML = `<strong>Invitation link ready</strong><p>${targeted ? "This link is for the selected player." : "Anyone with this link can accept the invitation."} Copy it and send it in Discord, Telegram, or wherever you chat.</p><a class="created-invite-url" href="${escapeHtml(inviteUrl)}">${escapeHtml(inviteUrl)}</a><div class="created-invite-actions"><button type="button" class="copy-invite-link" id="copy-created-invite">Copy invitation link</button><a class="copy-invite-link" href="/battle-lobby.html?id=${encodeURIComponent(payload.invite.id)}">Open lobby</a></div>`;
+    const invitationCopy = usernameReserved
+      ? `This invitation is reserved for @${escapeHtml(selectedOpponent.username)}. It will not expire while they are unregistered. Once their exact Discord username signs in to the Arena with access, the invite will be bound to their Discord account and they'll have 24 hours to accept.`
+      : targeted
+        ? "This link is for the selected player."
+        : "Anyone with this link can accept the invitation.";
+    resultNode.innerHTML = `<strong>Invitation link ready</strong><p>${invitationCopy} Copy it and send it in Discord, Telegram, or wherever you chat.</p><a class="created-invite-url" href="${escapeHtml(inviteUrl)}">${escapeHtml(inviteUrl)}</a><div class="created-invite-actions"><button type="button" class="copy-invite-link" id="copy-created-invite">Copy invitation link</button><a class="copy-invite-link" href="/battle-lobby.html?id=${encodeURIComponent(payload.invite.id)}">Open lobby</a></div>`;
     resultNode.hidden = false;
     $("#copy-created-invite").addEventListener("click", async () => {
       try {
