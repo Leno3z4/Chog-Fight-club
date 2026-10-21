@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { applyChogPose, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual, setChogRearCrossLayer } from "./chogRig.js";
+import { applyChogPose, clampChogPose, CHOG_POSE_LIMITS, createChogKnockoutPose, createChogVisual, setChogFacingLayerOrder, setChogRearCrossLayer } from "./chogRig.js";
 
 class FakeObject {
   constructor(x = 0, y = 0, texture = "") {
@@ -51,7 +51,7 @@ const bodyLayer = layerNames.indexOf("body");
 assert.ok(layerNames.indexOf("left-upper-arm") < bodyLayer, "the rear upper arm should stay behind the torso to hide shoulder seams");
 assert.ok(layerNames.indexOf("left-lower-arm") < bodyLayer, "the rear forearm should stay behind the torso in guard");
 assert.ok(layerNames.indexOf("left-hand") < bodyLayer, "the rear glove should stay behind the torso and lead glove at rest");
-assert.ok(layerNames.indexOf("right-upper-arm") > bodyLayer, "the lead upper arm should render in front of the torso");
+assert.ok(layerNames.indexOf("right-upper-arm") < bodyLayer, "the lead upper arm should sit behind the torso to hide the shoulder socket");
 assert.ok(layerNames.indexOf("right-lower-arm") > bodyLayer, "the lead forearm should render in front of the torso");
 assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("right-lower-arm"), "the lead glove should render above its forearm");
 assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("left-hand"), "the lead glove should be in front of the rear glove at rest");
@@ -297,16 +297,16 @@ assert.deepEqual(
   clampChogPose({
     leadArmRotation: -0.04,
     leadArmLowerRotation: -1.14,
-    rearArmRotation: -1.1,
-    rearArmLowerRotation: -1.3,
-    rearArmX: 2,
+    rearArmRotation: -1.24,
+    rearArmLowerRotation: -1.18,
+    rearArmX: 16,
   }),
   {
     leadArmRotation: -0.04,
     leadArmLowerRotation: -1.14,
-    rearArmRotation: -1.1,
-    rearArmLowerRotation: -1.3,
-    rearArmX: 2,
+    rearArmRotation: -1.24,
+    rearArmLowerRotation: -1.18,
+    rearArmX: 16,
   },
   "the relaxed guard and rear-shoulder tuck should remain within pose limits",
 );
@@ -318,7 +318,7 @@ const segmentRig = createChogVisual(scene, 0, 0, false).rig;
 const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 const guardPose = {
   leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
-  rearArmRotation: -1.1, rearArmLowerRotation: -1.3, rearArmX: 2,
+  rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 16,
   leadLegRotation: -0.14, leadLegLowerRotation: 0.0,
   rearLegRotation: -0.5, rearLegLowerRotation: 0.68,
 };
@@ -331,8 +331,8 @@ assert.ok(
   "the rear glove should sit noticeably below, but still near, the lead glove",
 );
 assert.ok(
-  segmentRig.parts["left-hand"].image.x < segmentRig.parts["right-hand"].image.x - 16,
-  "the rear glove should remain clearly behind the lead glove",
+  segmentRig.parts["left-hand"].image.x < segmentRig.parts["right-hand"].image.x - 5,
+  "the rear glove should remain visibly behind the lead glove without over-separating the guard",
 );
 assert.ok(segmentRig.parts["right-foot"].image.y >= 85 && segmentRig.parts["right-foot"].image.y <= 92,
   "lead foot should stay close to the floor line in the wider guard");
@@ -361,7 +361,7 @@ const fixedLengths = {
 const articulationPoses = [
   {
     leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
-    rearArmRotation: -1.1, rearArmLowerRotation: -1.3, rearArmX: 2,
+    rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 16,
     leadLegRotation: -0.14, leadLegLowerRotation: 0.0,
     rearLegRotation: -0.5, rearLegLowerRotation: 0.68,
   },
@@ -374,7 +374,7 @@ const articulationPoses = [
   },
   {
     leadArmRotation: -0.04, leadArmLowerRotation: -1.14,
-    rearArmRotation: -1.1, rearArmLowerRotation: -1.3, rearArmX: 2,
+    rearArmRotation: -1.24, rearArmLowerRotation: -1.18, rearArmX: 16,
     leadLegRotation: -0.8, leadLegLowerRotation: 1.66,
     rearLegRotation: -1.1, rearLegLowerRotation: 1.02,
     leadLegY: -4, rearLegY: -3, torsoRotation: -0.02, torsoY: -3,
@@ -403,59 +403,52 @@ for (const pose of articulationPoses) {
 }
 
 
-// Guard silhouette regression: the rear shoulder and elbow anchors must stay
-// inside this conservative torso envelope in both facing directions. The
-// exact outside-the-silhouette pixels are clipped with the body alpha mask.
-const torsoGuardEnvelope = [
-  { x: -26, y: -14 },
-  { x: 17, y: -14 },
-  { x: 23, y: -2 },
-  { x: 25, y: 15 },
-  { x: 22, y: 33 },
-  { x: 12, y: 48 },
-  { x: -14, y: 48 },
-  { x: -26, y: 32 },
-  { x: -29, y: 10 },
-  { x: -28, y: -2 },
-];
-function isInsidePolygon(point, polygon) {
-  let inside = false;
-  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i, i += 1) {
-    const a = polygon[i];
-    const b = polygon[j];
-    const crossesY = (a.y > point.y) !== (b.y > point.y);
-    const intersectionX = ((b.x - a.x) * (point.y - a.y)) / (b.y - a.y || 1e-9) + a.x;
-    if (crossesY && point.x < intersectionX) inside = !inside;
-  }
-  return inside;
-}
+// Guard silhouette regression: verify articulated shoulder/elbow anchors inside a
+// torso envelope in both facing directions, and keep the rear glove just behind
+// and below the lead glove. Test local pivots, not full-canvas sprite origins.
+const torsoGuardBounds = {
+  left: -26,
+  right: 26,
+  shoulderTop: -40,
+  shoulderBottom: -20,
+  elbowTop: -20,
+  elbowBottom: 16,
+};
 for (const mirrored of [false, true]) {
-  const facingRig = createChogVisual(scene, 0, 0, mirrored).rig;
+  const facingRoot = createChogVisual(scene, 0, 0, mirrored);
+  const facingRig = facingRoot.rig;
   const facing = mirrored ? -1 : 1;
+  setChogFacingLayerOrder(facingRoot, facing);
   applyChogPose(facingRig, guardPose);
 
-  const shoulder = facingRig.parts["left-upper-arm"].image;
-  const elbow = facingRig.parts["left-lower-arm"].image;
-  const rearGlove = facingRig.parts["left-hand"].image;
-  const leadGlove = facingRig.parts["right-hand"].image;
-
-  // Mirror the x-coordinate into screen space and project it along the
-  // fighter's facing direction so the same front/back assertion works twice.
-  const screenX = (x) => x * facing;
-  const fighterForwardX = (x) => screenX(x) * facing;
-  for (const [jointName, point] of [["rear shoulder", shoulder], ["rear elbow", elbow]]) {
+  const body = facingRig.parts.body.image;
+  const rear = facingRig.poseJoints.left;
+  const lead = facingRig.poseJoints.right;
+  for (const [jointName, point] of [["rear shoulder", rear.shoulder], ["rear elbow", rear.elbow]]) {
+    const forwardX = (point.x - body.x) * facing;
+    const relativeY = point.y - body.y;
+    const minY = jointName === "rear shoulder" ? torsoGuardBounds.shoulderTop : torsoGuardBounds.elbowTop;
+    const maxY = jointName === "rear shoulder" ? torsoGuardBounds.shoulderBottom : torsoGuardBounds.elbowBottom;
     assert.ok(
-      isInsidePolygon({ x: fighterForwardX(point.x), y: point.y }, torsoGuardEnvelope),
-      `the ${jointName} should stay within the torso guard envelope when mirrored=${mirrored}`,
+      forwardX >= torsoGuardBounds.left && forwardX <= torsoGuardBounds.right,
+      `${jointName} should stay horizontally inside the torso bounds when mirrored=${mirrored}; x=${forwardX.toFixed(2)}`,
+    );
+    assert.ok(
+      relativeY >= minY && relativeY <= maxY,
+      `${jointName} should stay within the torso's vertical guard band when mirrored=${mirrored}; y=${relativeY.toFixed(2)}`,
     );
   }
+
+  const projectedLeadX = facing * (lead.wrist.x - body.x);
+  const projectedRearX = facing * (rear.wrist.x - body.x);
+  const rearBehindLead = facing * (projectedLeadX - projectedRearX);
   assert.ok(
-    fighterForwardX(rearGlove.x) < fighterForwardX(leadGlove.x) - 16,
-    `the rear glove should stay behind the lead glove when mirrored=${mirrored}`,
+    rearBehindLead >= 5 && rearBehindLead <= 14,
+    `the rear glove should sit slightly behind the lead glove when mirrored=${mirrored}; gap=${rearBehindLead.toFixed(2)}`,
   );
   assert.ok(
-    rearGlove.y >= leadGlove.y + 6 && rearGlove.y <= leadGlove.y + 15,
-    `the rear glove should stay below the lead glove when mirrored=${mirrored}`,
+    rear.wrist.y >= lead.wrist.y + 4 && rear.wrist.y <= lead.wrist.y + 12,
+    `the rear glove should sit below the lead glove when mirrored=${mirrored}`,
   );
   assert.equal(
     facingRig.parts["left-upper-arm"].image.mask?.source,
@@ -463,3 +456,22 @@ for (const mirrored of [false, true]) {
     `the rear upper arm should use the torso alpha mask when mirrored=${mirrored}`,
   );
 }
+
+// Only a right-facing fighter uses the right/short-looking leg as foreground;
+// a left-facing opponent retains the established leg order.
+setChogFacingLayerOrder(visual, 1);
+const rightFacingLayers = visual.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
+assert.ok(
+  rightFacingLayers.indexOf("right-upper-leg") > rightFacingLayers.indexOf("left-upper-leg")
+  && rightFacingLayers.indexOf("right-lower-leg") > rightFacingLayers.indexOf("left-lower-leg")
+  && rightFacingLayers.indexOf("right-foot") > rightFacingLayers.indexOf("left-foot"),
+  "the short-looking right leg should render in front for a right-facing fighter",
+);
+setChogFacingLayerOrder(visual, -1);
+const leftFacingLayers = visual.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
+assert.ok(
+  leftFacingLayers.indexOf("left-upper-leg") > leftFacingLayers.indexOf("right-upper-leg")
+  && leftFacingLayers.indexOf("left-lower-leg") > leftFacingLayers.indexOf("right-lower-leg")
+  && leftFacingLayers.indexOf("left-foot") > leftFacingLayers.indexOf("right-foot"),
+  "the opponent's left-facing leg layering should remain unchanged",
+);

@@ -8,7 +8,8 @@ import { StateMachine } from "./game/stateMachine.js";
 import { InputBuffer } from "./game/inputBuffer.js";
 import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
-import { applyChogPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog, setChogRearCrossLayer } from "./game/chogRig.js";
+import { applyChogPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog, setChogFacingLayerOrder, setChogRearCrossLayer } from "./game/chogRig.js";
+import { stopMovementTowardOpponent } from "./game/fighterSpacing.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
   beginOffensiveAction,
@@ -63,9 +64,9 @@ const BASE_RIG_POSE = {
   // Relaxed boxer guard: right/lead hand is primary, left/rear hand stays home.
   leadArmRotation: -0.04,
   leadArmLowerRotation: -1.14,
-  // Tuck the rear elbow and put its glove lower/back from the lead glove.
-  rearArmRotation: -1.1,
-  rearArmLowerRotation: -1.3,
+  // Tuck the rear shoulder/elbow into the torso and keep its glove lower/back.
+  rearArmRotation: -1.24,
+  rearArmLowerRotation: -1.18,
   // Wider, less crouched stance while keeping both soles close to level.
   leadLegRotation: -0.14,
   leadLegLowerRotation: 0.0,
@@ -75,7 +76,7 @@ const BASE_RIG_POSE = {
   headRotation: 0,
   leadArmX: 0,
   leadArmY: 0,
-  rearArmX: 2,
+  rearArmX: 16,
   rearArmY: 0,
   leadLegX: 0,
   leadLegY: 0,
@@ -970,11 +971,16 @@ class ArenaScene extends Phaser.Scene {
 
   updateVisuals(time, delta) {
     const grounded = this.player.body.blocked.down || this.player.body.touching.down;
-    if (grounded && Math.abs(this.player.x - this.opponent.x) < 150) {
-      const away = this.player.x < this.opponent.x ? -1 : 1;
-      this.player.setX(this.opponent.x + away * 150);
-      if (this.player.body.velocity.x * away < 0) this.player.setVelocityX(0);
-      this.player.body.updateFromGameObject();
+    if (grounded) {
+      const currentVelocityX = this.player.body.velocity.x;
+      const nextVelocityX = stopMovementTowardOpponent(
+        this.player.x,
+        this.opponent.x,
+        currentVelocityX,
+        150,
+      );
+      // Stop forward movement at contact; never teleport the fighter away from the rival.
+      if (nextVelocityX !== currentVelocityX) this.player.setVelocityX(nextVelocityX);
     }
 
     this.updateHurtboxes();
@@ -1001,6 +1007,7 @@ class ArenaScene extends Phaser.Scene {
       this.playerVisual.scaleX = newMagnitude * this.playerFacing;
       this.playerVisual.scaleY = Phaser.Math.Linear(this.playerVisual.scaleY, targetY, blend);
     }
+    setChogFacingLayerOrder(this.playerVisual, this.playerFacing);
     if (!this.wasGrounded && grounded) {
       this.createDust(this.player.x, this.floorY - 3);
       this.playerVisual.scaleY = 0.88;

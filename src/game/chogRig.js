@@ -87,16 +87,16 @@ export function createChogKnockoutPose(basePose = {}, elapsedMs = 0) {
 }
 
 const LAYER_ORDER = [
-  // Rear leg segments first; the lower leg then foot overlap the joint.
+  // The left-facing fighter keeps the existing leg order; right-facing order is swapped below.
   "right-upper-leg", "left-upper-leg",
   "right-lower-leg", "left-lower-leg",
   "right-foot", "left-foot",
-  // Keep the complete rear arm behind the torso during guard and movement.
-  // This hides stray shoulder/elbow pixels and stops the rear fist crossing
-  // over the lead arm. Rear forearm and fist move forward only for a cross.
-  "left-upper-arm", "left-lower-arm", "left-hand", "body",
-  // The lead arm stays in front; its glove should be the closest fist at rest.
-  "right-upper-arm", "right-lower-arm", "right-hand",
+  // Both upper arms sit behind the torso to hide shoulder sockets and stray pixels.
+  // The rear forearm and glove remain behind the torso until a rear-cross strike.
+  "left-upper-arm", "right-upper-arm",
+  "left-lower-arm", "left-hand", "body",
+  // The lead forearm/glove stay in front for readable guard and jabs.
+  "right-lower-arm", "right-hand",
   "head", "eyes", "mouth",
 ];
 
@@ -209,6 +209,14 @@ function placeArm(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
     y: elbow.y + wristVectorX * sin + wristVectorY * cos,
   };
   movePart(hand, wrist, forearmAngle);
+
+  // Root-local articulated anchors let tests verify the actual joints rather
+  // than using sprite origins as a proxy for the elbow and wrist.
+  rig.poseJoints[side] = {
+    shoulder: { x: shoulder.x, y: shoulder.y },
+    elbow: { x: elbow.x, y: elbow.y },
+    wrist: { x: wrist.x, y: wrist.y },
+  };
 }
 
 function placeLeg(rig, side, pose, torsoOrigin, torsoAngle, torsoX, torsoY) {
@@ -283,6 +291,7 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     faceParts: [parts.head.image, parts.eyes.image, parts.mouth.image],
     tintLayers: Object.values(parts).map((part) => part.image),
     rest,
+    poseJoints: { left: {}, right: {} },
     joints: {
       // A child pivot is the parent's next joint. Matching these coordinates
       // preserves the artist's original overlap with every pose at rest.
@@ -305,9 +314,61 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     landingUntil: 0,
   };
 
+  rig.baseLayerOrder = [...root.list];
+  rig.defaultLayerOrder = [...root.list];
+  rig.frontLegSide = null;
+  rig.rearCrossInFront = false;
   root.rig = rig;
   root.setScale(mirrored ? -1 : 1, 1);
   return root;
+}
+
+/**
+ * The existing leg order is correct for a left-facing rival. When the fighter
+ * faces right, put the right/short-looking leg in front without reversing the
+ * opponent's leg order. The active rear-cross layer is preserved on a turn.
+ */
+export function setChogFacingLayerOrder(root, facing = 1) {
+  const rig = root?.rig;
+  if (!rig?.baseLayerOrder || !rig.layers) return;
+
+  const frontLegSide = Number(facing) < 0 ? "left" : "right";
+  if (rig.frontLegSide === frontLegSide) return;
+
+  const legNames = frontLegSide === "right"
+    ? [
+      "left-upper-leg", "right-upper-leg",
+      "left-lower-leg", "right-lower-leg",
+      "left-foot", "right-foot",
+    ]
+    : [
+      "right-upper-leg", "left-upper-leg",
+      "right-lower-leg", "left-lower-leg",
+      "right-foot", "left-foot",
+    ];
+  const legObjects = new Set([
+    rig.layers["left-upper-leg"], rig.layers["right-upper-leg"],
+    rig.layers["left-lower-leg"], rig.layers["right-lower-leg"],
+    rig.layers["left-foot"], rig.layers["right-foot"],
+  ]);
+  const nextOrder = [...rig.baseLayerOrder];
+  const slots = [];
+  for (let index = 0; index < nextOrder.length; index += 1) {
+    if (legObjects.has(nextOrder[index])) slots.push(index);
+  }
+  if (slots.length !== legNames.length) return;
+
+  slots.forEach((slot, index) => {
+    nextOrder[slot] = rig.layers[legNames[index]];
+  });
+  rig.frontLegSide = frontLegSide;
+  rig.defaultLayerOrder = nextOrder;
+
+  if (rig.rearCrossInFront) {
+    setChogRearCrossLayer(root, true);
+  } else {
+    nextOrder.forEach((child, index) => root.moveTo(child, index));
+  }
 }
 
 /**
