@@ -28,6 +28,7 @@ const state = {
   pendingAction: null,
   basicTapPendingAt: null,
   basicTapWindowMs: 260,
+  avatarCache: new Map(),
 };
 let liveArena = null;
 let liveArenaPromise = null;
@@ -46,6 +47,37 @@ function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
   })[char]);
+}
+function avatarForFighter(role, username, fighter = {}, inviteFighter = {}) {
+  const img = document.getElementById(`combat-${role}-avatar`);
+  if (!img) return;
+  const ownRole = state.invite?.viewerRole;
+  const ownUser = role === ownRole;
+  const cached = fighter.avatar || fighter.avatarUrl || inviteFighter.avatar || inviteFighter.avatarUrl
+    || (ownUser ? state.session?.avatar : null);
+  if (cached) {
+    img.src = cached;
+    img.hidden = false;
+    return;
+  }
+  const key = String(username || "").toLowerCase();
+  if (!key || key === "opponent" || key === "challenger" || state.avatarCache.has(key)) {
+    if (state.avatarCache.get(key)) img.src = state.avatarCache.get(key);
+    return;
+  }
+  state.avatarCache.set(key, null);
+  fetch(`/api/players?q=${encodeURIComponent(username)}`, { credentials: "same-origin", headers: { accept: "application/json" } })
+    .then((response) => response.ok ? response.json() : null)
+    .then((payload) => {
+      const player = (payload?.players || []).find((item) => String(item.username || "").toLowerCase() === key);
+      const avatar = player?.avatar || null;
+      state.avatarCache.set(key, avatar);
+      if (avatar && img.isConnected) {
+        img.src = avatar;
+        img.hidden = false;
+      }
+    })
+    .catch(() => {});
 }
 function showAlert(message, kind = "error") {
   alertNode.hidden = false;
@@ -262,7 +294,10 @@ function renderBattle(room, viewerRole = state.invite?.viewerRole) {
     const maxHp = Math.max(1, Number(fighter.maxHp || 100));
     const percent = Math.max(0, Math.min(100, Math.round((hp / maxHp) * 100)));
     const username = fighter.username || inviteFighter?.username || (role === "challenger" ? "Challenger" : "Opponent");
-    $(`#combat-${role}-name`).textContent = `${username}${tokenId ? ` · Chog #${tokenId}` : ""}`;
+    $(`#combat-${role}-name`).textContent = username;
+    const chogLabel = document.getElementById(`combat-${role}-chog`);
+    if (chogLabel) chogLabel.textContent = tokenId ? `Chog #${tokenId}` : "Chog not selected";
+    avatarForFighter(role, username, fighter, inviteFighter);
     $(`#combat-${role}-hp-text`).textContent = fighter.hp == null ? "Waiting" : `${hp} / ${maxHp} HP`;
     $(`#combat-${role}-hp-bar`).style.width = `${fighter.hp == null ? 0 : percent}%`;
     const energyValue = Math.max(0, Math.round(Number(fighter.energy ?? 0)));
