@@ -55,7 +55,8 @@ assert.ok(layerNames.indexOf("right-upper-arm") < bodyLayer, "the lead upper arm
 assert.ok(layerNames.indexOf("right-lower-arm") > bodyLayer, "the lead forearm should render in front of the torso");
 assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("right-lower-arm"), "the lead glove should render above its forearm");
 assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("left-hand"), "the lead glove should be in front of the rear glove at rest");
-assert.ok(layerNames.indexOf("right-hand") < layerNames.indexOf("head"), "the lead glove should remain behind the head");
+assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("mouth"), "the right-facing fighter's lead glove should render above the face");
+assert.equal(rig.frontHandSide, "right", "the controllable right-facing fighter should prioritize its right glove");
 assert.equal(
   rig.parts["left-upper-arm"].image.mask?.source,
   rig.parts.body.image,
@@ -419,6 +420,12 @@ for (const mirrored of [false, true]) {
   const facingRig = facingRoot.rig;
   const facing = mirrored ? -1 : 1;
   setChogFacingLayerOrder(facingRoot, facing);
+  const facingLayers = facingRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
+  const frontHand = facing < 0 ? "left-hand" : "right-hand";
+  const rearHand = facing < 0 ? "right-hand" : "left-hand";
+  assert.ok(facingLayers.indexOf(frontHand) > facingLayers.indexOf("mouth"), `the ${frontHand} should be the visible glove above the face`);
+  assert.ok(facingLayers.indexOf(frontHand) > facingLayers.indexOf(rearHand), `the ${frontHand} should render over the opposing glove`);
+  assert.equal(facingRig.frontHandSide, facing < 0 ? "left" : "right", "glove prominence should follow fighter facing");
   applyChogPose(facingRig, guardPose);
 
   const body = facingRig.parts.body.image;

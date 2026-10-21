@@ -317,9 +317,11 @@ export function createChogVisual(scene, x, y, mirrored = false) {
   rig.baseLayerOrder = [...root.list];
   rig.defaultLayerOrder = [...root.list];
   rig.frontLegSide = null;
+  rig.frontHandSide = null;
   rig.rearCrossInFront = false;
   root.rig = rig;
   root.setScale(mirrored ? -1 : 1, 1);
+  setChogFacingLayerOrder(root, mirrored ? -1 : 1);
   return root;
 }
 
@@ -333,7 +335,8 @@ export function setChogFacingLayerOrder(root, facing = 1) {
   if (!rig?.baseLayerOrder || !rig.layers) return;
 
   const frontLegSide = Number(facing) < 0 ? "left" : "right";
-  if (rig.frontLegSide === frontLegSide) return;
+  const frontHandSide = frontLegSide;
+  if (rig.frontLegSide === frontLegSide && rig.frontHandSide === frontHandSide) return;
 
   const legNames = frontLegSide === "right"
     ? [
@@ -361,7 +364,17 @@ export function setChogFacingLayerOrder(root, facing = 1) {
   slots.forEach((slot, index) => {
     nextOrder[slot] = rig.layers[legNames[index]];
   });
+
+  // The glove on the camera-facing side sits on top of the other glove and
+  // face. The opposite glove keeps its existing boxer-guard depth.
+  const frontHand = rig.layers[`${frontHandSide}-hand`];
+  const frontHandIndex = nextOrder.indexOf(frontHand);
+  if (frontHandIndex < 0) return;
+  nextOrder.splice(frontHandIndex, 1);
+  nextOrder.push(frontHand);
+
   rig.frontLegSide = frontLegSide;
+  rig.frontHandSide = frontHandSide;
   rig.defaultLayerOrder = nextOrder;
 
   if (rig.rearCrossInFront) {
