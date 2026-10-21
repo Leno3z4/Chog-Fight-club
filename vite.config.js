@@ -206,6 +206,9 @@ export default defineConfig(({ mode }) => {
           play: fileURLToPath(new URL("./play.html", import.meta.url)),
           battle: fileURLToPath(new URL("./battle.html", import.meta.url)),
           "single-player": fileURLToPath(new URL("./single-player.html", import.meta.url)),
+          // Ship the rig preview as a real build entry so art/pose regressions
+          // can be checked in the same browser/runtime as the shipped game.
+          "rig-preview": fileURLToPath(new URL("./rig-preview.html", import.meta.url)),
         },
       },
     },
