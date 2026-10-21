@@ -316,8 +316,18 @@ class LiveArenaScene extends Phaser.Scene {
           torsoY: -2,
         };
       } else if ((fighter.action === "attack" || fighter.action === "base" || fighter.action === "special") && activeAction) {
-        const pulse = Math.sin(Math.PI * clamp(actionAge / duration, 0, 1));
+        const phase = clamp(actionAge / duration, 0, 1);
         const heavy = fighter.action === "special" || fighter.action === "base";
+        const startupRatio = fighter.action === "special" ? 0.60 : 0.50;
+        // Heavy attacks visibly load back first, then release, then recover.
+        // The server can cancel this wind-up before the projectile is released.
+        const pulse = !heavy
+          ? Math.sin(Math.PI * phase)
+          : phase < startupRatio
+            ? -Math.sin((phase / startupRatio) * Math.PI / 2) * 0.24
+            : phase < 0.80
+              ? Math.sin(Math.PI * ((phase - startupRatio) / (0.80 - startupRatio)))
+              : Math.sin(Math.PI * ((phase - 0.80) / 0.20)) * 0.25;
         pose = {
           ...guard,
           // Single taps are one right-hand jab, with the elbow straightening
