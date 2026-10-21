@@ -1444,12 +1444,33 @@ class ArenaScene extends Phaser.Scene {
     }
   }
 
+  loadDiscordHudAvatar(identity) {
+    fetch("/api/discord/session", { credentials: "same-origin", headers: { accept: "application/json" } })
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => {
+        const user = payload?.authenticated ? payload.user : null;
+        if (!user) return;
+        const token = identity.tokenId ? `Chog #${identity.tokenId}` : "Chog #—";
+        this.playerIdentityText?.setText(`@${user.username || user.discordUsername || "YOU"} · ${token}`);
+        if (!user.avatar || this.textures.exists("solo-discord-avatar")) return;
+        this.load.image("solo-discord-avatar", user.avatar);
+        this.load.once("complete", () => {
+          if (!this.textures.exists("solo-discord-avatar")) return;
+          this.playerAvatar = this.add.image(48, 106, "solo-discord-avatar")
+            .setDisplaySize(34, 34).setScrollFactor(0).setDepth(20);
+        });
+        this.load.start();
+      })
+      .catch(() => {});
+  }
+
   createHud() {
     const textStyle = { fontFamily: "system-ui, sans-serif", color: "#16324A" };
     const identity = this.playerBattleDNA.identity;
     const stats = this.playerBattleDNA.stats;
     const token = identity.tokenId ? ` · Chog #${identity.tokenId}` : "";
-    this.add.text(32, 56, `${identity.name || "Practice Chog"}${token} · ${identity.tier} Battle DNA · ATK ${stats.attack} · DEF ${stats.defense} · SPD ${stats.speed}`, { ...textStyle, fontSize: "13px", fontStyle: "700" }).setScrollFactor(0);
+    this.playerIdentityText = this.add.text(32, 56, `${identity.name || "Practice Chog"}${token} · ${identity.tier} Battle DNA · ATK ${stats.attack} · DEF ${stats.defense} · SPD ${stats.speed}`, { ...textStyle, fontSize: "13px", fontStyle: "700" }).setScrollFactor(0);
+    this.loadDiscordHudAvatar(identity);
     const baseName = this.playerBattleDNA.abilitySet.base?.name ?? "Base Ability";
     const specialName = this.playerBattleDNA.abilitySet.special?.name ?? "Signature Ability";
     this.add.text(32, 80, `1 ${baseName}  ·  2 ${specialName}`, { ...textStyle, fontSize: "12px", fontStyle: "700" }).setScrollFactor(0);
