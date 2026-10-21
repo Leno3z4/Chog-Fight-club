@@ -147,7 +147,7 @@ const PARTS = {
   eyes:              { pivot: [505, 450] },
   mouth:             { pivot: [505, 450] },
 
-  // Left arm is the rear arm when facing right; right arm is the lead arm.
+  // Left = semantic rear arm and right = semantic lead arm; root flipping mirrors the complete rig.
   "left-upper-arm":  { pivot: [412, 485] },
   "left-lower-arm":  { pivot: [350, 610] },
   "left-hand":       { pivot: [270, 665] },
