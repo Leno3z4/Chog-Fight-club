@@ -8,7 +8,7 @@ import { StateMachine } from "./game/stateMachine.js";
 import { InputBuffer } from "./game/inputBuffer.js";
 import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
-import { applyChogPose, chogArmTargetPose, getChogDoublePunchArmTargets, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
 import { stopMovementTowardOpponent } from "./game/fighterSpacing.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
@@ -1147,12 +1147,10 @@ class ArenaScene extends Phaser.Scene {
       }
       if (state === CHARACTER_STATES.ATTACK_ACTIVE) {
         const progress = clamp01(attack.elapsed / Math.max(1, attack.timing?.active ?? 350));
-        let comboPose;
-        if (progress < 0.28) comboPose = blendRigPose(load, jab, easeInOutCubic(progress / 0.20));
-        else if (progress < 0.48) comboPose = blendRigPose(jab, resetGuard, easeInOutCubic((progress - 0.28) / 0.20));
-        else if (progress < 0.82) comboPose = blendRigPose(resetGuard, cross, easeInOutCubic((progress - 0.48) / 0.28));
-        else comboPose = blendRigPose(cross, readyPose, easeInOutCubic((progress - 0.82) / 0.18));
-        return { ...comboPose, ...getChogDoublePunchArmTargets(progress) };
+        if (progress < 0.28) return blendRigPose(load, jab, easeInOutCubic(progress / 0.20));
+        if (progress < 0.48) return blendRigPose(jab, resetGuard, easeInOutCubic((progress - 0.28) / 0.20));
+        if (progress < 0.82) return blendRigPose(resetGuard, cross, easeInOutCubic((progress - 0.48) / 0.28));
+        return blendRigPose(cross, readyPose, easeInOutCubic((progress - 0.82) / 0.18));
       }
       if (state === CHARACTER_STATES.ATTACK_RECOVERY) return readyPose;
       return readyPose;
