@@ -132,14 +132,14 @@ class LiveArenaScene extends Phaser.Scene {
     }
     this.createBattleHud();
     this.roundHudText = this.add.text(WIDTH / 2, WIDTH * 0.09, "01:00", {
-      fontFamily: "system-ui, sans-serif", fontSize: "18px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "28px", fontStyle: "900",
       color: "#291839", align: "center",
-    }).setOrigin(0.5).setDepth(2012);
+    }).setOrigin(0.5).setDepth(2012).setWordWrapWidth(WIDTH * 0.12);
     this.roundWinDots = { challenger: [], opponent: [] };
     for (const role of ["challenger", "opponent"]) {
       for (let i = 0; i < 3; i++) {
         this.roundWinDots[role].push(
-          this.add.circle(0, 0, WIDTH * 0.0032, 0xffffff, 1)
+          this.add.circle(0, 0, WIDTH * 0.0042, 0xffffff, 1)
             .setStrokeStyle(1, 0x291839, 0.95).setDepth(2012).setScrollFactor(0)
         );
       }
@@ -212,7 +212,14 @@ class LiveArenaScene extends Phaser.Scene {
     const avatar = this.add.image(hud.avatarX, hud.avatarY, textureKey)
       .setDisplaySize(hud.avatarSize, hud.avatarSize).setScrollFactor(0).setDepth(2005);
     const maskShape = this.make.graphics({ x: 0, y: 0, add: false });
-    maskShape.fillStyle(0xffffff, 1).fillCircle(hud.avatarX, hud.avatarY, hud.avatarSize / 2);
+    // Match the rounded-square portrait cutouts in the HUD frame.
+    maskShape.fillStyle(0xffffff, 1).fillRoundedRect(
+      hud.avatarX - hud.avatarSize / 2,
+      hud.avatarY - hud.avatarSize / 2,
+      hud.avatarSize,
+      hud.avatarSize,
+      hud.avatarSize * 0.19,
+    );
     avatar.setMask(maskShape.createGeometryMask());
     hud.avatar = avatar;
     hud.avatarMask = maskShape;
@@ -276,7 +283,7 @@ class LiveArenaScene extends Phaser.Scene {
 
   updateRoundWinDots(wins = {}) {
     // Place the indicators in the marked strip beneath both full HUD frames.
-    const dotY = WIDTH * 0.067;
+    const dotY = WIDTH * 0.073;
     const gap = WIDTH * 0.018;
     const centers = { challenger: WIDTH * 0.195, opponent: WIDTH * 0.805 };
     for (const role of ["challenger", "opponent"]) {
