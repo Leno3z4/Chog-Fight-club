@@ -29,7 +29,7 @@
       #game { position: absolute; inset: 0; width: 100%; height: 100%; overflow: hidden; background: #111318; touch-action: none; }
       #game canvas { display: block; width: 100% !important; height: 100% !important; outline: none; }
       #game canvas:focus-visible { outline: 3px solid #f0b53a; outline-offset: -4px; }
-      .keyboard-note { position: fixed; z-index: 20; left: 16px; bottom: 10px; max-width: calc(100vw - 32px); margin: 0; padding: 6px 9px; border-radius: 4px; background: rgba(9,10,13,.78); color: #f5f2ea; font-size: 12px; line-height: 1.45; }
+      .keyboard-note { position: fixed; z-index: 20; left: 16px; bottom: 10px; max-width: calc(100vw - 32px); margin: 0; padding: 6px 9px; border-radius: 4px; background: rgba(9,10,13,.78); color: #f5f2ea; font-family: "Nexa Rust Sans", system-ui, sans-serif; font-size: 12px; line-height: 1.45; }
       .practice-touch-controls { display: none; }
       .touch-group { display: flex; align-items: center; justify-content: center; gap: 6px; }
       .practice-touch-controls button { min-width: 46px; min-height: 48px; padding: 7px 8px; border: 1px solid #a38cff; border-radius: 8px; background: #211b31; color: #fff; font-size: 12px; font-weight: 700; touch-action: none; }
@@ -56,7 +56,7 @@
     </a>
     <main class="practice-main">
       <div id="game" role="img" aria-label="Chog Fight Club training arena. Use the listed keyboard or touch controls to move, duck, jump, attack, defend, and use abilities."></div>
-      <p class="keyboard-note">Move: A/D or left/right arrows. Duck: S or down arrow. Jump: Space/W/up arrow. Basic: F. Base: 1. Special: 2. Defense: 3.</p>
+      <p class="keyboard-note">Move: A/D or left/right arrows. Duck: S or down arrow. Jump: Space/W/up arrow. Basic: F. Base: 1. Special: 2. Defense: 3. <span aria-label="Typeface credit">Font: <a href="https://www.fontfabric.com/" target="_blank" rel="noopener noreferrer">Fontfabric</a></span></p>
       <section class="practice-touch-controls" aria-label="Touch controls for the practice arena">
         <div class="touch-group" aria-label="Movement">
           <button type="button" data-practice-hold="left" aria-label="Move left">LEFT</button>
