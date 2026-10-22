@@ -252,15 +252,14 @@ class LiveArenaScene extends Phaser.Scene {
       hud.hpText.setText(`HP ${Math.round(hp)}/${Math.round(maxHp)}`);
       hud.mpText.setText(`MP ${energy}%`);
       if (hud.rightSide) {
-        // Reserve the left third for HP and the right side for the fighter name.
-        hud.hpText.setPosition(hud.healthX + hud.healthWidth - WIDTH * 0.34, hud.healthY);
-        hud.name.setPosition(hud.healthX + WIDTH * 0.012, hud.healthY);
+        // HP occupies the left end of the right fighter's slot; name stays at the right end.
+        hud.hpText.setPosition(hud.healthX + WIDTH * 0.012, hud.healthY);
+        hud.name.setPosition(hud.healthX + hud.healthWidth - WIDTH * 0.012, hud.healthY);
       } else {
-        // Keep the name on the left and HP on the right without overlapping.
         hud.name.setPosition(hud.healthX + WIDTH * 0.012, hud.healthY);
         hud.hpText.setPosition(hud.healthX + hud.healthWidth - WIDTH * 0.012, hud.healthY);
       }
-      hud.mpText.setPosition(hud.rightSide ? hud.manaX - WIDTH * 0.012 : hud.manaX - WIDTH * 0.012, hud.manaY);
+      hud.mpText.setPosition(hud.manaX - WIDTH * 0.012, hud.manaY);
     }
     if (this.battleHudFrame) this.battleHudFrame.setDepth(2000);
   }
