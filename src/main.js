@@ -1469,7 +1469,7 @@ class ArenaScene extends Phaser.Scene {
       .then((payload) => {
         const user = payload?.authenticated ? payload.user : null;
         if (!user) return;
-        this.playerIdentityText?.setText(`@${user.username || user.discordUsername || "YOU"} · Chog #${identity.tokenId || "—"}`);
+        this.playerIdentityText?.setText(`@${user.username || user.discordUsername || "YOU"} CHOG ${identity.tokenId || "0"}`);
         if (!user.avatar || this.textures.exists("solo-discord-avatar")) return;
         this.load.image("solo-discord-avatar", user.avatar);
         this.load.once("filecomplete-image-solo-discord-avatar", () => {
@@ -1489,38 +1489,38 @@ class ArenaScene extends Phaser.Scene {
       stroke: "#090611", strokeThickness: 3, fontStyle: "800",
     };
     const identity = this.playerBattleDNA.identity;
-    this.playerIdentityText = this.add.text(0, 0, `@YOU · Chog #${identity.tokenId || "—"}`, {
+    this.playerIdentityText = this.add.text(0, 0, `@YOU CHOG ${identity.tokenId || "0"}`, {
       ...textStyle, fontSize: "14px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.loadDiscordHudAvatar(identity);
-    this.opponentLabel = this.add.text(0, 0, `ARENA BOT · Chog #${this.opponentBattleDNA.identity.tokenId || "973"}`, {
+    this.opponentLabel = this.add.text(0, 0, `ARENA BOT CHOG ${this.opponentBattleDNA.identity.tokenId || "973"}`, {
       ...textStyle, fontSize: "14px", align: "right",
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2010);
     this.playerHpText = this.add.text(0, 0, "", {
-      ...textStyle, fontSize: "12px", align: "right",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "12px", align: "right",
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2010);
     this.opponentHpText = this.add.text(0, 0, "", {
-      ...textStyle, fontSize: "12px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "12px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     const baseName = this.playerBattleDNA.abilitySet.base?.name ?? "Base Ability";
     const specialName = this.playerBattleDNA.abilitySet.special?.name ?? "Signature Ability";
-    this.practiceAbilityText = this.add.text(32, 0, `1 ${baseName}  ·  2 ${specialName}`, {
+    this.practiceAbilityText = this.add.text(32, 0, `1 ${baseName}     2 ${specialName}`, {
       ...textStyle, fontSize: "12px",
     }).setScrollFactor(0).setDepth(2010);
     this.playerCooldownText = this.add.text(32, 0, "", {
-      ...textStyle, fontSize: "11px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "11px",
     }).setScrollFactor(0).setDepth(2010);
     this.playerEnergyText = this.add.text(0, 0, "", {
-      ...textStyle, fontSize: "10px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "10px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.opponentEnergyText = this.add.text(0, 0, "", {
-      ...textStyle, fontSize: "10px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "10px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.statusText = this.add.text(this.arenaWidth / 2, this.arenaHeight - 38, "", {
-      ...textStyle, fontSize: "16px", align: "center",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "16px", align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
     this.matchHudText = this.add.text(this.arenaWidth / 2, 0, "", {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "18px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "18px", fontStyle: "900",
       color: "#291839", align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(2011);
     this.roundWinDots = { player: [], opponent: [] };
