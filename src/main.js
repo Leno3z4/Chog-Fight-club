@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import returnButtonUrl from "../images/return.png";
 import { BootScene } from "./bootScene.js";
 import { readSelectedFighter } from "./nft/chogNft.js";
 import { buildBattleDNA } from "./game/battleDNA.js";
@@ -27,6 +28,9 @@ import {
   updateCombatant,
   updateMovement,
 } from "./game/combatEngine.js";
+
+const returnButtonImage = document.querySelector("#practice-return-image");
+if (returnButtonImage) returnButtonImage.src = returnButtonUrl;
 
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
@@ -1648,10 +1652,10 @@ class ArenaScene extends Phaser.Scene {
 
   positionHud(width, height) {
     if (!this.statusText) return;
-    this.healthBarWidth = width * 0.327;
-    this.healthBarHeight = Math.max(6, width * 0.018);
-    this.manaBarWidth = width * 0.143;
-    this.manaBarHeight = Math.max(4, width * 0.009);
+    this.healthBarWidth = width * 0.338;
+    this.healthBarHeight = Math.max(7, width * 0.0215);
+    this.manaBarWidth = width * 0.152;
+    this.manaBarHeight = Math.max(5, width * 0.0105);
     const healthY = width * 0.026;
     const manaY = width * 0.047;
     const leftHealthX = width * 0.074;

@@ -139,10 +139,10 @@ class LiveArenaScene extends Phaser.Scene {
   createBattleHud() {
     const healthY = WIDTH * 0.026;
     const manaY = WIDTH * 0.047;
-    const healthWidth = WIDTH * 0.327;
-    const healthHeight = WIDTH * 0.018;
-    const manaWidth = WIDTH * 0.143;
-    const manaHeight = WIDTH * 0.009;
+    const healthWidth = WIDTH * 0.338;
+    const healthHeight = WIDTH * 0.0215;
+    const manaWidth = WIDTH * 0.152;
+    const manaHeight = WIDTH * 0.0105;
     const leftX = WIDTH * 0.074;
     const rightX = WIDTH * 0.586;
     const leftMpX = WIDTH * 0.257;
