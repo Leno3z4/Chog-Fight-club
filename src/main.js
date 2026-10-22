@@ -857,7 +857,7 @@ class ArenaScene extends Phaser.Scene {
 
   showDamageNumber(x, y, damage, counter = false) {
     const text = this.add.text(x, y, `-${damage}`, {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "28px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "28px", fontStyle: "900",
       color: counter ? "#ffd166" : "#ff3366", stroke: "#111318", strokeThickness: 5,
     }).setOrigin(0.5).setDepth(20);
     this.tweens.add({ targets: text, y: y - 75, alpha: 0, scale: 1.35, duration: 600, ease: "Power2", onComplete: () => text.destroy() });
@@ -1490,7 +1490,7 @@ class ArenaScene extends Phaser.Scene {
     };
     const identity = this.playerBattleDNA.identity;
     this.playerIdentityText = this.add.text(0, 0, `@YOU CHOG ${identity.tokenId || "0"}`, {
-      ...textStyle, fontSize: "14px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "14px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.loadDiscordHudAvatar(identity);
     this.opponentLabel = this.add.text(0, 0, `ARENA BOT CHOG ${this.opponentBattleDNA.identity.tokenId || "973"}`, {
@@ -1535,10 +1535,10 @@ class ArenaScene extends Phaser.Scene {
     this.matchOverlay = this.add.container(this.arenaWidth / 2, this.arenaHeight / 2).setDepth(50).setScrollFactor(0).setVisible(false);
     const overlayShade = this.add.rectangle(0, 0, 520, 144, 0x10131b, 0.88).setStrokeStyle(2, 0xf0b53a, 0.95);
     this.matchOverlayTitle = this.add.text(0, -28, "ROUND OVER", {
-      ...textStyle, fontSize: "30px", fontStyle: "900", color: "#f0b53a", align: "center",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "30px", fontStyle: "900", color: "#f0b53a", align: "center",
     }).setOrigin(0.5);
     this.matchOverlayDetail = this.add.text(0, 22, "", {
-      ...textStyle, fontSize: "15px", fontStyle: "800", color: "#ffffff", align: "center",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "15px", fontStyle: "800", color: "#ffffff", align: "center",
     }).setOrigin(0.5);
     this.matchOverlay.add([overlayShade, this.matchOverlayTitle, this.matchOverlayDetail]);
 
