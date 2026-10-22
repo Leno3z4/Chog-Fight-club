@@ -1562,8 +1562,8 @@ class ArenaScene extends Phaser.Scene {
     const opponentEnergyRatio = Phaser.Math.Clamp(this.opponentCombatant.energy / this.opponentCombatant.maxEnergy, 0, 1);
     this.playerHpText.setText(`HP ${hp}/${this.playerCombatant.maxHp}`);
     this.opponentHpText.setText(`HP ${Math.max(0, Math.round(this.opponentCombatant.hp))}/${this.opponentCombatant.maxHp}`);
-    this.playerEnergyBar.width = this.manaBarWidth * energyRatio;
-    this.opponentEnergyBar.width = this.manaBarWidth * opponentEnergyRatio;
+    this.playerEnergyBar.width = this.playerManaBarWidth * energyRatio;
+    this.opponentEnergyBar.width = this.opponentManaBarWidth * opponentEnergyRatio;
     this.playerEnergyText.setText(`MP ${energy}%`);
     this.opponentEnergyText.setText(`MP ${opponentEnergy}%`);
 
@@ -1653,14 +1653,19 @@ class ArenaScene extends Phaser.Scene {
   positionHud(width, height) {
     if (!this.statusText) return;
     this.healthBarWidth = width * 0.338;
-    this.healthBarHeight = Math.max(7, width * 0.0215);
-    this.manaBarWidth = width * 0.152;
-    this.manaBarHeight = Math.max(5, width * 0.0105);
-    const healthY = width * 0.026;
+    // The decorative frame has a shallow inner slot; keep the green fill clear
+    // of its white top/bottom rails instead of matching the slot's full height.
+    this.healthBarHeight = Math.max(6, width * 0.0145);
+    // The left MP slot reserves room for the "MP 100%" label before the meter;
+    // the right slot has a longer track but uses the same label-before-track rule.
+    this.playerManaBarWidth = width * 0.103;
+    this.opponentManaBarWidth = width * 0.145;
+    this.manaBarHeight = Math.max(4, width * 0.008);
+    const healthY = width * 0.030;
     const manaY = width * 0.047;
     const leftHealthX = width * 0.074;
     const rightHealthX = width * 0.586;
-    const leftManaX = width * 0.257;
+    const leftManaX = width * 0.295;
     const rightManaX = width * 0.586;
     const avatarSize = width * 0.074;
     const avatarY = width * 0.09;
@@ -1673,17 +1678,18 @@ class ArenaScene extends Phaser.Scene {
     this.opponentHealthTrack.setPosition(rightHealthX + this.healthBarWidth, healthY).setSize(this.healthBarWidth, this.healthBarHeight);
     this.opponentGhostBar.setPosition(rightHealthX + this.healthBarWidth, healthY).setSize(this.healthBarWidth, this.healthBarHeight);
     this.opponentBar.setPosition(rightHealthX + this.healthBarWidth, healthY).setSize(this.healthBarWidth, this.healthBarHeight);
-    this.playerEnergyGhostBar.setPosition(leftManaX, manaY).setSize(this.manaBarWidth, this.manaBarHeight);
-    this.playerEnergyBar.setPosition(leftManaX, manaY).setSize(this.manaBarWidth, this.manaBarHeight);
-    this.opponentEnergyGhostBar.setPosition(rightManaX, manaY).setSize(this.manaBarWidth, this.manaBarHeight);
-    this.opponentEnergyBar.setPosition(rightManaX, manaY).setSize(this.manaBarWidth, this.manaBarHeight);
+    this.playerEnergyGhostBar.setPosition(leftManaX, manaY).setSize(this.playerManaBarWidth, this.manaBarHeight);
+    this.playerEnergyBar.setPosition(leftManaX, manaY).setSize(this.playerManaBarWidth, this.manaBarHeight);
+    this.opponentEnergyGhostBar.setPosition(rightManaX, manaY).setSize(this.opponentManaBarWidth, this.manaBarHeight);
+    this.opponentEnergyBar.setPosition(rightManaX, manaY).setSize(this.opponentManaBarWidth, this.manaBarHeight);
     const labelSize = Math.max(9, Math.min(15, Math.round(width * 0.013)));
     this.playerIdentityText.setFontSize(labelSize).setPosition(leftHealthX + width * 0.008, healthY);
     this.playerHpText.setFontSize(Math.max(8, labelSize - 1)).setPosition(leftHealthX + this.healthBarWidth - width * 0.008, healthY);
     this.opponentLabel.setFontSize(labelSize).setPosition(rightHealthX + this.healthBarWidth - width * 0.008, healthY);
     this.opponentHpText.setFontSize(Math.max(8, labelSize - 1)).setPosition(rightHealthX + width * 0.008, healthY);
-    this.playerEnergyText.setFontSize(Math.max(7, labelSize - 2)).setPosition(leftManaX + width * 0.008, manaY);
-    this.opponentEnergyText.setFontSize(Math.max(7, labelSize - 2)).setPosition(rightManaX + width * 0.008, manaY);
+    this.playerEnergyText.setFontSize(Math.max(7, labelSize - 2)).setPosition(width * 0.245, manaY);
+    // Right-side label is right-aligned immediately before the meter starts.
+    this.opponentEnergyText.setFontSize(Math.max(7, labelSize - 2)).setPosition(rightManaX - width * 0.012, manaY);
     this.matchHudText.setFontSize(Math.max(8, Math.min(12, Math.round(width * 0.012))));
     this.matchHudText.setPosition(width / 2, width * 0.09);
     this.practiceAbilityText.setPosition(width * 0.025, width * 0.13);
