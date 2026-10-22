@@ -274,7 +274,7 @@ class LiveArenaScene extends Phaser.Scene {
   }
 
   updateRoundWinDots(wins = {}) {
-    const dotY = WIDTH * 0.030 + WIDTH * 0.0215 * 0.5 + WIDTH * 0.012;
+    const dotY = WIDTH * 0.026 + WIDTH * 0.0215 * 0.5 + WIDTH * 0.006;
     const gap = WIDTH * 0.018;
     const healthWidth = WIDTH * 0.338;
     const centers = {
