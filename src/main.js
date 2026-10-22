@@ -12,6 +12,7 @@ import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
 import { stopMovementTowardOpponent } from "./game/fighterSpacing.js";
+import { getHudPortraitGeometry, getSoloVisualRootY } from "./game/hudGeometry.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
   beginOffensiveAction,
@@ -214,12 +215,12 @@ class ArenaScene extends Phaser.Scene {
     this.opponent = this.physics.add.staticSprite(this.arenaWidth / 2 + spawnGap / 2, this.floorY - 72, "chog-hitbox");
     this.opponent.setVisible(false);
 
-    this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 120, false);
-    this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 120, true);
+    this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 170, false);
+    this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 170, true);
     const koArtworkSize = Math.min(380, this.arenaWidth * 0.30);
-    this.playerDeadVisual = this.add.image(this.player.x, this.floorY - koArtworkSize * 0.36, "dead-chog")
+    this.playerDeadVisual = this.add.image(this.player.x, this.floorY - koArtworkSize * 0.5, "dead-chog")
       .setDisplaySize(koArtworkSize, koArtworkSize).setDepth(700).setVisible(false);
-    this.opponentDeadVisual = this.add.image(this.opponent.x, this.floorY - koArtworkSize * 0.36, "dead-chog")
+    this.opponentDeadVisual = this.add.image(this.opponent.x, this.floorY - koArtworkSize * 0.5, "dead-chog")
       .setDisplaySize(koArtworkSize, koArtworkSize).setDepth(700).setVisible(false);
     this.playerHurtbox = this.createHurtbox(this.player);
     this.opponentHurtbox = this.createHurtbox(this.opponent);
@@ -396,8 +397,8 @@ class ArenaScene extends Phaser.Scene {
     this.opponent.setPosition(opponentX, this.floorY - 72);
     this.opponent.refreshBody();
     this.player.body.updateFromGameObject();
-    this.playerVisual.setPosition(this.player.x, this.player.y - 55);
-    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 120);
+    this.playerVisual.setPosition(this.player.x, getSoloVisualRootY(this.player.y, this.floorY));
+    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 170);
     this.playerVisual.setScale(1, 1);
     this.opponentVisual.setScale(-1, 1);
     this.playerFacing = 1;
@@ -979,6 +980,14 @@ class ArenaScene extends Phaser.Scene {
 
 
   updateVisuals(time, delta) {
+    // Last-resort clamp after physics resolution, so spikes in velocity/hit reactions
+    // cannot leave the actual player body below the collidable floor surface.
+    const maxBodyY = this.floorY - this.player.body.height / 2;
+    if (this.player.y > maxBodyY) {
+      this.player.setY(maxBodyY);
+      if (this.player.body.velocity.y > 0) this.player.setVelocityY(0);
+      this.player.body.updateFromGameObject();
+    }
     const grounded = this.player.body.blocked.down || this.player.body.touching.down;
     if (grounded) {
       const currentVelocityX = this.player.body.velocity.x;
@@ -994,9 +1003,9 @@ class ArenaScene extends Phaser.Scene {
 
     this.updateHurtboxes();
     this.playerVisual.x = this.player.x;
-    this.playerVisual.y = this.player.y - 55;
+    this.playerVisual.y = getSoloVisualRootY(this.player.y, this.floorY);
     this.opponentVisual.x = this.opponent.x;
-    this.opponentVisual.y = this.floorY - 120;
+    this.opponentVisual.y = this.floorY - 170;
     const state = this.playerCharacter.stateMachine.currentName;
     const moving = grounded && state === CHARACTER_STATES.WALK && (this.playerCharacter.input.left || this.playerCharacter.input.right);
     if (moving) {
@@ -1034,9 +1043,9 @@ class ArenaScene extends Phaser.Scene {
     this.playerVisual.setVisible(!playerKO);
     this.opponentVisual.setVisible(!opponentKO);
     this.playerDeadVisual.setVisible(playerKO).setDisplaySize(deadSize, deadSize)
-      .setPosition(this.player.x - deadSize * 0.08, this.floorY - deadSize * 0.36).setDepth(700);
+      .setPosition(this.player.x - deadSize * 0.08, this.floorY - deadSize * 0.5).setDepth(700);
     this.opponentDeadVisual.setVisible(opponentKO).setDisplaySize(deadSize, deadSize)
-      .setPosition(this.opponent.x - deadSize * 0.08, this.floorY - deadSize * 0.36).setDepth(700);
+      .setPosition(this.opponent.x - deadSize * 0.08, this.floorY - deadSize * 0.5).setDepth(700);
   }
 
   getReadyPose(time, phase, moving = false, walkDir = 1) {
@@ -1691,16 +1700,24 @@ class ArenaScene extends Phaser.Scene {
     this.arenaLabel.setVisible(true).setPosition(width / 2, height * 0.21);
   }
 
-  positionHudAvatar(avatar, side, x, y, size) {
+  positionHudAvatar(avatar, side, x, y, geometry) {
     if (!avatar) return;
+    const { viewportWidth, viewportHeight, imageSize, cornerRadius } = geometry;
     const prop = side === "player" ? "playerAvatarMaskShape" : "opponentAvatarMaskShape";
     if (!this[prop]) this[prop] = this.make.graphics({ x: 0, y: 0, add: false });
     const shape = this[prop];
-    shape.clear();
+    // Both the image and mask are HUD-fixed. Using the default world scroll
+    // factor on the mask is what lets the PFP drift outside its cutout.
+    shape.clear().setPosition(0, 0).setScrollFactor(0);
     shape.fillStyle(0xffffff, 1);
-    // Match the rounded-square portrait cutouts in the HUD frame, not a circular crop.
-    shape.fillRoundedRect(x - size / 2, y - size / 2, size, size, size * 0.19);
-    avatar.setPosition(x, y).setDisplaySize(size * 1.08, size * 1.08).setScrollFactor(0).setDepth(2005);
+    shape.fillRoundedRect(
+      x - viewportWidth / 2,
+      y - viewportHeight / 2,
+      viewportWidth,
+      viewportHeight,
+      cornerRadius,
+    );
+    avatar.setPosition(x, y).setDisplaySize(imageSize, imageSize).setScrollFactor(0).setDepth(2005);
     avatar.setMask(shape.createGeometryMask());
   }
 
@@ -1747,7 +1764,7 @@ class ArenaScene extends Phaser.Scene {
     const rightManaLabelX = width * 0.585;
     // The viewport follows the HUD portrait opening; the source image is
     // slightly overscaled behind the mask so there are no background gaps.
-    const avatarSize = width * 0.082;
+    const portraitGeometry = getHudPortraitGeometry(width);
     const avatarY = width * 0.085;
     if (this.hudFrameImage) {
       this.hudFrameImage.setPosition(0, 0).setDisplaySize(width, width * (1640 / 2360)).setDepth(1990);
@@ -1780,8 +1797,8 @@ class ArenaScene extends Phaser.Scene {
     this.playerCooldownText.setFontSize(Math.max(8, Math.min(11, Math.round(width * 0.011))));
     this.statusText.setPosition(width / 2, height - 38);
     this.matchOverlay.setPosition(width / 2, height / 2);
-    this.positionHudAvatar(this.playerAvatar, "player", width * 0.09, avatarY, avatarSize);
-    this.positionHudAvatar(this.opponentAvatar, "opponent", width * 0.91, avatarY, avatarSize);
+    this.positionHudAvatar(this.playerAvatar, "player", width * 0.09, avatarY, portraitGeometry);
+    this.positionHudAvatar(this.opponentAvatar, "opponent", width * 0.91, avatarY, portraitGeometry);
     this.updateHealthBars(true);
   }
 
@@ -1799,8 +1816,8 @@ class ArenaScene extends Phaser.Scene {
     this.player.setPosition(playerX, playerY);
     this.opponent.setPosition(width - (oldWidth - this.opponent.x) / oldWidth * width, this.floorY - 72);
     this.opponent.refreshBody();
-    this.playerVisual.setPosition(this.player.x, this.player.y - 55);
-    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 120);
+    this.playerVisual.setPosition(this.player.x, getSoloVisualRootY(this.player.y, this.floorY));
+    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 170);
     this.floor.setPosition(width / 2, this.floorY + (height - this.floorY) / 2);
     this.floor.setDisplaySize(width, Math.max(60, height - this.floorY)).refreshBody();
     this.physics.world.setBounds(0, 0, width, height);
