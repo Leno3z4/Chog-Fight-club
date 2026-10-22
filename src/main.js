@@ -1519,9 +1519,18 @@ class ArenaScene extends Phaser.Scene {
       ...textStyle, fontSize: "16px", align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
     this.matchHudText = this.add.text(this.arenaWidth / 2, 0, "", {
-      fontFamily: "system-ui, sans-serif", fontSize: "12px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "18px", fontStyle: "900",
       color: "#291839", align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(2011);
+    this.roundWinDots = { player: [], opponent: [] };
+    for (const side of ["player", "opponent"]) {
+      for (let i = 0; i < 3; i++) {
+        this.roundWinDots[side].push(
+          this.add.circle(0, 0, 4, 0xffffff, 1)
+            .setStrokeStyle(1, 0x291839, 0.95).setScrollFactor(0).setDepth(2011)
+        );
+      }
+    }
     this.matchOverlay = this.add.container(this.arenaWidth / 2, this.arenaHeight / 2).setDepth(50).setScrollFactor(0).setVisible(false);
     const overlayShade = this.add.rectangle(0, 0, 520, 144, 0x10131b, 0.88).setStrokeStyle(2, 0xf0b53a, 0.95);
     this.matchOverlayTitle = this.add.text(0, -28, "ROUND OVER", {
@@ -1569,7 +1578,9 @@ class ArenaScene extends Phaser.Scene {
 
     if (this.matchHudText) {
       const seconds = Math.ceil(this.match.timeRemainingMs / 1000);
-      this.matchHudText.setText(`R${this.match.round}/${this.match.totalRounds} · ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")} · ${this.match.wins.player}-${this.match.wins.opponent}`);
+      this.matchHudText.setText(`${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`);
+    }
+    this.updateRoundWinDots(this.match.wins.player, this.match.wins.opponent);
     }
 
     const basic = getCooldownRemaining(this.playerCombatant, "basic");
@@ -1650,6 +1661,23 @@ class ArenaScene extends Phaser.Scene {
     avatar.setMask(shape.createGeometryMask());
   }
 
+  updateRoundWinDots(playerWins = 0, opponentWins = 0) {
+    const width = this.arenaWidth || this.scale.width;
+    const healthY = width * 0.030;
+    const dotY = healthY + Math.max(6, width * 0.0145) * 0.5 + width * 0.012;
+    const leftCenter = width * 0.074 + this.healthBarWidth * 0.5;
+    const rightCenter = width * 0.586 + this.healthBarWidth * 0.5;
+    const gap = width * 0.018;
+    for (let i = 0; i < 3; i++) {
+      const left = this.roundWinDots.player[i];
+      const right = this.roundWinDots.opponent[i];
+      left.setPosition(leftCenter + (i - 1) * gap, dotY)
+        .setFillStyle(i < playerWins ? 0x111111 : 0xffffff);
+      right.setPosition(rightCenter + (i - 1) * gap, dotY)
+        .setFillStyle(i < opponentWins ? 0x111111 : 0xffffff);
+    }
+  }
+
   positionHud(width, height) {
     if (!this.statusText) return;
     this.healthBarWidth = width * 0.338;
@@ -1695,8 +1723,9 @@ class ArenaScene extends Phaser.Scene {
     const manaLabelSize = Math.max(7, labelSize - 2);
     this.playerEnergyText.setFontSize(manaLabelSize).setPosition(leftManaLabelX, manaY);
     this.opponentEnergyText.setFontSize(manaLabelSize).setPosition(rightManaLabelX, manaY);
-    this.matchHudText.setFontSize(Math.max(8, Math.min(12, Math.round(width * 0.012))));
+    this.matchHudText.setFontSize(Math.max(14, Math.min(22, Math.round(width * 0.020))));
     this.matchHudText.setPosition(width / 2, width * 0.09);
+    this.updateRoundWinDots(this.match?.wins?.player || 0, this.match?.wins?.opponent || 0);
     this.practiceAbilityText.setPosition(width * 0.025, width * 0.13);
     this.practiceAbilityText.setFontSize(Math.max(9, Math.min(12, Math.round(width * 0.012))));
     this.playerCooldownText.setPosition(width * 0.025, width * 0.155);
