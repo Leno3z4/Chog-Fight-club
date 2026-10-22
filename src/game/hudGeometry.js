@@ -31,6 +31,10 @@ export function clampLiveRootY(rootY, jumpHeight = 0, height = 540) {
 // In solo mode the Phaser physics body is centered 60px above the ground when
 // grounded. The rig's feet extend about 165px below the visual root; leave a
 // small safety margin so no pose clips through the arena's visible floor.
+export function getSoloFloorLineY(gameHeight = 720) {
+  return Math.round(gameHeight * 0.82);
+}
+
 export function getSoloVisualRootY(playerBodyY, floorY) {
   return Math.min(Number(playerBodyY) - 105, Number(floorY) - 170);
 }
