@@ -1527,7 +1527,7 @@ class ArenaScene extends Phaser.Scene {
     for (const side of ["player", "opponent"]) {
       for (let i = 0; i < 3; i++) {
         this.roundWinDots[side].push(
-          this.add.circle(0, 0, 4, 0xffffff, 1)
+          this.add.circle(0, 0, 5.2, 0xffffff, 1)
             .setStrokeStyle(1, 0x291839, 0.95).setScrollFactor(0).setDepth(2011)
         );
       }
@@ -1656,7 +1656,8 @@ class ArenaScene extends Phaser.Scene {
     const shape = this[prop];
     shape.clear();
     shape.fillStyle(0xffffff, 1);
-    shape.fillCircle(x, y, size / 2);
+    // Match the rounded-square portrait cutouts in the HUD frame, not a circular crop.
+    shape.fillRoundedRect(x - size / 2, y - size / 2, size, size, size * 0.19);
     avatar.setPosition(x, y).setDisplaySize(size, size).setScrollFactor(0).setDepth(2005);
     avatar.setMask(shape.createGeometryMask());
   }
@@ -1666,7 +1667,7 @@ class ArenaScene extends Phaser.Scene {
     const healthY = width * 0.030;
     // Match the highlighted strip below each entire HUD frame: center the
     // three result dots below the MP track, not between HP and MP.
-    const dotY = width * 0.067;
+    const dotY = width * 0.073;
     const leftCenter = width * 0.195;
     const rightCenter = width * 0.805;
     const gap = width * 0.018;
@@ -1725,7 +1726,8 @@ class ArenaScene extends Phaser.Scene {
     const manaLabelSize = Math.max(7, labelSize - 2);
     this.playerEnergyText.setFontSize(manaLabelSize).setPosition(leftManaLabelX, manaY);
     this.opponentEnergyText.setFontSize(manaLabelSize).setPosition(rightManaLabelX, manaY);
-    this.matchHudText.setFontSize(Math.max(14, Math.min(22, Math.round(width * 0.020))));
+    // Keep the timer visually prominent while leaving safe padding inside the center slot.
+    this.matchHudText.setFontSize(Math.max(20, Math.min(30, Math.round(width * 0.026))));
     this.matchHudText.setPosition(width / 2, width * 0.09);
     this.updateRoundWinDots(this.match?.wins?.player || 0, this.match?.wins?.opponent || 0);
     this.practiceAbilityText.setPosition(width * 0.025, width * 0.13);
