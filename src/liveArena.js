@@ -3,6 +3,7 @@ import "./game/fonts.css";
 import { BootScene } from "./bootScene.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 import { punchPulse, punchWindowPulse } from "./game/punchEasing.js";
+import { clampLiveRootY, getHudPortraitGeometry, getLiveGroundLineY, getLiveMaximumRootY } from "./game/hudGeometry.js";
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -158,7 +159,7 @@ class LiveArenaScene extends Phaser.Scene {
     const leftMpX = WIDTH * 0.28;
     const rightMpX = WIDTH * 0.57;
     const avatarY = WIDTH * 0.085;
-    const avatarSize = WIDTH * 0.082;
+    const portraitGeometry = getHudPortraitGeometry(WIDTH);
     for (const role of ["challenger", "opponent"]) {
       const rightSide = role === "opponent";
       const healthX = rightSide ? rightX + healthWidth : leftX;
@@ -191,7 +192,9 @@ class LiveArenaScene extends Phaser.Scene {
       const avatarX = WIDTH * (rightSide ? 0.91 : 0.09);
       this.battleHud[role] = {
         healthTrack, healthGhost, healthFill, manaTrack, manaFill, name, hpText, mpText,
-        healthWidth, healthHeight, manaWidth, manaHeight, healthY, manaY, avatarX, avatarY, avatarSize,
+        healthWidth, healthHeight, manaWidth, manaHeight, healthY, manaY, avatarX, avatarY,
+        avatarWidth: portraitGeometry.viewportWidth, avatarHeight: portraitGeometry.viewportHeight,
+        avatarImageSize: portraitGeometry.imageSize, avatarCornerRadius: portraitGeometry.cornerRadius,
         avatar: null, avatarMask: null, avatarUrl: "",
         healthX: rightSide ? rightX : leftX,
         manaX, rightSide,
@@ -210,16 +213,15 @@ class LiveArenaScene extends Phaser.Scene {
     hud.avatar?.destroy();
     hud.avatarMask?.destroy();
     const avatar = this.add.image(hud.avatarX, hud.avatarY, textureKey)
-      // Overscan the source under the rounded-square viewport to crop away gaps.
-      .setDisplaySize(hud.avatarSize * 1.08, hud.avatarSize * 1.08).setScrollFactor(0).setDepth(2005);
-    const maskShape = this.make.graphics({ x: 0, y: 0, add: false });
-    // Match the rounded-square portrait cutouts in the HUD frame.
+      // Overscan the square image and clip it to the frame's wider-than-tall opening.
+      .setDisplaySize(hud.avatarImageSize, hud.avatarImageSize).setScrollFactor(0).setDepth(2005);
+    const maskShape = this.make.graphics({ x: 0, y: 0, add: false }).setPosition(0, 0).setScrollFactor(0);
     maskShape.fillStyle(0xffffff, 1).fillRoundedRect(
-      hud.avatarX - hud.avatarSize / 2,
-      hud.avatarY - hud.avatarSize / 2,
-      hud.avatarSize,
-      hud.avatarSize,
-      hud.avatarSize * 0.19,
+      hud.avatarX - hud.avatarWidth / 2,
+      hud.avatarY - hud.avatarHeight / 2,
+      hud.avatarWidth,
+      hud.avatarHeight,
+      hud.avatarCornerRadius,
     );
     avatar.setMask(maskShape.createGeometryMask());
     hud.avatar = avatar;
@@ -363,7 +365,7 @@ class LiveArenaScene extends Phaser.Scene {
       const fighter = this.fighters[role];
       if (!source || !fighter) continue;
       fighter.targetX = clamp(Number(source.x ?? fighter.targetX), 50, WIDTH - 50);
-      fighter.targetY = clamp(Number(source.y ?? fighter.targetY), 150, HEIGHT - 92);
+      fighter.targetY = clamp(Number(source.y ?? fighter.targetY), 150, getLiveMaximumRootY(HEIGHT));
       fighter.facing = Number(source.facing) < 0 ? -1 : 1;
       fighter.action = source.action || "idle";
       fighter.actionStartedAt = Number(source.actionStartedAt || 0);
@@ -440,7 +442,11 @@ class LiveArenaScene extends Phaser.Scene {
       const fromX = root.x;
       const fromY = root.y;
       root.x = Phaser.Math.Linear(root.x, fighter.targetX, blend);
-      root.y = Phaser.Math.Linear(root.y, fighter.targetY - fighter.jumpHeight, blend);
+      root.y = clampLiveRootY(
+        Phaser.Math.Linear(root.y, fighter.targetY - fighter.jumpHeight, blend),
+        fighter.jumpHeight,
+        HEIGHT,
+      );
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
       root.setDepth(100 + root.y);
       const horizontalDelta = root.x - fromX;
@@ -621,7 +627,7 @@ class LiveArenaScene extends Phaser.Scene {
             .setDisplaySize(deadSize, deadSize).setVisible(false);
         }
         fighter.deadVisual.setVisible(true).setDisplaySize(deadSize, deadSize)
-          .setPosition(root.x - deadSize * 0.08, HEIGHT * 0.76 - deadSize * 0.36)
+          .setPosition(root.x - deadSize * 0.08, getLiveGroundLineY(HEIGHT) - deadSize * 0.5)
           .setDepth(100 + root.y + 1);
       } else if (fighter.deadVisual) {
         fighter.deadVisual.setVisible(false);

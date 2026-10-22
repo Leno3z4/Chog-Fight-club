@@ -18,11 +18,12 @@
     "test:matchFlow": "node --test src/game/matchFlow.test.js",
     "test:realtime-ticket": "node --test server/realtimeTicket.test.js",
     "test:realtime-rules": "node --test realtime/combatRules.test.js",
-    "test": "npm run test:opensea && npm run test:discord && npm run test:invites && npm run test:launch-policy && npm run test:players && npm run test:battle && npm run test:realtime-ticket && npm run test:realtime-rules && npm run test:rig && npm run test:spacing && npm run test:combat && npm run test:mechanics && npm run test:matchFlow",
+    "test": "npm run test:opensea && npm run test:discord && npm run test:invites && npm run test:launch-policy && npm run test:players && npm run test:battle && npm run test:realtime-ticket && npm run test:realtime-rules && npm run test:rig && npm run test:spacing && npm run test:combat && npm run test:mechanics && npm run test:matchFlow && npm run test:hud-geometry",
     "test:players": "node --test server/players.test.js",
     "test:battle": "node --test server/battle.test.js",
     "deploy:worker": "wrangler deploy",
-    "test:launch-policy": "node --test server/launchPolicy.test.js"
+    "test:launch-policy": "node --test server/launchPolicy.test.js",
+    "test:hud-geometry": "node --test src/game/hudGeometry.test.js"
   },
   "dependencies": {
     "phaser": "3.90.0",
