@@ -157,8 +157,8 @@ class LiveArenaScene extends Phaser.Scene {
     const rightX = WIDTH * 0.586;
     const leftMpX = WIDTH * 0.28;
     const rightMpX = WIDTH * 0.57;
-    const avatarY = WIDTH * 0.09;
-    const avatarSize = WIDTH * 0.066;
+    const avatarY = WIDTH * 0.085;
+    const avatarSize = WIDTH * 0.082;
     for (const role of ["challenger", "opponent"]) {
       const rightSide = role === "opponent";
       const healthX = rightSide ? rightX + healthWidth : leftX;
@@ -210,7 +210,8 @@ class LiveArenaScene extends Phaser.Scene {
     hud.avatar?.destroy();
     hud.avatarMask?.destroy();
     const avatar = this.add.image(hud.avatarX, hud.avatarY, textureKey)
-      .setDisplaySize(hud.avatarSize, hud.avatarSize).setScrollFactor(0).setDepth(2005);
+      // Overscan the source under the rounded-square viewport to crop away gaps.
+      .setDisplaySize(hud.avatarSize * 1.08, hud.avatarSize * 1.08).setScrollFactor(0).setDepth(2005);
     const maskShape = this.make.graphics({ x: 0, y: 0, add: false });
     // Match the rounded-square portrait cutouts in the HUD frame.
     maskShape.fillStyle(0xffffff, 1).fillRoundedRect(
