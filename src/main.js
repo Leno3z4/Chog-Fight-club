@@ -1488,7 +1488,7 @@ class ArenaScene extends Phaser.Scene {
         if (!avatarUrl) {
           // Discord accounts without a custom avatar still have a real default avatar.
           const discordId = String(user.discordId || user.id || "");
-          if (/^\\d+$/.test(discordId)) {
+          if (discordId.length > 0 && [...discordId].every((digit) => digit >= "0" && digit <= "9")) {
             const index = Number((BigInt(discordId) >> 22n) % 6n);
             avatarUrl = `https://cdn.discordapp.com/embed/avatars/${index}.png?size=128`;
           }
