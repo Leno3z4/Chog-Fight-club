@@ -383,7 +383,9 @@ function drawRealtimeArena(room, viewerRole) {
   }
   if (liveArenaPromise || liveArenaFailed) return;
   liveArenaPromise = import("./liveArena.js")
-    .then(({ createLiveArena }) => {
+    .then(async ({ createLiveArena }) => {
+      if (!latestLiveSnapshot) return null;
+      await document.fonts.load('900 14px "Nexa Rust Sans"');
       if (!latestLiveSnapshot) return null;
       liveArena = createLiveArena(container);
       liveArena.setState(latestLiveSnapshot.room, latestLiveSnapshot.viewerRole);
