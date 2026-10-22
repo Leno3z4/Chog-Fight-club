@@ -29,7 +29,7 @@ test("solo rig ground anchor never places the grounded visual root below its flo
 test("live root clamp keeps fighters above the floor line, including during a jump", () => {
   const floorY = getLiveGroundLineY(540);
   const maxRootY = getLiveMaximumRootY(540);
-  assert.equal(floorY, 442.8);
+  assert.ok(Math.abs(floorY - 442.8) < 1e-9);
   assert.equal(clampLiveRootY(900, 0, 540), maxRootY);
   assert.equal(clampLiveRootY(900, 60, 540), maxRootY - 60);
   assert.equal(clampLiveRootY(120, 0, 540), 120);
