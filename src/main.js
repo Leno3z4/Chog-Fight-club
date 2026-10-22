@@ -1581,7 +1581,6 @@ class ArenaScene extends Phaser.Scene {
       this.matchHudText.setText(`${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`);
     }
     this.updateRoundWinDots(this.match.wins.player, this.match.wins.opponent);
-    }
 
     const basic = getCooldownRemaining(this.playerCombatant, "basic");
     const base = getCooldownRemaining(this.playerCombatant, "base");
@@ -1664,7 +1663,7 @@ class ArenaScene extends Phaser.Scene {
   updateRoundWinDots(playerWins = 0, opponentWins = 0) {
     const width = this.arenaWidth || this.scale.width;
     const healthY = width * 0.030;
-    const dotY = healthY + Math.max(6, width * 0.0145) * 0.5 + width * 0.012;
+    const dotY = healthY + Math.max(6, width * 0.0145) * 0.5 + width * 0.006;
     const leftCenter = width * 0.074 + this.healthBarWidth * 0.5;
     const rightCenter = width * 0.586 + this.healthBarWidth * 0.5;
     const gap = width * 0.018;
