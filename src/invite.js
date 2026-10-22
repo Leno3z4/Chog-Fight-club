@@ -113,7 +113,9 @@ function queueSelectedChogArt(tokenId) {
       else state.chogArtworkCache.set(key, null);
     })
     .catch(() => {
-      // Keep the rigged Chog placeholder on metadata/network failure; don't substitute Discord PFPs.
+      // Keep the rigged Chog placeholder on metadata/network failure; don't substitute Discord PFPs
+      // or immediately re-queue the same failing lookup in the sync callback below.
+      state.chogArtworkCache.set(key, null);
     })
     .finally(() => {
       state.pendingChogArtwork.delete(key);
