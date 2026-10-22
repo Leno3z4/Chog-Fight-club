@@ -1,7 +1,10 @@
 import Phaser from "phaser";
+import "./game/fonts.css";
 import { BootScene } from "./bootScene.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 import { punchPulse, punchWindowPulse } from "./game/punchEasing.js";
+
+await document.fonts.load('900 14px "Nexa Rust Sans"');
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -79,11 +82,11 @@ class LiveArenaScene extends Phaser.Scene {
     this.finishedOverlay = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(1000).setVisible(false);
     const shade = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x090a0d, 0.78);
     this.finishedTitle = this.add.text(0, -18, "MATCH OVER", {
-      fontFamily: "system-ui, sans-serif", fontSize: "32px", fontStyle: "900",
+      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "32px", fontStyle: "900",
       color: "#ffffff", stroke: "#111318", strokeThickness: 5,
     }).setOrigin(0.5);
     this.finishedText = this.add.text(0, 24, "", {
-      fontFamily: "system-ui, sans-serif", fontSize: "17px", fontStyle: "700",
+      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "17px", fontStyle: "700",
       color: "#f0b53a", stroke: "#111318", strokeThickness: 4,
     }).setOrigin(0.5);
     this.finishedOverlay.add([shade, this.finishedTitle, this.finishedText]);
@@ -121,17 +124,17 @@ class LiveArenaScene extends Phaser.Scene {
       ring.lineStyle(1, 0xf5f2ea, 0.18);
       ring.strokeRect(115, 112, 730, 294);
       this.add.text(WIDTH / 2, 24, "CHOG FIGHT CLUB · LIVE RING", {
-        fontFamily: "system-ui, sans-serif", fontSize: "12px", fontStyle: "700",
+        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "12px", fontStyle: "700",
         color: "#f5f2ea", letterSpacing: 2,
       }).setOrigin(0.5).setDepth(700);
       this.add.text(WIDTH / 2, 474, "TWO PLAYERS · SERVER-SYNCED", {
-        fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "700",
+        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "11px", fontStyle: "700",
         color: "#d0c7e4", letterSpacing: 1,
       }).setOrigin(0.5).setDepth(700);
     }
     this.createBattleHud();
     this.roundHudText = this.add.text(WIDTH / 2, WIDTH * 0.09, "01:00", {
-      fontFamily: "system-ui, sans-serif", fontSize: "18px", fontStyle: "900",
+      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "18px", fontStyle: "900",
       color: "#291839", align: "center",
     }).setOrigin(0.5).setDepth(2012);
     this.roundWinDots = { challenger: [], opponent: [] };
@@ -174,17 +177,17 @@ class LiveArenaScene extends Phaser.Scene {
       const manaFill = this.add.rectangle(manaX, manaY, manaWidth, manaHeight, 0x050505, 1)
         .setOrigin(0, 0.5).setDepth(1982).setScrollFactor(0);
       const name = this.add.text(0, healthY, "", {
-        fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "900",
+        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "11px", fontStyle: "900",
         color: "#ffffff", stroke: "#080611", strokeThickness: 3,
         align: rightSide ? "right" : "left",
       }).setOrigin(rightSide ? 1 : 0, 0.5).setScrollFactor(0).setDepth(2011);
       const hpText = this.add.text(0, healthY, "", {
-        fontFamily: "system-ui, sans-serif", fontSize: "8px", fontStyle: "800",
+        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "8px", fontStyle: "800",
         color: "#ffffff", stroke: "#080611", strokeThickness: 3,
         align: rightSide ? "left" : "right",
       }).setOrigin(rightSide ? 0 : 1, 0.5).setScrollFactor(0).setDepth(2011);
       const mpText = this.add.text(0, manaY, "", {
-        fontFamily: "system-ui, sans-serif", fontSize: "9px", fontStyle: "800",
+        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "9px", fontStyle: "800",
         color: "#ffffff", stroke: "#080611", strokeThickness: 3,
       }).setScrollFactor(0).setDepth(2011);
       const avatarX = WIDTH * (rightSide ? 0.91 : 0.09);
@@ -274,13 +277,10 @@ class LiveArenaScene extends Phaser.Scene {
   }
 
   updateRoundWinDots(wins = {}) {
-    const dotY = WIDTH * 0.026 + WIDTH * 0.0215 * 0.5 + WIDTH * 0.006;
+    // Place the indicators in the marked strip beneath both full HUD frames.
+    const dotY = WIDTH * 0.067;
     const gap = WIDTH * 0.018;
-    const healthWidth = WIDTH * 0.338;
-    const centers = {
-      challenger: WIDTH * 0.074 + healthWidth * 0.5,
-      opponent: WIDTH * 0.586 + healthWidth * 0.5,
-    };
+    const centers = { challenger: WIDTH * 0.195, opponent: WIDTH * 0.805 };
     for (const role of ["challenger", "opponent"]) {
       const count = Math.max(0, Math.min(3, Number(wins[role] || 0)));
       this.roundWinDots?.[role]?.forEach((dot, i) => {
@@ -298,11 +298,11 @@ class LiveArenaScene extends Phaser.Scene {
     root.setDepth(100 + y);
     const accent = ACCENTS[role];
     const name = this.add.text(x, y - 146, "", {
-      fontFamily: "system-ui, sans-serif", fontSize: "14px", fontStyle: "800",
+      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "14px", fontStyle: "800",
       color: "#ffffff", stroke: "#090a0d", strokeThickness: 5,
     }).setOrigin(0.5).setDepth(700);
     const dna = this.add.text(x, y - 126, "", {
-      fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "700",
+      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "11px", fontStyle: "700",
       color: role === "challenger" ? "#ffe2a0" : "#e4d8ff", stroke: "#090a0d", strokeThickness: 4,
     }).setOrigin(0.5).setDepth(700);
     const marker = this.add.circle(x, y - 106, 4, accent).setDepth(700);
