@@ -296,7 +296,7 @@ class LiveArenaScene extends Phaser.Scene {
     root.setDepth(100 + y);
     const accent = ACCENTS[role];
     const name = this.add.text(x, y - 146, "", {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "14px", fontStyle: "800",
+      fontFamily: "system-ui, sans-serif", fontSize: "14px", fontStyle: "800",
       color: "#ffffff", stroke: "#090a0d", strokeThickness: 5,
     }).setOrigin(0.5).setDepth(700);
     const dna = this.add.text(x, y - 126, "", {
