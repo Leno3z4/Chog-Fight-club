@@ -13,6 +13,7 @@ import { getAttackPresentation } from "./game/attackPresentation.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
 import { stopMovementTowardOpponent } from "./game/fighterSpacing.js";
 import { getHudPortraitGeometry, getSoloFloorLineY, getSoloVisualRootY } from "./game/hudGeometry.js";
+import { stopBattleMusic, syncBattleMusic } from "./game/battleMusic.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
   beginOffensiveAction,
@@ -194,6 +195,7 @@ class ArenaScene extends Phaser.Scene {
   }
 
   create() {
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, stopBattleMusic);
     this.basicTapPendingAt = null;
     this.projectiles = [];
     this.match = createMatchState({ totalRounds: 3, roundTimeMs: 60_000 });
@@ -267,6 +269,14 @@ class ArenaScene extends Phaser.Scene {
 
   update(time, delta) {
     if (!this.player || !this.match) return;
+
+    syncBattleMusic({
+      playerWins: this.match.wins.player,
+      opponentWins: this.match.wins.opponent,
+      round: this.match.round,
+      totalRounds: this.match.totalRounds,
+      gameOver: this.match.phase === MATCH_PHASES.MATCH_OVER,
+    });
 
     if (this.match.phase === MATCH_PHASES.FIGHTING) {
       const previousPhase = this.match.phase;

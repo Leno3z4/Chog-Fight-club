@@ -4,6 +4,7 @@ import { BootScene } from "./bootScene.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 import { punchPulse, punchWindowPulse } from "./game/punchEasing.js";
 import { clampLiveRootY, getHudPortraitGeometry, getLiveGroundLineY, getLiveMaximumRootY } from "./game/hudGeometry.js";
+import { stopBattleMusic, syncBattleMusic } from "./game/battleMusic.js";
 
 const WIDTH = 960;
 const HEIGHT = 540;
@@ -406,6 +407,13 @@ class LiveArenaScene extends Phaser.Scene {
 
     this.updateBattleHud();
     const wins = state.roundWins || { challenger: 0, opponent: 0 };
+    syncBattleMusic({
+      playerWins: Number(wins.challenger || 0),
+      opponentWins: Number(wins.opponent || 0),
+      round: Number(state.round || 1),
+      totalRounds: Number(state.totalRounds || 3),
+      gameOver: state.status === "FINISHED",
+    });
     const remaining = Math.ceil(Math.max(0, Number(state.timeRemainingMs ?? 60_000)) / 1000);
     if (this.roundHudText) {
       this.roundHudText.setText(
@@ -691,6 +699,7 @@ export function createLiveArena(parent) {
       if (scene) scene.setAvatars(avatars);
     },
     destroy() {
+      stopBattleMusic();
       game.destroy(true);
     },
   };
