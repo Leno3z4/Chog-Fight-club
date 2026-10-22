@@ -1,0 +1,12 @@
+@font-face {
+  font-family: "Nexa Rust Sans";
+  src: url("/fonts/NexaRustSans-Black.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 900;
+  font-display: block;
+}
+
+.practice-touch-controls,
+.keyboard-note {
+  font-family: "Nexa Rust Sans", system-ui, sans-serif;
+}
