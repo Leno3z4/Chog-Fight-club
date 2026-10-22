@@ -93,7 +93,7 @@ function clearAlert() {
 }
 function selectedChogArt(tokenId) {
   const key = String(tokenId ?? "");
-  if (!/^\\d+$/.test(key)) return null; // prototype fighters do not have NFT artwork metadata
+  if (!/^\d+$/.test(key)) return null; // prototype fighters do not have NFT artwork metadata
   const rosterItem = state.chogs.find((item) => String(item.tokenId) === key);
   const rosterImage = rosterItem?.metadata?.image;
   if (rosterImage) {
@@ -105,7 +105,7 @@ function selectedChogArt(tokenId) {
 
 function queueSelectedChogArt(tokenId) {
   const key = String(tokenId ?? "");
-  if (!/^\\d+$/.test(key) || state.chogArtworkCache.has(key) || state.pendingChogArtwork.has(key)) return;
+  if (!/^\d+$/.test(key) || state.chogArtworkCache.has(key) || state.pendingChogArtwork.has(key)) return;
   state.pendingChogArtwork.add(key);
   getChogMetadata(key)
     .then((metadata) => {
