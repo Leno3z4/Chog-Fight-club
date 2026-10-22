@@ -1805,5 +1805,8 @@ const config = {
   scene: [BootScene, ArenaScene],
 };
 
-await document.fonts.load('900 14px "Nexa Rust Sans"');
-new Phaser.Game(config);
+async function startPracticeGame() {
+  await document.fonts.load('900 14px "Nexa Rust Sans"');
+  new Phaser.Game(config);
+}
+void startPracticeGame();
