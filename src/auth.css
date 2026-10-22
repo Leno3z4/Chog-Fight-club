@@ -320,8 +320,6 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
 .solo-health .combat-hp-track i{display:block;width:100%;height:100%;border-radius:inherit;background:#22d35a;transition:width .2s}
 .solo-health .combat-mp-track i{background:#050505!important}
 .solo-health .combat-mp-track{background:#303030!important}
-.arena-controls-note{margin:8px 0 12px;color:var(--club-muted);font-size:12px}
-.arena-controls-note kbd{margin-right:3px}
 .arena-mobile-controls{display:none;align-items:center;justify-content:space-between;gap:18px;margin:16px 0}
 .arena-pad{display:flex;flex-direction:column;align-items:center;gap:5px}
 .arena-pad>div{display:flex;gap:5px}
@@ -364,7 +362,6 @@ kbd{display:inline-flex;align-items:center;justify-content:center;min-width:24px
   .solo-health{gap:8px}
   .solo-health strong{font-size:11px}
   .arena-mobile-controls{display:flex}
-  .arena-controls-note{display:none}
   .demand-pair{grid-template-columns:1fr}
   .demand-slot .condition-quote{min-height:0}
   .lobby-join-notice{align-items:flex-start;flex-wrap:wrap;padding:12px}
