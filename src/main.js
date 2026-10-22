@@ -1700,7 +1700,7 @@ class ArenaScene extends Phaser.Scene {
     shape.fillStyle(0xffffff, 1);
     // Match the rounded-square portrait cutouts in the HUD frame, not a circular crop.
     shape.fillRoundedRect(x - size / 2, y - size / 2, size, size, size * 0.19);
-    avatar.setPosition(x, y).setDisplaySize(size, size).setScrollFactor(0).setDepth(2005);
+    avatar.setPosition(x, y).setDisplaySize(size * 1.08, size * 1.08).setScrollFactor(0).setDepth(2005);
     avatar.setMask(shape.createGeometryMask());
   }
 
@@ -1745,8 +1745,10 @@ class ArenaScene extends Phaser.Scene {
     const leftManaX = width * 0.311;
     const rightManaX = width * 0.629;
     const rightManaLabelX = width * 0.585;
-    const avatarSize = width * 0.066;
-    const avatarY = width * 0.09;
+    // The viewport follows the HUD portrait opening; the source image is
+    // slightly overscaled behind the mask so there are no background gaps.
+    const avatarSize = width * 0.082;
+    const avatarY = width * 0.085;
     if (this.hudFrameImage) {
       this.hudFrameImage.setPosition(0, 0).setDisplaySize(width, width * (1640 / 2360)).setDepth(1990);
     }
