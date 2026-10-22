@@ -32,7 +32,7 @@ export class BootScene extends Phaser.Scene {
     const track = this.add.rectangle(width / 2, height / 2, 360, 12, 0xffffff, 0.16);
     const bar = this.add.rectangle(width / 2 - 180, height / 2, 1, 12, 0xffffff, 0.9).setOrigin(0, 0.5);
     const label = this.add.text(width / 2, height / 2 - 34, "LOADING CHOG FIGHT CLUB", {
-      fontFamily: "system-ui, sans-serif",
+      fontFamily: '"Nexa Rust Sans", sans-serif',
       fontSize: "14px",
       color: "#ffffff",
       fontStyle: "700",

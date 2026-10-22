@@ -1,4 +1,5 @@
 import Phaser from "phaser";
+import "./game/fonts.css";
 import returnButtonUrl from "../images/return.png";
 import { BootScene } from "./bootScene.js";
 import { readSelectedFighter } from "./nft/chogNft.js";
@@ -856,7 +857,7 @@ class ArenaScene extends Phaser.Scene {
 
   showDamageNumber(x, y, damage, counter = false) {
     const text = this.add.text(x, y, `-${damage}`, {
-      fontFamily: "system-ui, sans-serif", fontSize: "28px", fontStyle: "900",
+      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "28px", fontStyle: "900",
       color: counter ? "#ffd166" : "#ff3366", stroke: "#111318", strokeThickness: 5,
     }).setOrigin(0.5).setDepth(20);
     this.tweens.add({ targets: text, y: y - 75, alpha: 0, scale: 1.35, duration: 600, ease: "Power2", onComplete: () => text.destroy() });
@@ -1484,7 +1485,7 @@ class ArenaScene extends Phaser.Scene {
 
   createHud() {
     const textStyle = {
-      fontFamily: "system-ui, sans-serif", color: "#ffffff",
+      fontFamily: '"Nexa Rust Sans", sans-serif', color: "#ffffff",
       stroke: "#090611", strokeThickness: 3, fontStyle: "800",
     };
     const identity = this.playerBattleDNA.identity;
@@ -1519,7 +1520,7 @@ class ArenaScene extends Phaser.Scene {
       ...textStyle, fontSize: "16px", align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
     this.matchHudText = this.add.text(this.arenaWidth / 2, 0, "", {
-      fontFamily: "system-ui, sans-serif", fontSize: "18px", fontStyle: "900",
+      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "18px", fontStyle: "900",
       color: "#291839", align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(2011);
     this.roundWinDots = { player: [], opponent: [] };
@@ -1642,7 +1643,7 @@ class ArenaScene extends Phaser.Scene {
     this.arenaGlow = arenaGlow;
     if (!this.arenaLabel) {
       this.arenaLabel = this.add.text(0, 0, "TRAINING ARENA", {
-        fontFamily: "system-ui, sans-serif", fontSize: "14px", color: "#16324A",
+        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "14px", color: "#16324A",
       }).setOrigin(0.5);
     }
     this.arenaLabel.setVisible(true).setPosition(width / 2, height * 0.21);
@@ -1663,9 +1664,11 @@ class ArenaScene extends Phaser.Scene {
   updateRoundWinDots(playerWins = 0, opponentWins = 0) {
     const width = this.arenaWidth || this.scale.width;
     const healthY = width * 0.030;
-    const dotY = healthY + Math.max(6, width * 0.0145) * 0.5 + width * 0.006;
-    const leftCenter = width * 0.074 + this.healthBarWidth * 0.5;
-    const rightCenter = width * 0.586 + this.healthBarWidth * 0.5;
+    // Match the highlighted strip below each entire HUD frame: center the
+    // three result dots below the MP track, not between HP and MP.
+    const dotY = width * 0.067;
+    const leftCenter = width * 0.195;
+    const rightCenter = width * 0.805;
     const gap = width * 0.018;
     for (let i = 0; i < 3; i++) {
       const left = this.roundWinDots.player[i];
@@ -1802,4 +1805,8 @@ const config = {
   scene: [BootScene, ArenaScene],
 };
 
-new Phaser.Game(config);
+async function startPracticeGame() {
+  await document.fonts.load('900 14px "Nexa Rust Sans"');
+  new Phaser.Game(config);
+}
+void startPracticeGame();
