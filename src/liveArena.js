@@ -80,11 +80,11 @@ class LiveArenaScene extends Phaser.Scene {
     this.finishedOverlay = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(1000).setVisible(false);
     const shade = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x090a0d, 0.78);
     this.finishedTitle = this.add.text(0, -18, "MATCH OVER", {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "32px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "32px", fontStyle: "900",
       color: "#ffffff", stroke: "#111318", strokeThickness: 5,
     }).setOrigin(0.5);
     this.finishedText = this.add.text(0, 24, "", {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "17px", fontStyle: "700",
+      fontFamily: "system-ui, sans-serif", fontSize: "17px", fontStyle: "700",
       color: "#f0b53a", stroke: "#111318", strokeThickness: 4,
     }).setOrigin(0.5);
     this.finishedOverlay.add([shade, this.finishedTitle, this.finishedText]);
@@ -121,18 +121,18 @@ class LiveArenaScene extends Phaser.Scene {
       }
       ring.lineStyle(1, 0xf5f2ea, 0.18);
       ring.strokeRect(115, 112, 730, 294);
-      this.add.text(WIDTH / 2, 24, "CHOG FIGHT CLUB · LIVE RING", {
+      this.add.text(WIDTH / 2, 24, "CHOG FIGHT CLUB LIVE RING", {
         fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "12px", fontStyle: "700",
         color: "#f5f2ea", letterSpacing: 2,
       }).setOrigin(0.5).setDepth(700);
-      this.add.text(WIDTH / 2, 474, "TWO PLAYERS · SERVER-SYNCED", {
+      this.add.text(WIDTH / 2, 474, "TWO PLAYERS SERVER SYNCED", {
         fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "11px", fontStyle: "700",
         color: "#d0c7e4", letterSpacing: 1,
       }).setOrigin(0.5).setDepth(700);
     }
     this.createBattleHud();
     this.roundHudText = this.add.text(WIDTH / 2, WIDTH * 0.09, "01:00", {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "18px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "18px", fontStyle: "900",
       color: "#291839", align: "center",
     }).setOrigin(0.5).setDepth(2012);
     this.roundWinDots = { challenger: [], opponent: [] };
@@ -175,17 +175,17 @@ class LiveArenaScene extends Phaser.Scene {
       const manaFill = this.add.rectangle(manaX, manaY, manaWidth, manaHeight, 0x050505, 1)
         .setOrigin(0, 0.5).setDepth(1982).setScrollFactor(0);
       const name = this.add.text(0, healthY, "", {
-        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "11px", fontStyle: "900",
+        fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "900",
         color: "#ffffff", stroke: "#080611", strokeThickness: 3,
         align: rightSide ? "right" : "left",
       }).setOrigin(rightSide ? 1 : 0, 0.5).setScrollFactor(0).setDepth(2011);
       const hpText = this.add.text(0, healthY, "", {
-        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "8px", fontStyle: "800",
+        fontFamily: "system-ui, sans-serif", fontSize: "8px", fontStyle: "800",
         color: "#ffffff", stroke: "#080611", strokeThickness: 3,
         align: rightSide ? "left" : "right",
       }).setOrigin(rightSide ? 0 : 1, 0.5).setScrollFactor(0).setDepth(2011);
       const mpText = this.add.text(0, manaY, "", {
-        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "9px", fontStyle: "800",
+        fontFamily: "system-ui, sans-serif", fontSize: "9px", fontStyle: "800",
         color: "#ffffff", stroke: "#080611", strokeThickness: 3,
       }).setScrollFactor(0).setDepth(2011);
       const avatarX = WIDTH * (rightSide ? 0.91 : 0.09);
@@ -258,7 +258,7 @@ class LiveArenaScene extends Phaser.Scene {
       hud.healthFill.width = hud.healthWidth * hpRatio;
       hud.healthGhost.width = hud.healthWidth * hpRatio;
       hud.manaFill.width = hud.manaWidth * energyRatio;
-      hud.name.setText(`@${fighter.username || (role === "challenger" ? "Challenger" : "Opponent")} · Chog #${fighter.tokenId || "—"}`);
+      hud.name.setText(`@${fighter.username || (role === "challenger" ? "Challenger" : "Opponent")} CHOG ${fighter.tokenId || "0"}`);
       hud.hpText.setText(`HP ${Math.round(hp)}/${Math.round(maxHp)}`);
       hud.mpText.setText(`MP ${energy}%`);
       if (hud.rightSide) {
@@ -296,7 +296,7 @@ class LiveArenaScene extends Phaser.Scene {
     root.setDepth(100 + y);
     const accent = ACCENTS[role];
     const name = this.add.text(x, y - 146, "", {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "14px", fontStyle: "800",
+      fontFamily: "system-ui, sans-serif", fontSize: "14px", fontStyle: "800",
       color: "#ffffff", stroke: "#090a0d", strokeThickness: 5,
     }).setOrigin(0.5).setDepth(700);
     const dna = this.add.text(x, y - 126, "", {
@@ -389,8 +389,8 @@ class LiveArenaScene extends Phaser.Scene {
         flashChog(this, fighter.root.rig, 0xffffff, 90);
         fighter.previousFlashUntil = fighter.flashUntil;
       }
-      fighter.name.setText(`${fighter.fighterName} · ${fighter.tier}`);
-      fighter.dna.setText(`ATK ${fighter.attack} · DEF ${fighter.defense} · SPD ${fighter.speed}`);
+      fighter.name.setText(`${fighter.fighterName} ${fighter.tier}`);
+      fighter.dna.setText(`ATK ${fighter.attack}   DEF ${fighter.defense}   SPD ${fighter.speed}`);
       fighter.marker.setFillStyle(fighter.connected ? ACCENTS[role] : 0x777780);
     }
 

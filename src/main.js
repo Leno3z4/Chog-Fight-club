@@ -857,7 +857,7 @@ class ArenaScene extends Phaser.Scene {
 
   showDamageNumber(x, y, damage, counter = false) {
     const text = this.add.text(x, y, `-${damage}`, {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "28px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "28px", fontStyle: "900",
       color: counter ? "#ffd166" : "#ff3366", stroke: "#111318", strokeThickness: 5,
     }).setOrigin(0.5).setDepth(20);
     this.tweens.add({ targets: text, y: y - 75, alpha: 0, scale: 1.35, duration: 600, ease: "Power2", onComplete: () => text.destroy() });
@@ -1469,7 +1469,7 @@ class ArenaScene extends Phaser.Scene {
       .then((payload) => {
         const user = payload?.authenticated ? payload.user : null;
         if (!user) return;
-        this.playerIdentityText?.setText(`@${user.username || user.discordUsername || "YOU"} · Chog #${identity.tokenId || "—"}`);
+        this.playerIdentityText?.setText(`@${user.username || user.discordUsername || "YOU"} CHOG ${identity.tokenId || "0"}`);
         if (!user.avatar || this.textures.exists("solo-discord-avatar")) return;
         this.load.image("solo-discord-avatar", user.avatar);
         this.load.once("filecomplete-image-solo-discord-avatar", () => {
@@ -1489,38 +1489,38 @@ class ArenaScene extends Phaser.Scene {
       stroke: "#090611", strokeThickness: 3, fontStyle: "800",
     };
     const identity = this.playerBattleDNA.identity;
-    this.playerIdentityText = this.add.text(0, 0, `@YOU · Chog #${identity.tokenId || "—"}`, {
-      ...textStyle, fontSize: "14px",
+    this.playerIdentityText = this.add.text(0, 0, `@YOU CHOG ${identity.tokenId || "0"}`, {
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "14px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.loadDiscordHudAvatar(identity);
-    this.opponentLabel = this.add.text(0, 0, `ARENA BOT · Chog #${this.opponentBattleDNA.identity.tokenId || "973"}`, {
+    this.opponentLabel = this.add.text(0, 0, `ARENA BOT CHOG ${this.opponentBattleDNA.identity.tokenId || "973"}`, {
       ...textStyle, fontSize: "14px", align: "right",
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2010);
     this.playerHpText = this.add.text(0, 0, "", {
-      ...textStyle, fontSize: "12px", align: "right",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "12px", align: "right",
     }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2010);
     this.opponentHpText = this.add.text(0, 0, "", {
-      ...textStyle, fontSize: "12px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "12px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     const baseName = this.playerBattleDNA.abilitySet.base?.name ?? "Base Ability";
     const specialName = this.playerBattleDNA.abilitySet.special?.name ?? "Signature Ability";
-    this.practiceAbilityText = this.add.text(32, 0, `1 ${baseName}  ·  2 ${specialName}`, {
-      ...textStyle, fontSize: "12px",
+    this.practiceAbilityText = this.add.text(32, 0, `1 ${baseName}     2 ${specialName}`, {
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "12px",
     }).setScrollFactor(0).setDepth(2010);
     this.playerCooldownText = this.add.text(32, 0, "", {
-      ...textStyle, fontSize: "11px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "11px",
     }).setScrollFactor(0).setDepth(2010);
     this.playerEnergyText = this.add.text(0, 0, "", {
-      ...textStyle, fontSize: "10px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "10px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.opponentEnergyText = this.add.text(0, 0, "", {
-      ...textStyle, fontSize: "10px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "10px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.statusText = this.add.text(this.arenaWidth / 2, this.arenaHeight - 38, "", {
-      ...textStyle, fontSize: "16px", align: "center",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "16px", align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
     this.matchHudText = this.add.text(this.arenaWidth / 2, 0, "", {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "18px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "18px", fontStyle: "900",
       color: "#291839", align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(2011);
     this.roundWinDots = { player: [], opponent: [] };
@@ -1535,10 +1535,10 @@ class ArenaScene extends Phaser.Scene {
     this.matchOverlay = this.add.container(this.arenaWidth / 2, this.arenaHeight / 2).setDepth(50).setScrollFactor(0).setVisible(false);
     const overlayShade = this.add.rectangle(0, 0, 520, 144, 0x10131b, 0.88).setStrokeStyle(2, 0xf0b53a, 0.95);
     this.matchOverlayTitle = this.add.text(0, -28, "ROUND OVER", {
-      ...textStyle, fontSize: "30px", fontStyle: "900", color: "#f0b53a", align: "center",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "30px", fontStyle: "900", color: "#f0b53a", align: "center",
     }).setOrigin(0.5);
     this.matchOverlayDetail = this.add.text(0, 22, "", {
-      ...textStyle, fontSize: "15px", fontStyle: "800", color: "#ffffff", align: "center",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "15px", fontStyle: "800", color: "#ffffff", align: "center",
     }).setOrigin(0.5);
     this.matchOverlay.add([overlayShade, this.matchOverlayTitle, this.matchOverlayDetail]);
 
