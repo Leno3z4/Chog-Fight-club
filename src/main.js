@@ -1505,7 +1505,7 @@ class ArenaScene extends Phaser.Scene {
     const baseName = this.playerBattleDNA.abilitySet.base?.name ?? "Base Ability";
     const specialName = this.playerBattleDNA.abilitySet.special?.name ?? "Signature Ability";
     this.practiceAbilityText = this.add.text(32, 0, `1 ${baseName}     2 ${specialName}`, {
-      ...textStyle, fontSize: "12px",
+      ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "12px",
     }).setScrollFactor(0).setDepth(2010);
     this.playerCooldownText = this.add.text(32, 0, "", {
       ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "11px",
