@@ -130,10 +130,19 @@ class LiveArenaScene extends Phaser.Scene {
       }).setOrigin(0.5).setDepth(700);
     }
     this.createBattleHud();
-    this.roundHudText = this.add.text(WIDTH / 2, WIDTH * 0.09, "R1/3 · 01:00 · 0-0", {
-      fontFamily: "system-ui, sans-serif", fontSize: "9px", fontStyle: "900",
+    this.roundHudText = this.add.text(WIDTH / 2, WIDTH * 0.09, "01:00", {
+      fontFamily: "system-ui, sans-serif", fontSize: "18px", fontStyle: "900",
       color: "#291839", align: "center",
     }).setOrigin(0.5).setDepth(2012);
+    this.roundWinDots = { challenger: [], opponent: [] };
+    for (const role of ["challenger", "opponent"]) {
+      for (let i = 0; i < 3; i++) {
+        this.roundWinDots[role].push(
+          this.add.circle(0, 0, WIDTH * 0.0032, 0xffffff, 1)
+            .setStrokeStyle(1, 0x291839, 0.95).setDepth(2012).setScrollFactor(0)
+        );
+      }
+    }
   }
 
   createBattleHud() {
@@ -264,6 +273,23 @@ class LiveArenaScene extends Phaser.Scene {
     if (this.battleHudFrame) this.battleHudFrame.setDepth(2000);
   }
 
+  updateRoundWinDots(wins = {}) {
+    const dotY = WIDTH * 0.026 + WIDTH * 0.0215 * 0.5 + WIDTH * 0.006;
+    const gap = WIDTH * 0.018;
+    const healthWidth = WIDTH * 0.338;
+    const centers = {
+      challenger: WIDTH * 0.074 + healthWidth * 0.5,
+      opponent: WIDTH * 0.586 + healthWidth * 0.5,
+    };
+    for (const role of ["challenger", "opponent"]) {
+      const count = Math.max(0, Math.min(3, Number(wins[role] || 0)));
+      this.roundWinDots?.[role]?.forEach((dot, i) => {
+        dot.setPosition(centers[role] + (i - 1) * gap, dotY)
+          .setFillStyle(i < count ? 0x111111 : 0xffffff);
+      });
+    }
+  }
+
   createFighter(role) {
     const x = role === "challenger" ? 250 : 710;
     const y = 265;
@@ -375,8 +401,9 @@ class LiveArenaScene extends Phaser.Scene {
     const remaining = Math.ceil(Math.max(0, Number(state.timeRemainingMs ?? 60_000)) / 1000);
     if (this.roundHudText) {
       this.roundHudText.setText(
-        `ROUND ${state.round || 1}/${state.totalRounds || 3} · ${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")} · ${wins.challenger || 0}-${wins.opponent || 0}`,
+        `${String(Math.floor(remaining / 60)).padStart(2, "0")}:${String(remaining % 60).padStart(2, "0")}`,
       );
+      this.updateRoundWinDots(wins);
     }
 
     if (state.status === "FINISHED") {
