@@ -158,7 +158,7 @@ class LiveArenaScene extends Phaser.Scene {
     const leftMpX = WIDTH * 0.28;
     const rightMpX = WIDTH * 0.57;
     const avatarY = WIDTH * 0.09;
-    const avatarSize = WIDTH * 0.074;
+    const avatarSize = WIDTH * 0.066;
     for (const role of ["challenger", "opponent"]) {
       const rightSide = role === "opponent";
       const healthX = rightSide ? rightX + healthWidth : leftX;
