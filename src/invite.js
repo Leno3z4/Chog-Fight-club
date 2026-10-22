@@ -1,6 +1,6 @@
 import "./auth.css";
 import { buildRosterPreview } from "./nft/rosterPreview.js";
-import { getChogMetadata, getOwnedChogs } from "./nft/chogNft.js";
+import { getOwnedChogs } from "./nft/chogNft.js";
 import { connectAndLinkWallet } from "./walletLink.js";
 import { confirmPactFulfillment, mintPactAgreement, signPactAgreement } from "./pact.js";
 
@@ -29,8 +29,6 @@ const state = {
   basicTapPendingAt: null,
   basicTapWindowMs: 260,
   avatarCache: new Map(),
-  chogArtworkCache: new Map(),
-  pendingChogArtwork: new Set(),
 };
 let liveArena = null;
 let liveArenaPromise = null;
@@ -91,49 +89,23 @@ function clearAlert() {
   alertNode.hidden = true;
   alertNode.textContent = "";
 }
-function selectedChogArt(tokenId) {
-  const key = String(tokenId ?? "");
-  if (!/^\d+$/.test(key)) return null; // prototype fighters do not have NFT artwork metadata
-  const rosterItem = state.chogs.find((item) => String(item.tokenId) === key);
-  const rosterImage = rosterItem?.metadata?.image;
-  if (rosterImage) {
-    state.chogArtworkCache.set(key, rosterImage);
-    return rosterImage;
-  }
-  return state.chogArtworkCache.get(key) || null;
-}
-
-function queueSelectedChogArt(tokenId) {
-  const key = String(tokenId ?? "");
-  if (!/^\d+$/.test(key) || state.chogArtworkCache.has(key) || state.pendingChogArtwork.has(key)) return;
-  state.pendingChogArtwork.add(key);
-  getChogMetadata(key)
-    .then((metadata) => {
-      if (metadata?.image) state.chogArtworkCache.set(key, metadata.image);
-      else state.chogArtworkCache.set(key, null);
-    })
-    .catch(() => {
-      // Keep the rigged Chog placeholder on metadata/network failure; don't substitute Discord PFPs
-      // or immediately re-queue the same failing lookup in the sync callback below.
-      state.chogArtworkCache.set(key, null);
-    })
-    .finally(() => {
-      state.pendingChogArtwork.delete(key);
-      syncLiveArenaAvatars();
-    });
-}
-
 function syncLiveArenaAvatars(room = state.realtimeState, viewerRole = state.invite?.viewerRole) {
   if (!liveArena) return;
-  const artwork = {};
+  const avatars = {};
   for (const role of ["challenger", "opponent"]) {
     const inviteFighter = role === "challenger" ? state.invite?.challenger : state.invite?.opponent;
-    // The lobby's chosen token ID, not the Discord user, decides which art is shown.
-    const tokenId = room?.players?.[role]?.tokenId || inviteFighter?.tokenId;
-    artwork[role] = selectedChogArt(tokenId);
-    if (!artwork[role]) queueSelectedChogArt(tokenId);
+    const fighter = room?.players?.[role] || {};
+    const username = fighter.username || inviteFighter?.username || "";
+    const cachedAvatar = state.avatarCache.get(String(username).toLowerCase());
+    // Both players use their Discord profile picture. Prefer the avatar included
+    // with the live/invite player data, then the current user's Discord session,
+    // then the player-directory cache populated by avatarForFighter().
+    avatars[role] = fighter.avatar || fighter.avatarUrl
+      || inviteFighter?.avatar || inviteFighter?.avatarUrl
+      || (role === viewerRole ? state.session?.avatar : null)
+      || cachedAvatar || null;
   }
-  liveArena.setAvatars(artwork);
+  liveArena.setAvatars(avatars);
 }
 function statusText(value) {
   return String(value ?? "UNKNOWN").replaceAll("_", " ");
