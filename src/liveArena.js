@@ -80,11 +80,11 @@ class LiveArenaScene extends Phaser.Scene {
     this.finishedOverlay = this.add.container(WIDTH / 2, HEIGHT / 2).setDepth(1000).setVisible(false);
     const shade = this.add.rectangle(0, 0, WIDTH, HEIGHT, 0x090a0d, 0.78);
     this.finishedTitle = this.add.text(0, -18, "MATCH OVER", {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "32px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "32px", fontStyle: "900",
       color: "#ffffff", stroke: "#111318", strokeThickness: 5,
     }).setOrigin(0.5);
     this.finishedText = this.add.text(0, 24, "", {
-      fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "17px", fontStyle: "700",
+      fontFamily: "system-ui, sans-serif", fontSize: "17px", fontStyle: "700",
       color: "#f0b53a", stroke: "#111318", strokeThickness: 4,
     }).setOrigin(0.5);
     this.finishedOverlay.add([shade, this.finishedTitle, this.finishedText]);
@@ -175,7 +175,7 @@ class LiveArenaScene extends Phaser.Scene {
       const manaFill = this.add.rectangle(manaX, manaY, manaWidth, manaHeight, 0x050505, 1)
         .setOrigin(0, 0.5).setDepth(1982).setScrollFactor(0);
       const name = this.add.text(0, healthY, "", {
-        fontFamily: '"Nexa Rust Sans", sans-serif', fontSize: "11px", fontStyle: "900",
+        fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "900",
         color: "#ffffff", stroke: "#080611", strokeThickness: 3,
         align: rightSide ? "right" : "left",
       }).setOrigin(rightSide ? 1 : 0, 0.5).setScrollFactor(0).setDepth(2011);
