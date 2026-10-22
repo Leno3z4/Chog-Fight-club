@@ -1745,7 +1745,7 @@ class ArenaScene extends Phaser.Scene {
     const leftManaX = width * 0.311;
     const rightManaX = width * 0.629;
     const rightManaLabelX = width * 0.585;
-    const avatarSize = width * 0.074;
+    const avatarSize = width * 0.066;
     const avatarY = width * 0.09;
     if (this.hudFrameImage) {
       this.hudFrameImage.setPosition(0, 0).setDisplaySize(width, width * (1640 / 2360)).setDepth(1990);
