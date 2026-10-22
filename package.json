@@ -4,8 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
+    "dev": "node scripts/assemble-game-font.js && vite",
+    "build": "node scripts/assemble-game-font.js && vite build",
     "preview": "vite preview",
     "preview:rig": "node scripts/render-rig-preview.mjs",
     "test:opensea": "node --test server/openSeaChogs.test.js",
