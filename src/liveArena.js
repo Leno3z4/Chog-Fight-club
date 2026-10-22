@@ -238,7 +238,7 @@ class LiveArenaScene extends Phaser.Scene {
       if (!hud.avatar) this.createHudAvatar(role, "chog-head");
       if (!url || url === hud.avatarUrl) continue;
       hud.avatarUrl = url;
-      const key = `live-discord-avatar-${role}`;
+      const key = `live-selected-chog-art-${role}`;
       if (this.textures.exists(key)) {
         this.createHudAvatar(role, key);
         continue;
