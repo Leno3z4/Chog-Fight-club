@@ -224,6 +224,7 @@ button,a{font:inherit} button{cursor:pointer} a{color:inherit;text-decoration:no
 /* Server-authoritative shared combat */
 .combat-card { border-color: rgba(133, 103, 255, .45); }
 .combat-fighters { display:grid; grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); gap:16px; align-items:center; margin:20px 0; }
+.combat-card.live-match-active .combat-fighters { display:none; }
 .combat-fighter { min-width:0; padding:16px; border:1px solid rgba(176,155,255,.2); border-radius:16px; background:rgba(14,8,28,.42); }
 .combat-fighter-head { display:flex; align-items:center; gap:10px; min-width:0; margin-bottom:10px; }
 .combat-fighter-avatar { display:block; width:42px; height:42px; flex:0 0 42px; border-radius:50%; object-fit:cover; background:#171717; border:2px solid rgba(255,255,255,.28); }

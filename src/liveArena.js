@@ -69,6 +69,8 @@ class LiveArenaScene extends Phaser.Scene {
     this.projectileVisuals = new Map();
     this.latestProjectiles = [];
     this.roundInfo = null;
+    this.battleHud = {};
+    this.avatarUrls = { challenger: "", opponent: "" };
   }
 
   create() {
@@ -86,48 +88,179 @@ class LiveArenaScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.finishedOverlay.add([shade, this.finishedTitle, this.finishedText]);
     this.readyForState = true;
+    this.applyHudAvatars();
+    this.updateBattleHud();
     if (this.latestState) this.applySnapshot();
   }
 
   drawRing() {
-    const background = this.add.graphics();
-    background.fillGradientStyle(0x17101f, 0x17101f, 0x0b1119, 0x0b1119, 1);
-    background.fillRect(0, 0, WIDTH, HEIGHT);
-    background.fillStyle(0x0a0d13, 0.9);
-    background.fillEllipse(WIDTH / 2, 430, 920, 190);
-
-    const ring = this.add.graphics();
-    ring.fillStyle(0x1a1a25, 1);
-    ring.fillRect(78, 84, 804, 352);
-    ring.lineStyle(2, 0x7967a5, 0.9);
-    ring.strokeRect(76, 82, 808, 356);
-    ring.lineStyle(1, 0x34313d, 0.9);
-    for (const y of [154, 238, 322]) {
-      ring.lineBetween(86, y, 874, y);
+    if (this.textures.exists("arena-background")) {
+      this.arenaBackgroundImage = this.add.image(WIDTH / 2, HEIGHT / 2, "arena-background")
+        .setDisplaySize(WIDTH, HEIGHT).setDepth(-100);
+    } else {
+      const background = this.add.graphics().setDepth(-100);
+      background.fillGradientStyle(0x17101f, 0x17101f, 0x0b1119, 0x0b1119, 1);
+      background.fillRect(0, 0, WIDTH, HEIGHT);
+      background.fillStyle(0x0a0d13, 0.9);
+      background.fillEllipse(WIDTH / 2, 430, 920, 190);
+      const ring = this.add.graphics().setDepth(0);
+      ring.fillStyle(0x1a1a25, 1);
+      ring.fillRect(78, 84, 804, 352);
+      ring.lineStyle(2, 0x7967a5, 0.9);
+      ring.strokeRect(76, 82, 808, 356);
+      ring.lineStyle(1, 0x34313d, 0.9);
+      for (const y of [154, 238, 322]) ring.lineBetween(86, y, 874, y);
+      ring.lineStyle(5, 0xf0b53a, 0.82);
+      ring.lineBetween(82, 148, 878, 148);
+      ring.lineStyle(4, 0xa38cff, 0.82);
+      ring.lineBetween(82, 326, 878, 326);
+      ring.fillStyle(0xf0b53a, 1);
+      for (const [x, y] of [[76, 82], [884, 82], [76, 438], [884, 438]]) {
+        ring.fillRoundedRect(x - 8, y - 8, 16, 16, 4);
+      }
+      ring.lineStyle(1, 0xf5f2ea, 0.18);
+      ring.strokeRect(115, 112, 730, 294);
+      this.add.text(WIDTH / 2, 24, "CHOG FIGHT CLUB · LIVE RING", {
+        fontFamily: "system-ui, sans-serif", fontSize: "12px", fontStyle: "700",
+        color: "#f5f2ea", letterSpacing: 2,
+      }).setOrigin(0.5).setDepth(700);
+      this.add.text(WIDTH / 2, 474, "TWO PLAYERS · SERVER-SYNCED", {
+        fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "700",
+        color: "#d0c7e4", letterSpacing: 1,
+      }).setOrigin(0.5).setDepth(700);
     }
-    ring.lineStyle(5, 0xf0b53a, 0.82);
-    ring.lineBetween(82, 148, 878, 148);
-    ring.lineStyle(4, 0xa38cff, 0.82);
-    ring.lineBetween(82, 326, 878, 326);
-    ring.fillStyle(0xf0b53a, 1);
-    for (const [x, y] of [[76, 82], [884, 82], [76, 438], [884, 438]]) {
-      ring.fillRoundedRect(x - 8, y - 8, 16, 16, 4);
-    }
-    ring.lineStyle(1, 0xf5f2ea, 0.18);
-    ring.strokeRect(115, 112, 730, 294);
+    this.createBattleHud();
+    this.roundHudText = this.add.text(WIDTH / 2, WIDTH * 0.09, "R1/3 · 01:00 · 0-0", {
+      fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "900",
+      color: "#291839", align: "center",
+    }).setOrigin(0.5).setDepth(2012);
+  }
 
-    this.add.text(WIDTH / 2, 24, "CHOG FIGHT CLUB · LIVE RING", {
-      fontFamily: "system-ui, sans-serif", fontSize: "12px", fontStyle: "700",
-      color: "#f5f2ea", letterSpacing: 2,
-    }).setOrigin(0.5);
-    this.roundHudText = this.add.text(WIDTH / 2, 52, "ROUND 1/3 · 01:00 · 0-0", {
-      fontFamily: "system-ui, sans-serif", fontSize: "15px", fontStyle: "900",
-      color: "#f0b53a", stroke: "#090a0d", strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(700);
-    this.add.text(WIDTH / 2, 474, "TWO PLAYERS · SERVER-SYNCED", {
-      fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "700",
-      color: "#d0c7e4", letterSpacing: 1,
-    }).setOrigin(0.5);
+  createBattleHud() {
+    const healthY = WIDTH * 0.026;
+    const manaY = WIDTH * 0.047;
+    const healthWidth = WIDTH * 0.327;
+    const healthHeight = WIDTH * 0.018;
+    const manaWidth = WIDTH * 0.143;
+    const manaHeight = WIDTH * 0.009;
+    const leftX = WIDTH * 0.074;
+    const rightX = WIDTH * 0.586;
+    const leftMpX = WIDTH * 0.257;
+    const rightMpX = WIDTH * 0.586;
+    const avatarY = WIDTH * 0.09;
+    const avatarSize = WIDTH * 0.074;
+    for (const role of ["challenger", "opponent"]) {
+      const rightSide = role === "opponent";
+      const healthX = rightSide ? rightX + healthWidth : leftX;
+      const healthOrigin = rightSide ? 1 : 0;
+      const healthTrack = this.add.rectangle(healthX, healthY, healthWidth, healthHeight, 0x17131f, 0.94)
+        .setOrigin(healthOrigin, 0.5).setDepth(1980).setScrollFactor(0);
+      const healthGhost = this.add.rectangle(healthX, healthY, healthWidth, healthHeight, 0xffffff, 0.30)
+        .setOrigin(healthOrigin, 0.5).setDepth(1981).setScrollFactor(0);
+      const healthFill = this.add.rectangle(healthX, healthY, healthWidth, healthHeight, 0x22d35a, 1)
+        .setOrigin(healthOrigin, 0.5).setDepth(1982).setScrollFactor(0);
+      const manaX = rightSide ? rightMpX : leftMpX;
+      const manaTrack = this.add.rectangle(manaX, manaY, manaWidth, manaHeight, 0x504657, 1)
+        .setOrigin(0, 0.5).setDepth(1980).setScrollFactor(0);
+      const manaFill = this.add.rectangle(manaX, manaY, manaWidth, manaHeight, 0x050505, 1)
+        .setOrigin(0, 0.5).setDepth(1982).setScrollFactor(0);
+      const name = this.add.text(0, healthY, "", {
+        fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "900",
+        color: "#ffffff", stroke: "#080611", strokeThickness: 3,
+        align: rightSide ? "right" : "left",
+      }).setOrigin(rightSide ? 1 : 0, 0.5).setScrollFactor(0).setDepth(2011);
+      const hpText = this.add.text(0, healthY, "", {
+        fontFamily: "system-ui, sans-serif", fontSize: "10px", fontStyle: "800",
+        color: "#ffffff", stroke: "#080611", strokeThickness: 3,
+        align: rightSide ? "left" : "right",
+      }).setOrigin(rightSide ? 0 : 1, 0.5).setScrollFactor(0).setDepth(2011);
+      const mpText = this.add.text(0, manaY, "", {
+        fontFamily: "system-ui, sans-serif", fontSize: "9px", fontStyle: "800",
+        color: "#ffffff", stroke: "#080611", strokeThickness: 3,
+      }).setScrollFactor(0).setDepth(2011);
+      const avatarX = WIDTH * (rightSide ? 0.91 : 0.09);
+      this.battleHud[role] = {
+        healthTrack, healthGhost, healthFill, manaTrack, manaFill, name, hpText, mpText,
+        healthWidth, healthHeight, manaWidth, manaHeight, healthY, manaY, avatarX, avatarY, avatarSize,
+        avatar: null, avatarMask: null, avatarUrl: "",
+        healthX: rightSide ? rightX : leftX,
+        manaX, rightSide,
+      };
+    }
+    if (this.textures.exists("health-mp-frame")) {
+      this.battleHudFrame = this.add.image(0, 0, "health-mp-frame")
+        .setOrigin(0, 0).setDisplaySize(WIDTH, WIDTH * (1640 / 2360))
+        .setBlendMode(Phaser.BlendModes.SCREEN).setDepth(2000).setScrollFactor(0);
+    }
+  }
+
+  createHudAvatar(role, textureKey) {
+    const hud = this.battleHud[role];
+    if (!hud) return;
+    hud.avatar?.destroy();
+    hud.avatarMask?.destroy();
+    const avatar = this.add.image(hud.avatarX, hud.avatarY, textureKey)
+      .setDisplaySize(hud.avatarSize, hud.avatarSize).setScrollFactor(0).setDepth(2005);
+    const maskShape = this.make.graphics({ x: 0, y: 0, add: false });
+    maskShape.fillStyle(0xffffff, 1).fillCircle(hud.avatarX, hud.avatarY, hud.avatarSize / 2);
+    avatar.setMask(maskShape.createGeometryMask());
+    hud.avatar = avatar;
+    hud.avatarMask = maskShape;
+  }
+
+  setAvatars(avatars = {}) {
+    this.avatarUrls = { ...this.avatarUrls, ...avatars };
+    if (this.readyForState) this.applyHudAvatars();
+  }
+
+  applyHudAvatars() {
+    for (const role of ["challenger", "opponent"]) {
+      const hud = this.battleHud[role];
+      if (!hud) continue;
+      const url = String(this.avatarUrls[role] || "");
+      if (!hud.avatar) this.createHudAvatar(role, "chog-head");
+      if (!url || url === hud.avatarUrl) continue;
+      hud.avatarUrl = url;
+      const key = `live-discord-avatar-${role}`;
+      if (this.textures.exists(key)) {
+        this.createHudAvatar(role, key);
+        continue;
+      }
+      this.load.image(key, url);
+      this.load.once(`filecomplete-image-${key}`, () => {
+        if (this.textures.exists(key)) this.createHudAvatar(role, key);
+      });
+      this.load.start();
+    }
+  }
+
+  updateBattleHud() {
+    for (const role of ["challenger", "opponent"]) {
+      const fighter = this.fighters[role];
+      const hud = this.battleHud[role];
+      if (!fighter || !hud) continue;
+      const hp = Math.max(0, Number(fighter.hp || 0));
+      const maxHp = Math.max(1, Number(fighter.maxHp || 100));
+      const hpRatio = clamp(hp / maxHp, 0, 1);
+      const energy = Math.max(0, Math.round(Number(fighter.energy || 0)));
+      const maxEnergy = Math.max(1, Math.round(Number(fighter.maxEnergy || 100)));
+      const energyRatio = clamp(energy / maxEnergy, 0, 1);
+      hud.healthFill.width = hud.healthWidth * hpRatio;
+      hud.healthGhost.width = hud.healthWidth * hpRatio;
+      hud.manaFill.width = hud.manaWidth * energyRatio;
+      hud.name.setText(`@${fighter.username || (role === "challenger" ? "Challenger" : "Opponent")} · Chog #${fighter.tokenId || "—"}`);
+      hud.hpText.setText(`HP ${Math.round(hp)}/${Math.round(maxHp)}`);
+      hud.mpText.setText(`MP ${energy}%`);
+      if (hud.rightSide) {
+        hud.name.setPosition(hud.healthX + hud.healthWidth - WIDTH * 0.008, hud.healthY);
+        hud.hpText.setPosition(hud.healthX + WIDTH * 0.008, hud.healthY);
+      } else {
+        hud.name.setPosition(hud.healthX + WIDTH * 0.008, hud.healthY);
+        hud.hpText.setPosition(hud.healthX + hud.healthWidth - WIDTH * 0.008, hud.healthY);
+      }
+      hud.mpText.setPosition(hud.manaX + WIDTH * 0.008, hud.manaY);
+    }
+    if (this.battleHudFrame) this.battleHudFrame.setDepth(2000);
   }
 
   createFighter(role) {
@@ -231,13 +364,12 @@ class LiveArenaScene extends Phaser.Scene {
         flashChog(this, fighter.root.rig, 0xffffff, 90);
         fighter.previousFlashUntil = fighter.flashUntil;
       }
-      const who = role === this.viewerRole ? "YOU" : "RIVAL";
-      const tokenLabel = fighter.tokenId ? ` · Chog #${fighter.tokenId}` : "";
-      fighter.name.setText(`${who} · @${fighter.username}${tokenLabel}`);
-      fighter.dna.setText(`${fighter.fighterName} · ${fighter.tier} · ATK ${fighter.attack} · MP ${Math.round(fighter.energy)}/${Math.round(fighter.maxEnergy)}`);
+      fighter.name.setText(`${fighter.fighterName} · ${fighter.tier}`);
+      fighter.dna.setText(`ATK ${fighter.attack} · DEF ${fighter.defense} · SPD ${fighter.speed}`);
       fighter.marker.setFillStyle(fighter.connected ? ACCENTS[role] : 0x777780);
     }
 
+    this.updateBattleHud();
     const wins = state.roundWins || { challenger: 0, opponent: 0 };
     const remaining = Math.ceil(Math.max(0, Number(state.timeRemainingMs ?? 60_000)) / 1000);
     if (this.roundHudText) {
@@ -446,9 +578,23 @@ class LiveArenaScene extends Phaser.Scene {
         };
       }
       applyChogPose(root.rig, pose);
-      fighter.name.setPosition(root.x, root.y - 146);
-      fighter.dna.setPosition(root.x, root.y - 126);
-      fighter.marker.setPosition(root.x, root.y - 106);
+      const knockedOut = fighter.hp <= 0;
+      root.setVisible(!knockedOut);
+      if (knockedOut) {
+        const deadSize = 260;
+        if (!fighter.deadVisual) {
+          fighter.deadVisual = this.add.image(root.x, root.y, "dead-chog")
+            .setDisplaySize(deadSize, deadSize).setVisible(false);
+        }
+        fighter.deadVisual.setVisible(true).setDisplaySize(deadSize, deadSize)
+          .setPosition(root.x - deadSize * 0.08, HEIGHT * 0.76 - deadSize * 0.36)
+          .setDepth(100 + root.y + 1);
+      } else if (fighter.deadVisual) {
+        fighter.deadVisual.setVisible(false);
+      }
+      fighter.name.setPosition(root.x, root.y - 105);
+      fighter.dna.setPosition(root.x, root.y - 85);
+      fighter.marker.setPosition(root.x, root.y - 66);
     }
 
     const activeIds = new Set();
@@ -499,6 +645,10 @@ export function createLiveArena(parent) {
     setState(state, viewerRole) {
       const scene = game.scene.getScene("LiveArenaScene");
       if (scene) scene.setSnapshot(state, viewerRole);
+    },
+    setAvatars(avatars) {
+      const scene = game.scene.getScene("LiveArenaScene");
+      if (scene) scene.setAvatars(avatars);
     },
     destroy() {
       game.destroy(true);

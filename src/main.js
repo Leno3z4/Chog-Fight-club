@@ -211,6 +211,11 @@ class ArenaScene extends Phaser.Scene {
 
     this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 120, false);
     this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 120, true);
+    const koArtworkSize = Math.min(380, this.arenaWidth * 0.30);
+    this.playerDeadVisual = this.add.image(this.player.x, this.floorY - koArtworkSize * 0.36, "dead-chog")
+      .setDisplaySize(koArtworkSize, koArtworkSize).setDepth(700).setVisible(false);
+    this.opponentDeadVisual = this.add.image(this.opponent.x, this.floorY - koArtworkSize * 0.36, "dead-chog")
+      .setDisplaySize(koArtworkSize, koArtworkSize).setDepth(700).setVisible(false);
     this.playerHurtbox = this.createHurtbox(this.player);
     this.opponentHurtbox = this.createHurtbox(this.opponent);
 
@@ -1018,6 +1023,15 @@ class ArenaScene extends Phaser.Scene {
     applyChogPose(this.playerVisual.rig, playerPose);
     this.lastPlayerPose = { ...playerPose };
     applyChogPose(this.opponentVisual.rig, this.getOpponentRigPose(time));
+    const deadSize = Math.min(380, this.arenaWidth * 0.30);
+    const playerKO = this.playerCombatant.hp <= 0;
+    const opponentKO = this.opponentCombatant.hp <= 0;
+    this.playerVisual.setVisible(!playerKO);
+    this.opponentVisual.setVisible(!opponentKO);
+    this.playerDeadVisual.setVisible(playerKO).setDisplaySize(deadSize, deadSize)
+      .setPosition(this.player.x - deadSize * 0.08, this.floorY - deadSize * 0.36).setDepth(700);
+    this.opponentDeadVisual.setVisible(opponentKO).setDisplaySize(deadSize, deadSize)
+      .setPosition(this.opponent.x - deadSize * 0.08, this.floorY - deadSize * 0.36).setDepth(700);
   }
 
   getReadyPose(time, phase, moving = false, walkDir = 1) {
@@ -1450,14 +1464,14 @@ class ArenaScene extends Phaser.Scene {
       .then((payload) => {
         const user = payload?.authenticated ? payload.user : null;
         if (!user) return;
-        const token = identity.tokenId ? `Chog #${identity.tokenId}` : "Chog #—";
-        this.playerIdentityText?.setText(`@${user.username || user.discordUsername || "YOU"} · ${token}`);
+        this.playerIdentityText?.setText(`@${user.username || user.discordUsername || "YOU"} · Chog #${identity.tokenId || "—"}`);
         if (!user.avatar || this.textures.exists("solo-discord-avatar")) return;
         this.load.image("solo-discord-avatar", user.avatar);
-        this.load.once("complete", () => {
+        this.load.once("filecomplete-image-solo-discord-avatar", () => {
           if (!this.textures.exists("solo-discord-avatar")) return;
-          this.playerAvatar = this.add.image(48, 106, "solo-discord-avatar")
-            .setDisplaySize(34, 34).setScrollFactor(0).setDepth(20);
+          this.playerAvatar?.destroy();
+          this.playerAvatar = this.add.image(0, 0, "solo-discord-avatar").setScrollFactor(0).setDepth(2005);
+          this.positionHud(this.arenaWidth, this.arenaHeight);
         });
         this.load.start();
       })
@@ -1465,21 +1479,45 @@ class ArenaScene extends Phaser.Scene {
   }
 
   createHud() {
-    const textStyle = { fontFamily: "system-ui, sans-serif", color: "#16324A" };
+    const textStyle = {
+      fontFamily: "system-ui, sans-serif", color: "#ffffff",
+      stroke: "#090611", strokeThickness: 3, fontStyle: "800",
+    };
     const identity = this.playerBattleDNA.identity;
-    const stats = this.playerBattleDNA.stats;
-    const token = identity.tokenId ? ` · Chog #${identity.tokenId}` : "";
-    this.playerIdentityText = this.add.text(32, 56, `${identity.name || "Practice Chog"}${token} · ${identity.tier} Battle DNA · ATK ${stats.attack} · DEF ${stats.defense} · SPD ${stats.speed}`, { ...textStyle, fontSize: "13px", fontStyle: "700" }).setScrollFactor(0);
+    this.playerIdentityText = this.add.text(0, 0, `@YOU · Chog #${identity.tokenId || "—"}`, {
+      ...textStyle, fontSize: "14px",
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.loadDiscordHudAvatar(identity);
+    this.opponentLabel = this.add.text(0, 0, `ARENA BOT · Chog #${this.opponentBattleDNA.identity.tokenId || "973"}`, {
+      ...textStyle, fontSize: "14px", align: "right",
+    }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2010);
+    this.playerHpText = this.add.text(0, 0, "", {
+      ...textStyle, fontSize: "12px", align: "right",
+    }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2010);
+    this.opponentHpText = this.add.text(0, 0, "", {
+      ...textStyle, fontSize: "12px",
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     const baseName = this.playerBattleDNA.abilitySet.base?.name ?? "Base Ability";
     const specialName = this.playerBattleDNA.abilitySet.special?.name ?? "Signature Ability";
-    this.add.text(32, 80, `1 ${baseName}  ·  2 ${specialName}`, { ...textStyle, fontSize: "12px", fontStyle: "700" }).setScrollFactor(0);
-    this.playerHpText = this.add.text(32, 120, "", { ...textStyle, fontSize: "14px" }).setScrollFactor(0);
-    this.playerCooldownText = this.add.text(32, 182, "", { ...textStyle, fontSize: "12px" }).setScrollFactor(0);
-    this.statusText = this.add.text(this.arenaWidth / 2, this.arenaHeight - 38, "", { ...textStyle, fontSize: "16px", align: "center" }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
-    this.matchHudText = this.add.text(this.arenaWidth / 2, 22, "", {
-      ...textStyle, fontSize: "16px", fontStyle: "800", align: "center", color: "#16324A",
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(31);
+    this.practiceAbilityText = this.add.text(32, 0, `1 ${baseName}  ·  2 ${specialName}`, {
+      ...textStyle, fontSize: "12px",
+    }).setScrollFactor(0).setDepth(2010);
+    this.playerCooldownText = this.add.text(32, 0, "", {
+      ...textStyle, fontSize: "11px",
+    }).setScrollFactor(0).setDepth(2010);
+    this.playerEnergyText = this.add.text(0, 0, "", {
+      ...textStyle, fontSize: "10px",
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
+    this.opponentEnergyText = this.add.text(0, 0, "", {
+      ...textStyle, fontSize: "10px", align: "right",
+    }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2010);
+    this.statusText = this.add.text(this.arenaWidth / 2, this.arenaHeight - 38, "", {
+      ...textStyle, fontSize: "16px", align: "center",
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
+    this.matchHudText = this.add.text(this.arenaWidth / 2, 0, "", {
+      fontFamily: "system-ui, sans-serif", fontSize: "12px", fontStyle: "900",
+      color: "#291839", align: "center",
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(2011);
     this.matchOverlay = this.add.container(this.arenaWidth / 2, this.arenaHeight / 2).setDepth(50).setScrollFactor(0).setVisible(false);
     const overlayShade = this.add.rectangle(0, 0, 520, 144, 0x10131b, 0.88).setStrokeStyle(2, 0xf0b53a, 0.95);
     this.matchOverlayTitle = this.add.text(0, -28, "ROUND OVER", {
@@ -1490,18 +1528,25 @@ class ArenaScene extends Phaser.Scene {
     }).setOrigin(0.5);
     this.matchOverlay.add([overlayShade, this.matchOverlayTitle, this.matchOverlayDetail]);
 
-    this.playerGhostBar = this.add.rectangle(32, 106, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
-    this.playerBar = this.add.rectangle(32, 106, 300, 18, 0x22d35a, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
-    this.playerEnergyBar = this.add.rectangle(32, 145, 300, 10, 0x050505, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
-    this.playerEnergyGhostBar = this.add.rectangle(32, 145, 300, 10, 0x303030, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
-    this.playerEnergyText = this.add.text(32, 156, "", { ...textStyle, fontSize: "11px" }).setScrollFactor(0).setDepth(12);
+    this.playerHealthTrack = this.add.rectangle(0, 0, 1, 1, 0x17131f, 0.94).setOrigin(0, 0.5).setScrollFactor(0).setDepth(1980);
+    this.playerGhostBar = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0.30).setOrigin(0, 0.5).setScrollFactor(0).setDepth(1981);
+    this.playerBar = this.add.rectangle(0, 0, 1, 1, 0x22d35a, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(1982);
+    this.opponentHealthTrack = this.add.rectangle(0, 0, 1, 1, 0x17131f, 0.94).setOrigin(1, 0.5).setScrollFactor(0).setDepth(1980);
+    this.opponentGhostBar = this.add.rectangle(0, 0, 1, 1, 0xffffff, 0.30).setOrigin(1, 0.5).setScrollFactor(0).setDepth(1981);
+    this.opponentBar = this.add.rectangle(0, 0, 1, 1, 0x22d35a, 1).setOrigin(1, 0.5).setScrollFactor(0).setDepth(1982);
+    this.playerEnergyGhostBar = this.add.rectangle(0, 0, 1, 1, 0x504657, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(1980);
+    this.playerEnergyBar = this.add.rectangle(0, 0, 1, 1, 0x050505, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(1982);
+    this.opponentEnergyGhostBar = this.add.rectangle(0, 0, 1, 1, 0x504657, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(1980);
+    this.opponentEnergyBar = this.add.rectangle(0, 0, 1, 1, 0x050505, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(1982);
 
-    this.opponentGhostBar = this.add.rectangle(0, 106, 300, 18, 0xffffff, 0.32).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
-    this.opponentBar = this.add.rectangle(0, 106, 300, 18, 0x22d35a, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
-    this.opponentEnergyBar = this.add.rectangle(0, 145, 300, 10, 0x050505, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(11);
-    this.opponentEnergyGhostBar = this.add.rectangle(0, 145, 300, 10, 0x303030, 1).setOrigin(0, 0.5).setScrollFactor(0).setDepth(10);
-    this.opponentEnergyText = this.add.text(0, 156, "", { ...textStyle, fontSize: "11px", align: "right" }).setOrigin(1, 0).setScrollFactor(0).setDepth(12);
-    this.opponentLabel = this.add.text(0, 120, "ARENA BOT · CHOG #973", { ...textStyle, fontSize: "12px", fontStyle: "800" }).setScrollFactor(0);
+    if (this.textures.exists("health-mp-frame")) {
+      this.hudFrameImage = this.add.image(0, 0, "health-mp-frame")
+        .setOrigin(0, 0).setScrollFactor(0)
+        .setBlendMode(Phaser.BlendModes.SCREEN).setDepth(1990);
+    }
+    if (this.textures.exists("chog-head")) {
+      this.opponentAvatar = this.add.image(0, 0, "chog-head").setScrollFactor(0).setDepth(2005);
+    }
     this.positionHud(this.arenaWidth, this.arenaHeight);
   }
 
@@ -1512,14 +1557,15 @@ class ArenaScene extends Phaser.Scene {
     const opponentEnergy = Math.round(this.opponentCombatant.energy);
     const opponentEnergyRatio = Phaser.Math.Clamp(this.opponentCombatant.energy / this.opponentCombatant.maxEnergy, 0, 1);
     this.playerHpText.setText(`HP ${hp}/${this.playerCombatant.maxHp}`);
-    this.playerEnergyBar.width = this.healthBarWidth * energyRatio;
-    this.opponentEnergyBar.width = this.healthBarWidth * opponentEnergyRatio;
-    this.playerEnergyText.setText(`MP ${energy}%  •  Basic 5%  •  Base 10%  •  Special 35%`);
-    this.opponentEnergyText.setText(`BOT MP ${opponentEnergy}%`);
+    this.opponentHpText.setText(`HP ${Math.max(0, Math.round(this.opponentCombatant.hp))}/${this.opponentCombatant.maxHp}`);
+    this.playerEnergyBar.width = this.manaBarWidth * energyRatio;
+    this.opponentEnergyBar.width = this.manaBarWidth * opponentEnergyRatio;
+    this.playerEnergyText.setText(`MP ${energy}%`);
+    this.opponentEnergyText.setText(`MP ${opponentEnergy}%`);
 
     if (this.matchHudText) {
       const seconds = Math.ceil(this.match.timeRemainingMs / 1000);
-      this.matchHudText.setText(`ROUND ${this.match.round}/${this.match.totalRounds}  ·  ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}  ·  ${this.match.wins.player}-${this.match.wins.opponent}`);
+      this.matchHudText.setText(`R${this.match.round}/${this.match.totalRounds} · ${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")} · ${this.match.wins.player}-${this.match.wins.opponent}`);
     }
 
     const basic = getCooldownRemaining(this.playerCombatant, "basic");
@@ -1539,19 +1585,25 @@ class ArenaScene extends Phaser.Scene {
     const width = this.arenaWidth;
     const height = this.arenaHeight;
     const floorY = this.floorY;
+    // Use the provided battleground artwork instead of the old placeholder trees and grass.
+    if (this.textures.exists("arena-background")) {
+      if (!this.arenaBackgroundImage) {
+        this.arenaBackgroundImage = this.add.image(width / 2, height / 2, "arena-background")
+          .setOrigin(0.5).setScrollFactor(0).setDepth(-100);
+      }
+      this.arenaBackgroundImage.setPosition(width / 2, height / 2).setDisplaySize(width, height).setDepth(-100);
+      this.arenaBackground = this.arenaBackgroundImage;
+      this.arenaGlow?.setVisible(false);
+      this.arenaLabel?.setVisible(false);
+      return;
+    }
     const bg = this.arenaBackground ?? this.add.graphics();
     bg.clear();
-
-    // Keep the sky, distant treeline and floor visually distinct. The old
-    // oversized circular trees made the whole backdrop look like repeating
-    // columns behind the fighters.
     bg.fillGradientStyle(0x9bc9e8, 0x9bc9e8, 0xd8eff7, 0xd8eff7, 1);
     bg.fillRect(0, 0, width, height);
-
     bg.fillStyle(0x85b3a1, 0.15);
     bg.fillEllipse(width * 0.22, floorY * 0.78, width * 0.62, floorY * 0.42);
     bg.fillEllipse(width * 0.78, floorY * 0.8, width * 0.66, floorY * 0.38);
-
     const horizon = floorY * 0.55;
     const treePositions = [0.04, 0.15, 0.28, 0.42, 0.58, 0.72, 0.86, 0.97];
     for (let i = 0; i < treePositions.length; i += 1) {
@@ -1564,13 +1616,11 @@ class ArenaScene extends Phaser.Scene {
       bg.fillCircle(x - radius * 0.62, canopyY + radius * 0.28, radius * 0.72);
       bg.fillCircle(x + radius * 0.58, canopyY + radius * 0.25, radius * 0.78);
     }
-
     bg.fillStyle(0xcfe3a4, 1);
     bg.fillRect(0, floorY - 2, width, height - floorY + 2);
     bg.fillStyle(0x92b66c, 1);
     bg.fillRect(0, floorY, width, 12);
     this.arenaBackground = bg;
-
     const arenaGlow = this.arenaGlow ?? this.add.graphics();
     arenaGlow.clear();
     arenaGlow.fillStyle(0xffffff, 0.11);
@@ -1578,31 +1628,68 @@ class ArenaScene extends Phaser.Scene {
     this.arenaGlow = arenaGlow;
     if (!this.arenaLabel) {
       this.arenaLabel = this.add.text(0, 0, "TRAINING ARENA", {
-        fontFamily: "system-ui, sans-serif",
-        fontSize: "14px",
-        color: "#16324A",
+        fontFamily: "system-ui, sans-serif", fontSize: "14px", color: "#16324A",
       }).setOrigin(0.5);
     }
-    this.arenaLabel.setPosition(width / 2, height * 0.21);
+    this.arenaLabel.setVisible(true).setPosition(width / 2, height * 0.21);
+  }
+
+  positionHudAvatar(avatar, side, x, y, size) {
+    if (!avatar) return;
+    const prop = side === "player" ? "playerAvatarMaskShape" : "opponentAvatarMaskShape";
+    if (!this[prop]) this[prop] = this.make.graphics({ x: 0, y: 0, add: false });
+    const shape = this[prop];
+    shape.clear();
+    shape.fillStyle(0xffffff, 1);
+    shape.fillCircle(x, y, size / 2);
+    avatar.setPosition(x, y).setDisplaySize(size, size).setScrollFactor(0).setDepth(2005);
+    avatar.setMask(shape.createGeometryMask());
   }
 
   positionHud(width, height) {
     if (!this.statusText) return;
-    this.healthBarWidth = Math.min(300, Math.max(100, (width - 96) / 2));
+    this.healthBarWidth = width * 0.327;
+    this.healthBarHeight = Math.max(6, width * 0.018);
+    this.manaBarWidth = width * 0.143;
+    this.manaBarHeight = Math.max(4, width * 0.009);
+    const healthY = width * 0.026;
+    const manaY = width * 0.047;
+    const leftHealthX = width * 0.074;
+    const rightHealthX = width * 0.586;
+    const leftManaX = width * 0.257;
+    const rightManaX = width * 0.586;
+    const avatarSize = width * 0.074;
+    const avatarY = width * 0.09;
+    if (this.hudFrameImage) {
+      this.hudFrameImage.setPosition(0, 0).setDisplaySize(width, width * (1640 / 2360)).setDepth(1990);
+    }
+    this.playerHealthTrack.setPosition(leftHealthX, healthY).setSize(this.healthBarWidth, this.healthBarHeight);
+    this.playerGhostBar.setPosition(leftHealthX, healthY).setSize(this.healthBarWidth, this.healthBarHeight);
+    this.playerBar.setPosition(leftHealthX, healthY).setSize(this.healthBarWidth, this.healthBarHeight);
+    this.opponentHealthTrack.setPosition(rightHealthX + this.healthBarWidth, healthY).setSize(this.healthBarWidth, this.healthBarHeight);
+    this.opponentGhostBar.setPosition(rightHealthX + this.healthBarWidth, healthY).setSize(this.healthBarWidth, this.healthBarHeight);
+    this.opponentBar.setPosition(rightHealthX + this.healthBarWidth, healthY).setSize(this.healthBarWidth, this.healthBarHeight);
+    this.playerEnergyGhostBar.setPosition(leftManaX, manaY).setSize(this.manaBarWidth, this.manaBarHeight);
+    this.playerEnergyBar.setPosition(leftManaX, manaY).setSize(this.manaBarWidth, this.manaBarHeight);
+    this.opponentEnergyGhostBar.setPosition(rightManaX, manaY).setSize(this.manaBarWidth, this.manaBarHeight);
+    this.opponentEnergyBar.setPosition(rightManaX, manaY).setSize(this.manaBarWidth, this.manaBarHeight);
+    const labelSize = Math.max(9, Math.min(15, Math.round(width * 0.013)));
+    this.playerIdentityText.setFontSize(labelSize).setPosition(leftHealthX + width * 0.008, healthY);
+    this.playerHpText.setFontSize(Math.max(8, labelSize - 1)).setPosition(leftHealthX + this.healthBarWidth - width * 0.008, healthY);
+    this.opponentLabel.setFontSize(labelSize).setPosition(rightHealthX + this.healthBarWidth - width * 0.008, healthY);
+    this.opponentHpText.setFontSize(Math.max(8, labelSize - 1)).setPosition(rightHealthX + width * 0.008, healthY);
+    this.playerEnergyText.setFontSize(Math.max(7, labelSize - 2)).setPosition(leftManaX + width * 0.008, manaY);
+    this.opponentEnergyText.setFontSize(Math.max(7, labelSize - 2)).setPosition(rightManaX + width * 0.008, manaY);
+    this.matchHudText.setFontSize(Math.max(8, Math.min(12, Math.round(width * 0.012))));
+    this.matchHudText.setPosition(width / 2, width * 0.09);
+    this.practiceAbilityText.setPosition(width * 0.025, width * 0.13);
+    this.practiceAbilityText.setFontSize(Math.max(9, Math.min(12, Math.round(width * 0.012))));
+    this.playerCooldownText.setPosition(width * 0.025, width * 0.155);
+    this.playerCooldownText.setFontSize(Math.max(8, Math.min(11, Math.round(width * 0.011))));
     this.statusText.setPosition(width / 2, height - 38);
-    this.matchHudText.setPosition(width / 2, 22);
     this.matchOverlay.setPosition(width / 2, height / 2);
-    const opponentX = width - 32 - this.healthBarWidth;
-    this.opponentGhostBar.setPosition(opponentX, 106).setSize(this.healthBarWidth, 18);
-    this.opponentBar.setPosition(opponentX, 106).setSize(this.healthBarWidth, 18);
-    this.opponentEnergyBar.setPosition(opponentX, 145).setSize(this.healthBarWidth, 10);
-    this.opponentEnergyGhostBar.setPosition(opponentX, 145).setSize(this.healthBarWidth, 10);
-    this.opponentEnergyText.setPosition(opponentX + this.healthBarWidth, 156);
-    this.opponentLabel.setPosition(opponentX, 120);
-    this.playerGhostBar.setSize(this.healthBarWidth, 18);
-    this.playerBar.setSize(this.healthBarWidth, 18);
-    this.playerEnergyBar.setSize(this.healthBarWidth, 10);
-    this.playerEnergyGhostBar.setSize(this.healthBarWidth, 10);
+    this.positionHudAvatar(this.playerAvatar, "player", width * 0.09, avatarY, avatarSize);
+    this.positionHudAvatar(this.opponentAvatar, "opponent", width * 0.91, avatarY, avatarSize);
     this.updateHealthBars(true);
   }
 

@@ -15,6 +15,9 @@ import rightLowerArmUrl from "../images/right lower hand.png";
 import rightUpperArmUrl from "../images/right upper hand.png";
 import rightLowerLegUrl from "../images/right lower leg.png";
 import rightUpperLegUrl from "../images/right upper leg.png";
+import arenaBackgroundUrl from "../images/Purple Neon Arena Battleground.png";
+import battleHudFrameUrl from "../images/health and mp bar.png";
+import deadChogUrl from "../images/dead.png";
 
 const WORLD_WIDTH = 1600;
 
@@ -59,6 +62,10 @@ export class BootScene extends Phaser.Scene {
     for (const [layer, url] of Object.entries(chogLayers)) {
       this.load.image(`chog-${layer}`, url);
     }
+    // Use the artwork supplied in /images for the arena, fighter HUD, and knockout state.
+    this.load.image("arena-background", arenaBackgroundUrl);
+    this.load.image("health-mp-frame", battleHudFrameUrl);
+    this.load.image("dead-chog", deadChogUrl);
   }
 
   create() {

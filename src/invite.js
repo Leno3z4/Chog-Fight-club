@@ -76,6 +76,7 @@ function avatarForFighter(role, username, fighter = {}, inviteFighter = {}) {
         img.src = avatar;
         img.hidden = false;
       }
+      syncLiveArenaAvatars();
     })
     .catch(() => {});
 }
@@ -87,6 +88,17 @@ function showAlert(message, kind = "error") {
 function clearAlert() {
   alertNode.hidden = true;
   alertNode.textContent = "";
+}
+function syncLiveArenaAvatars(room = state.realtimeState, viewerRole = state.invite?.viewerRole) {
+  if (!liveArena) return;
+  const avatars = {};
+  for (const role of ["challenger", "opponent"]) {
+    const inviteFighter = role === "challenger" ? state.invite?.challenger : state.invite?.opponent;
+    const username = room?.players?.[role]?.username || inviteFighter?.username || "";
+    const cachedAvatar = state.avatarCache.get(String(username).toLowerCase());
+    avatars[role] = (role === viewerRole ? state.session?.avatar : null) || cachedAvatar || null;
+  }
+  liveArena.setAvatars(avatars);
 }
 function statusText(value) {
   return String(value ?? "UNKNOWN").replaceAll("_", " ");
@@ -351,6 +363,7 @@ function drawRealtimeArena(room, viewerRole) {
   if (!playfield || !container) return;
   const live = acceptedStatuses.includes(state.invite?.status)
     && (room?.status === "FINISHED" || (["IN_BATTLE", "ROUND_OVER"].includes(room?.phase) && room?.status === "IN_BATTLE"));
+  $("#combat-card")?.classList.toggle("live-match-active", live);
   if (!live) {
     latestLiveSnapshot = null;
     liveArenaFailed = false;
@@ -365,6 +378,7 @@ function drawRealtimeArena(room, viewerRole) {
   latestLiveSnapshot = { room, viewerRole };
   if (liveArena) {
     liveArena.setState(room, viewerRole);
+    syncLiveArenaAvatars(room, viewerRole);
     return;
   }
   if (liveArenaPromise || liveArenaFailed) return;
@@ -373,6 +387,7 @@ function drawRealtimeArena(room, viewerRole) {
       if (!latestLiveSnapshot) return null;
       liveArena = createLiveArena(container);
       liveArena.setState(latestLiveSnapshot.room, latestLiveSnapshot.viewerRole);
+      syncLiveArenaAvatars(latestLiveSnapshot.room, latestLiveSnapshot.viewerRole);
       return liveArena;
     })
     .catch(() => {
