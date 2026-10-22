@@ -1464,23 +1464,61 @@ class ArenaScene extends Phaser.Scene {
   }
 
   loadDiscordHudAvatar(identity) {
-    fetch("/api/discord/session", { credentials: "same-origin", headers: { accept: "application/json" } })
-      .then((response) => response.ok ? response.json() : null)
+    fetch("/api/discord/session", {
+      credentials: "same-origin",
+      cache: "no-store",
+      headers: { accept: "application/json" },
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Discord session lookup failed (${response.status}).`);
+        return response.json();
+      })
       .then((payload) => {
         const user = payload?.authenticated ? payload.user : null;
-        if (!user) return;
+        if (!user) {
+          // The PFP belongs to the authenticated Discord account. Redirect to sign-in
+          // instead of silently rendering an empty portrait when the session is missing.
+          const returnTo = window.location.pathname + window.location.search + window.location.hash;
+          window.location.replace("/?returnTo=" + encodeURIComponent(returnTo || "/battle.html"));
+          return;
+        }
+
         this.playerIdentityText?.setText(`@${user.username || user.discordUsername || "YOU"} CHOG ${identity.tokenId || "0"}`);
-        if (!user.avatar || this.textures.exists("solo-discord-avatar")) return;
-        this.load.image("solo-discord-avatar", user.avatar);
-        this.load.once("filecomplete-image-solo-discord-avatar", () => {
-          if (!this.textures.exists("solo-discord-avatar")) return;
-          this.playerAvatar?.destroy();
-          this.playerAvatar = this.add.image(0, 0, "solo-discord-avatar").setScrollFactor(0).setDepth(2005);
+        let avatarUrl = typeof user.avatarUrl === "string" ? user.avatarUrl : user.avatar;
+        if (!avatarUrl) {
+          // Discord accounts without a custom avatar still have a real default avatar.
+          const discordId = String(user.discordId || user.id || "");
+          if (/^\\d+$/.test(discordId)) {
+            const index = Number((BigInt(discordId) >> 22n) % 6n);
+            avatarUrl = `https://cdn.discordapp.com/embed/avatars/${index}.png?size=128`;
+          }
+        }
+        if (!avatarUrl) return;
+
+        const textureKey = "solo-discord-avatar";
+        const applyAvatarTexture = () => {
+          if (!this.textures.exists(textureKey)) return;
+          if (this.playerAvatar) this.playerAvatar.setTexture(textureKey);
+          else this.playerAvatar = this.add.image(0, 0, textureKey).setScrollFactor(0).setDepth(2005);
           this.positionHud(this.arenaWidth, this.arenaHeight);
+        };
+        if (this.textures.exists(textureKey)) {
+          applyAvatarTexture();
+          return;
+        }
+
+        this.load.once(`filecomplete-image-${textureKey}`, applyAvatarTexture);
+        this.load.once("loaderror", (file) => {
+          if (file?.key !== textureKey) return;
+          // Keep the Chog placeholder visible if Discord's CDN is temporarily unavailable.
+          this.playerIdentityText?.setText(`@${user.username || user.discordUsername || "YOU"} CHOG ${identity.tokenId || "0"}`);
         });
+        this.load.image(textureKey, avatarUrl);
         this.load.start();
       })
-      .catch(() => {});
+      .catch(() => {
+        // Preserve the visible placeholder on transient API/network failures.
+      });
   }
 
   createHud() {
@@ -1492,6 +1530,10 @@ class ArenaScene extends Phaser.Scene {
     this.playerIdentityText = this.add.text(0, 0, `@YOU CHOG ${identity.tokenId || "0"}`, {
       ...textStyle, fontFamily: "system-ui, sans-serif", fontSize: "14px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
+    // Keep the portrait window filled while the authenticated Discord image loads.
+    if (this.textures.exists("chog-head")) {
+      this.playerAvatar = this.add.image(0, 0, "chog-head").setScrollFactor(0).setDepth(2005);
+    }
     this.loadDiscordHudAvatar(identity);
     this.opponentLabel = this.add.text(0, 0, `ARENA BOT CHOG ${this.opponentBattleDNA.identity.tokenId || "973"}`, {
       ...textStyle, fontSize: "14px", align: "right",
