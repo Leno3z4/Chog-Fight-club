@@ -1513,8 +1513,8 @@ class ArenaScene extends Phaser.Scene {
       ...textStyle, fontSize: "10px",
     }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.opponentEnergyText = this.add.text(0, 0, "", {
-      ...textStyle, fontSize: "10px", align: "right",
-    }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(2010);
+      ...textStyle, fontSize: "10px",
+    }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(2010);
     this.statusText = this.add.text(this.arenaWidth / 2, this.arenaHeight - 38, "", {
       ...textStyle, fontSize: "16px", align: "center",
     }).setOrigin(0.5).setScrollFactor(0).setDepth(30);
@@ -1658,15 +1658,20 @@ class ArenaScene extends Phaser.Scene {
     this.healthBarHeight = Math.max(6, width * 0.0145);
     // The left MP slot reserves room for the "MP 100%" label before the meter;
     // the right slot has a longer track but uses the same label-before-track rule.
-    this.playerManaBarWidth = width * 0.103;
-    this.opponentManaBarWidth = width * 0.145;
+    this.playerManaBarWidth = width * 0.093;
+    this.opponentManaBarWidth = width * 0.093;
     this.manaBarHeight = Math.max(4, width * 0.008);
     const healthY = width * 0.030;
     const manaY = width * 0.047;
     const leftHealthX = width * 0.074;
     const rightHealthX = width * 0.586;
-    const leftManaX = width * 0.295;
-    const rightManaX = width * 0.586;
+    // Frame asset lower slots span roughly 26.3%-40.7% (left) and
+    // 58.1%-72.4% (right) of the HUD width. Place labels first, then the
+    // fill tracks in the remaining part of those same slots.
+    const leftManaLabelX = width * 0.267;
+    const leftManaX = width * 0.311;
+    const rightManaX = width * 0.629;
+    const rightManaLabelX = width * 0.585;
     const avatarSize = width * 0.074;
     const avatarY = width * 0.09;
     if (this.hudFrameImage) {
@@ -1687,9 +1692,9 @@ class ArenaScene extends Phaser.Scene {
     this.playerHpText.setFontSize(Math.max(8, labelSize - 1)).setPosition(leftHealthX + this.healthBarWidth - width * 0.008, healthY);
     this.opponentLabel.setFontSize(labelSize).setPosition(rightHealthX + this.healthBarWidth - width * 0.008, healthY);
     this.opponentHpText.setFontSize(Math.max(8, labelSize - 1)).setPosition(rightHealthX + width * 0.008, healthY);
-    this.playerEnergyText.setFontSize(Math.max(7, labelSize - 2)).setPosition(width * 0.245, manaY);
-    // Right-side label is right-aligned immediately before the meter starts.
-    this.opponentEnergyText.setFontSize(Math.max(7, labelSize - 2)).setPosition(rightManaX - width * 0.012, manaY);
+    const manaLabelSize = Math.max(7, labelSize - 2);
+    this.playerEnergyText.setFontSize(manaLabelSize).setPosition(leftManaLabelX, manaY);
+    this.opponentEnergyText.setFontSize(manaLabelSize).setPosition(rightManaLabelX, manaY);
     this.matchHudText.setFontSize(Math.max(8, Math.min(12, Math.round(width * 0.012))));
     this.matchHudText.setPosition(width / 2, width * 0.09);
     this.practiceAbilityText.setPosition(width * 0.025, width * 0.13);
