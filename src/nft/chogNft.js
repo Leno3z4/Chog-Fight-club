@@ -308,11 +308,11 @@ async function fetchTokenMetadata(tokenId) {
 }
 
 // Public metadata lookup for the Chog portrait selected in a multiplayer lobby.
- // tokenURI is readable without owning the token; the lobby's saved tokenId remains
+// tokenURI is readable without owning the token; the lobby's saved tokenId remains
  // the source of truth for which fighter each participant selected.
 export async function getChogMetadata(tokenId) {
   const id = String(tokenId ?? "");
-  if (!/^\\d+$/.test(id)) throw new Error("A numeric Chog token ID is required.");
+  if (!/^\d+$/.test(id)) throw new Error("A numeric Chog token ID is required.");
   return fetchTokenMetadata(id);
 }
 
