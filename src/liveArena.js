@@ -4,8 +4,6 @@ import { BootScene } from "./bootScene.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 import { punchPulse, punchWindowPulse } from "./game/punchEasing.js";
 
-await document.fonts.load('900 14px "Nexa Rust Sans"');
-
 const WIDTH = 960;
 const HEIGHT = 540;
 const SCALE = 0.66;
