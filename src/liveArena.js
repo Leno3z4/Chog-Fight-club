@@ -131,7 +131,7 @@ class LiveArenaScene extends Phaser.Scene {
     }
     this.createBattleHud();
     this.roundHudText = this.add.text(WIDTH / 2, WIDTH * 0.09, "R1/3 · 01:00 · 0-0", {
-      fontFamily: "system-ui, sans-serif", fontSize: "11px", fontStyle: "900",
+      fontFamily: "system-ui, sans-serif", fontSize: "9px", fontStyle: "900",
       color: "#291839", align: "center",
     }).setOrigin(0.5).setDepth(2012);
   }
@@ -145,8 +145,8 @@ class LiveArenaScene extends Phaser.Scene {
     const manaHeight = WIDTH * 0.0105;
     const leftX = WIDTH * 0.074;
     const rightX = WIDTH * 0.586;
-    const leftMpX = WIDTH * 0.257;
-    const rightMpX = WIDTH * 0.586;
+    const leftMpX = WIDTH * 0.28;
+    const rightMpX = WIDTH * 0.57;
     const avatarY = WIDTH * 0.09;
     const avatarSize = WIDTH * 0.074;
     for (const role of ["challenger", "opponent"]) {
@@ -170,7 +170,7 @@ class LiveArenaScene extends Phaser.Scene {
         align: rightSide ? "right" : "left",
       }).setOrigin(rightSide ? 1 : 0, 0.5).setScrollFactor(0).setDepth(2011);
       const hpText = this.add.text(0, healthY, "", {
-        fontFamily: "system-ui, sans-serif", fontSize: "10px", fontStyle: "800",
+        fontFamily: "system-ui, sans-serif", fontSize: "8px", fontStyle: "800",
         color: "#ffffff", stroke: "#080611", strokeThickness: 3,
         align: rightSide ? "left" : "right",
       }).setOrigin(rightSide ? 0 : 1, 0.5).setScrollFactor(0).setDepth(2011);
@@ -252,13 +252,15 @@ class LiveArenaScene extends Phaser.Scene {
       hud.hpText.setText(`HP ${Math.round(hp)}/${Math.round(maxHp)}`);
       hud.mpText.setText(`MP ${energy}%`);
       if (hud.rightSide) {
-        hud.name.setPosition(hud.healthX + hud.healthWidth - WIDTH * 0.008, hud.healthY);
-        hud.hpText.setPosition(hud.healthX + WIDTH * 0.008, hud.healthY);
+        // Reserve the left third for HP and the right side for the fighter name.
+        hud.hpText.setPosition(hud.healthX + hud.healthWidth - WIDTH * 0.34, hud.healthY);
+        hud.name.setPosition(hud.healthX + WIDTH * 0.012, hud.healthY);
       } else {
-        hud.name.setPosition(hud.healthX + WIDTH * 0.008, hud.healthY);
-        hud.hpText.setPosition(hud.healthX + hud.healthWidth - WIDTH * 0.008, hud.healthY);
+        // Keep the name on the left and HP on the right without overlapping.
+        hud.name.setPosition(hud.healthX + WIDTH * 0.012, hud.healthY);
+        hud.hpText.setPosition(hud.healthX + hud.healthWidth - WIDTH * 0.012, hud.healthY);
       }
-      hud.mpText.setPosition(hud.manaX + WIDTH * 0.008, hud.manaY);
+      hud.mpText.setPosition(hud.rightSide ? hud.manaX - WIDTH * 0.012 : hud.manaX - WIDTH * 0.012, hud.manaY);
     }
     if (this.battleHudFrame) this.battleHudFrame.setDepth(2000);
   }
