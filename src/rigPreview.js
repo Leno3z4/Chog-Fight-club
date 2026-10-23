@@ -113,7 +113,7 @@ class RigPreviewScene extends Phaser.Scene {
       fontStyle: "800",
       color: "#f2f4fa",
     });
-    this.add.text(44, 61, "Cheek-level guard targets · gloves visible over face · same assembled rig in both facings", {
+    this.add.text(44, 61, "Open jaw-height guard · far glove behind face · near-side jab extends forward in both facings", {
       fontFamily: "system-ui, sans-serif",
       fontSize: "13px",
       color: "#9ba7bb",
