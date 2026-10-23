@@ -10,7 +10,7 @@ import { StateMachine } from "./game/stateMachine.js";
 import { InputBuffer } from "./game/inputBuffer.js";
 import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
-import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, chogArmTargetPose, CHOG_VISUAL_GROUND_OFFSET, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
 import { stopMovementTowardOpponent } from "./game/fighterSpacing.js";
 import { getHudPortraitGeometry, getSoloFloorLineY } from "./game/hudGeometry.js";
 import { stopBattleMusic, syncBattleMusic } from "./game/battleMusic.js";
@@ -221,8 +221,8 @@ class ArenaScene extends Phaser.Scene {
     this.opponent = this.physics.add.staticSprite(this.arenaWidth / 2 + spawnGap / 2, this.floorY - 72, "chog-hitbox");
     this.opponent.setVisible(false);
 
-    this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 120, false);
-    this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 120, true);
+    this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 120 + CHOG_VISUAL_GROUND_OFFSET, false);
+    this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 120 + CHOG_VISUAL_GROUND_OFFSET, true);
     const koArtworkSize = Math.min(380, this.arenaWidth * 0.30);
     this.playerDeadVisual = this.add.image(this.player.x, this.floorY - koArtworkSize * 0.5, "dead-chog")
       .setDisplaySize(koArtworkSize, koArtworkSize).setDepth(700).setVisible(false);
@@ -413,8 +413,8 @@ class ArenaScene extends Phaser.Scene {
     this.opponent.setPosition(opponentX, this.floorY - 72);
     this.opponent.refreshBody();
     this.player.body.updateFromGameObject();
-    this.playerVisual.setPosition(this.player.x, this.player.y - 55);
-    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 120);
+    this.playerVisual.setPosition(this.player.x, this.player.y - 55 + CHOG_VISUAL_GROUND_OFFSET);
+    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 120 + CHOG_VISUAL_GROUND_OFFSET);
     this.playerVisual.setScale(1, 1);
     this.opponentVisual.setScale(-1, 1);
     this.playerFacing = 1;
@@ -1069,9 +1069,9 @@ class ArenaScene extends Phaser.Scene {
 
     this.updateHurtboxes();
     this.playerVisual.x = this.player.x;
-    this.playerVisual.y = this.player.y - 55;
+    this.playerVisual.y = this.player.y - 55 + CHOG_VISUAL_GROUND_OFFSET;
     this.opponentVisual.x = this.opponent.x;
-    this.opponentVisual.y = this.floorY - 120;
+    this.opponentVisual.y = this.floorY - 120 + CHOG_VISUAL_GROUND_OFFSET;
     const state = this.playerCharacter.stateMachine.currentName;
     const moving = grounded && state === CHARACTER_STATES.WALK && (this.playerCharacter.input.left || this.playerCharacter.input.right);
     if (moving) {
@@ -1100,9 +1100,35 @@ class ArenaScene extends Phaser.Scene {
     this.wasGrounded = grounded;
 
     const playerPose = this.getPlayerRigPose(time, grounded, moving);
-    applyChogPose(this.playerVisual.rig, playerPose);
+    let playerPunchHand = null;
+    const currentAttack = this.playerCharacter.attack;
+    if (currentAttack && state === CHARACTER_STATES.ATTACK_ACTIVE) {
+      if (currentAttack.combo && currentAttack.slot === "basic") {
+        const progress = clamp01(currentAttack.elapsed / Math.max(1, currentAttack.timing?.active ?? 350));
+        if (progress < 0.28) playerPunchHand = "right";
+        else if (progress >= 0.48 && progress < 0.82) playerPunchHand = "left";
+      } else if (currentAttack.slot === "basic") {
+        playerPunchHand = currentAttack.hand === "rear" ? "left" : "right";
+      } else if (currentAttack.slot === "base" || currentAttack.slot === "special") {
+        playerPunchHand = "right";
+      }
+    }
+    applyChogPose(this.playerVisual.rig, playerPose, playerPunchHand);
     this.lastPlayerPose = { ...playerPose };
-    applyChogPose(this.opponentVisual.rig, this.getOpponentRigPose(time));
+
+    const opponentPose = this.getOpponentRigPose(time);
+    let opponentPunchHand = null;
+    if (this.incomingAttack) {
+      const pattern = this.incomingAttack;
+      const elapsed = Phaser.Math.Clamp(pattern.telegraphMs - pattern.timeLeft, 0, pattern.telegraphMs);
+      const startup = Number(pattern.timing?.startup ?? 0);
+      const active = Number(pattern.timing?.active ?? 0);
+      const patternSlot = pattern.slot ?? pattern.animationSlot;
+      if (elapsed >= startup && elapsed < startup + active) {
+        opponentPunchHand = patternSlot === "basic" && pattern.hand === "rear" ? "left" : "right";
+      }
+    }
+    applyChogPose(this.opponentVisual.rig, opponentPose, opponentPunchHand);
     const deadSize = Math.min(380, this.arenaWidth * 0.30);
     const playerKO = this.playerCombatant.hp <= 0;
     const opponentKO = this.opponentCombatant.hp <= 0;
@@ -1167,15 +1193,15 @@ class ArenaScene extends Phaser.Scene {
     };
   }
 
-  getPlayerReadyPose(time, phase) {
+  getPlayerReadyPose(time, phase, preserveMovementGuard = false) {
     const locomotionPose = blendRigPose(
       BASE_RIG_POSE,
       this.getReadyPose(time, phase, true, this.walkDirBlend),
       this.walkBlend,
     );
-    // Rotation-only walking poses used to drop the target fields and leave the
-    // rear hand parked at the shoulder. Keep both gloves in guard while moving.
-    return { ...locomotionPose, ...chogArmTargetPose("guard") };
+    // Retain the original wrist targets throughout shuffle/jump transitions;
+    // the relaxed target profile is only for stationary guard and punches.
+    return { ...locomotionPose, ...chogArmTargetPose(preserveMovementGuard ? "walkGuard" : "guard") };
   }
 
   getAttackPose(attack, state, time, phase, readyPose = BASE_RIG_POSE) {
@@ -1393,8 +1419,12 @@ class ArenaScene extends Phaser.Scene {
     const rig = this.playerVisual.rig;
     const state = this.playerCharacter.stateMachine.currentName;
     const attack = this.playerCharacter.attack;
-    const locomotionPose = this.getPlayerReadyPose(time, rig.phase);
-    const readyPose = { ...locomotionPose, ...chogArmTargetPose("guard") };
+    const preserveMovementGuard = moving || state === CHARACTER_STATES.JUMP || !grounded || this.walkBlend > 0.02;
+    const locomotionPose = this.getPlayerReadyPose(time, rig.phase, preserveMovementGuard);
+    const readyPose = {
+      ...locomotionPose,
+      ...chogArmTargetPose(preserveMovementGuard ? "walkGuard" : "guard"),
+    };
     if (state !== CHARACTER_STATES.DEFEATED) rig.koStartedAt = 0;
     if (attack && ATTACK_STATES.has(state)) return this.getAttackPose(attack, state, time, rig.phase, readyPose);
     if (state === CHARACTER_STATES.DEFEATED) {
@@ -1885,8 +1915,8 @@ class ArenaScene extends Phaser.Scene {
     this.player.setPosition(playerX, playerY);
     this.opponent.setPosition(width - (oldWidth - this.opponent.x) / oldWidth * width, this.floorY - 72);
     this.opponent.refreshBody();
-    this.playerVisual.setPosition(this.player.x, this.player.y - 55);
-    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 120);
+    this.playerVisual.setPosition(this.player.x, this.player.y - 55 + CHOG_VISUAL_GROUND_OFFSET);
+    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 120 + CHOG_VISUAL_GROUND_OFFSET);
     this.floor.setPosition(width / 2, this.floorY + (height - this.floorY) / 2);
     this.floor.setDisplaySize(width, Math.max(60, height - this.floorY)).refreshBody();
     this.physics.world.setBounds(0, 0, width, height);
