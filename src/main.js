@@ -486,6 +486,10 @@ class ArenaScene extends Phaser.Scene {
     const state = this.playerCharacter.stateMachine.currentName;
     const canAct = state === CHARACTER_STATES.IDLE || state === CHARACTER_STATES.WALK;
     if (!canAct || this.playerCharacter.hitstunRemaining > 0) return;
+    if (this.defenseActive) {
+      this.inputBuffer.clear();
+      return;
+    }
 
     const bufferedAttack = this.inputBuffer.consume(["special", "base", "doubleBasic", "basic"]);
     if (bufferedAttack) {
