@@ -12,7 +12,7 @@ import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
 import { stopMovementTowardOpponent } from "./game/fighterSpacing.js";
-import { getHudPortraitGeometry, getSoloFloorLineY, getSoloVisualRootY } from "./game/hudGeometry.js";
+import { getHudPortraitGeometry } from "./game/hudGeometry.js";
 import { stopBattleMusic, syncBattleMusic } from "./game/battleMusic.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
@@ -38,7 +38,7 @@ if (returnButtonImage) returnButtonImage.src = returnButtonUrl;
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
 const WORLD_WIDTH = 1600;
-const FLOOR_Y = getSoloFloorLineY(GAME_HEIGHT);
+const FLOOR_Y = 610;
 
 const DEFAULT_PLAYER_METADATA = {
   tokenId: 561, name: "Blaze", Tier: "Legendary", Base: "1:1", Form: "Chog", Skin: "Red",
@@ -217,8 +217,8 @@ class ArenaScene extends Phaser.Scene {
     this.opponent = this.physics.add.staticSprite(this.arenaWidth / 2 + spawnGap / 2, this.floorY - 72, "chog-hitbox");
     this.opponent.setVisible(false);
 
-    this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 170, false);
-    this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 170, true);
+    this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 120, false);
+    this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 120, true);
     const koArtworkSize = Math.min(380, this.arenaWidth * 0.30);
     this.playerDeadVisual = this.add.image(this.player.x, this.floorY - koArtworkSize * 0.5, "dead-chog")
       .setDisplaySize(koArtworkSize, koArtworkSize).setDepth(700).setVisible(false);
@@ -407,8 +407,8 @@ class ArenaScene extends Phaser.Scene {
     this.opponent.setPosition(opponentX, this.floorY - 72);
     this.opponent.refreshBody();
     this.player.body.updateFromGameObject();
-    this.playerVisual.setPosition(this.player.x, getSoloVisualRootY(this.player.y, this.floorY));
-    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 170);
+    this.playerVisual.setPosition(this.player.x, this.player.y - 55);
+    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 120);
     this.playerVisual.setScale(1, 1);
     this.opponentVisual.setScale(-1, 1);
     this.playerFacing = 1;
@@ -990,14 +990,6 @@ class ArenaScene extends Phaser.Scene {
 
 
   updateVisuals(time, delta) {
-    // Last-resort clamp after physics resolution, so spikes in velocity/hit reactions
-    // cannot leave the actual player body below the collidable floor surface.
-    const maxBodyY = this.floorY - this.player.body.height / 2;
-    if (this.player.y > maxBodyY) {
-      this.player.setY(maxBodyY);
-      if (this.player.body.velocity.y > 0) this.player.setVelocityY(0);
-      this.player.body.updateFromGameObject();
-    }
     const grounded = this.player.body.blocked.down || this.player.body.touching.down;
     if (grounded) {
       const currentVelocityX = this.player.body.velocity.x;
@@ -1013,7 +1005,7 @@ class ArenaScene extends Phaser.Scene {
 
     this.updateHurtboxes();
     this.playerVisual.x = this.player.x;
-    this.playerVisual.y = getSoloVisualRootY(this.player.y, this.floorY);
+    this.playerVisual.y = this.player.y - 55;
     this.opponentVisual.x = this.opponent.x;
     this.opponentVisual.y = this.floorY - 170;
     const state = this.playerCharacter.stateMachine.currentName;
@@ -1822,12 +1814,12 @@ class ArenaScene extends Phaser.Scene {
     const playerY = height * (this.player.y / oldHeight);
     this.arenaWidth = width;
     this.arenaHeight = height;
-    this.floorY = Math.round(height * (FLOOR_Y / GAME_HEIGHT));
+    this.floorY = FLOOR_Y * (height / GAME_HEIGHT);
     this.player.setPosition(playerX, playerY);
     this.opponent.setPosition(width - (oldWidth - this.opponent.x) / oldWidth * width, this.floorY - 72);
     this.opponent.refreshBody();
-    this.playerVisual.setPosition(this.player.x, getSoloVisualRootY(this.player.y, this.floorY));
-    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 170);
+    this.playerVisual.setPosition(this.player.x, this.player.y - 55);
+    this.opponentVisual.setPosition(this.opponent.x, this.floorY - 120);
     this.floor.setPosition(width / 2, this.floorY + (height - this.floorY) / 2);
     this.floor.setDisplaySize(width, Math.max(60, height - this.floorY)).refreshBody();
     this.physics.world.setBounds(0, 0, width, height);
