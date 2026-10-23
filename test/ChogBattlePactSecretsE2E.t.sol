@@ -5,6 +5,8 @@ import "../contracts/ChogBattlePactFactory.sol";
 
 interface VmSecretsE2E {
     function envUint(string calldata key) external returns (uint256 value);
+    function envOr(string calldata key, uint256 defaultValue) external returns (uint256 value);
+    function skip(bool shouldSkip) external;
     function addr(uint256 privateKey) external returns (address);
     function sign(uint256 privateKey, bytes32 digest) external returns (uint8 v, bytes32 r, bytes32 s);
     function prank(address sender) external;
@@ -32,9 +34,13 @@ contract ChogBattlePactSecretsE2ETest {
     ChogBattlePactFactory private factory;
 
     function setUp() public {
-        key1 = vm.envUint("PRIVATE_KEY1");
-        key2 = vm.envUint("PRIVATE_KEY2");
-        require(key1 != 0 && key2 != 0 && key1 != key2, "TWO_DISTINCT_TEST_KEYS_REQUIRED");
+        key1 = vm.envOr("PRIVATE_KEY1", uint256(0));
+        key2 = vm.envOr("PRIVATE_KEY2", uint256(0));
+        if (key1 == 0 || key2 == 0) {
+            vm.skip(true); // Routine CI has no wallet secrets; the manual E2E workflow supplies both.
+            return;
+        }
+        require(key1 != key2, "TWO_DISTINCT_TEST_KEYS_REQUIRED");
         player1 = vm.addr(key1);
         player2 = vm.addr(key2);
         require(player1 != player2, "TEST_WALLETS_MUST_DIFFER");
