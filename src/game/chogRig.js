@@ -133,9 +133,8 @@ const FACE_LAYER_ORDER = ["head", "eyes", "mouth"];
  * gloves render last so neither fist is hidden by the head/face layers.
  */
 export function getLayerOrder(foregroundHand = null) {
-  // In guard, the rear arm and glove stay behind the torso. The lead forearm
-  // sits in front of the body but below the face; the striking glove can move
-  // to the foreground for just the frames where it is actually punching.
+  // Keep the rear arm segments tucked behind the torso. Both gloves remain
+  // readable above the face, but the striking hand is always the topmost glove.
   const armOrder = foregroundHand === "left"
     ? [
       "left-upper-arm",
@@ -146,11 +145,11 @@ export function getLayerOrder(foregroundHand = null) {
       "right-hand", "left-hand",
     ]
     : [
-      "left-upper-arm", "left-lower-arm", "left-hand",
+      "left-upper-arm", "left-lower-arm",
       "body",
       "right-upper-arm", "right-lower-arm",
       ...FACE_LAYER_ORDER,
-      "right-hand",
+      "left-hand", "right-hand",
     ];
   return [...LEG_LAYER_ORDER, ...armOrder];
 }
