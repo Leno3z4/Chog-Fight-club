@@ -46,9 +46,10 @@ export const CHOG_POSE_LIMITS = Object.freeze({
 // Wrist-pivot targets in the shared 250-unit Chog canvas. Root mirroring turns
 // the same boxer guard and punches into the opposite-facing version.
 export const CHOG_ARM_TARGETS = Object.freeze({
-  // Open stationary guard: the lead glove sits forward below the eyes, while
-  // the rear glove stays outside the face silhouette instead of hiding an eye.
-  guard: Object.freeze({ lead: Object.freeze([42, -20]), rear: Object.freeze([-32, -28]) }),
+  // Open stationary guard: the lead glove sits forward below the eyes. Lift
+  // the rear glove to face-height while keeping it clearly to the back side
+  // of the head, so the second fist reads as a glove instead of a shoulder bump.
+  guard: Object.freeze({ lead: Object.freeze([42, -20]), rear: Object.freeze([-32, -42]) }),
   // Preserve the original wrist targets for the already-good walk and jump.
   walkGuard: Object.freeze({ lead: Object.freeze([42, -34]), rear: Object.freeze([8, -42]) }),
   // The near-side lead glove extends forward in a straighter, lower jab.

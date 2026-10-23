@@ -489,16 +489,16 @@ const guardSeparation = Math.hypot(
   guardTargets.lead[1] - guardTargets.rear[1],
 );
 assert.ok(guardSeparation >= 30, `guard gloves must be at least 30 rig-pixels apart; got ${guardSeparation.toFixed(2)}`);
-assert.ok(guardTargets.rear[1] <= guardTargets.lead[1] - 8,
-  "the rear glove target should be raised to cheek level instead of sitting on the shoulder");
+assert.ok(guardTargets.rear[1] <= guardTargets.lead[1] - 18,
+  "the rear glove target should sit at face height, not down on the rear shoulder");
 assert.ok(guardTargets.rear[0] <= guardTargets.lead[0] - 20,
   "the rear glove target should stay tucked behind the lead glove");
 applyChogPose(rightRig, chogArmTargetPose("guard"));
 const renderedGuardSeparation = distance(rightRig.poseJoints.right.wrist, rightRig.poseJoints.left.wrist);
 assert.ok(renderedGuardSeparation >= 30,
   `rendered guard gloves must be at least 30 rig-pixels apart; got ${renderedGuardSeparation.toFixed(2)}`);
-assert.ok(rightRig.poseJoints.left.wrist.y <= rightRig.poseJoints.right.wrist.y - 7,
-  "the rear glove should render above the lead glove in the guard");
+assert.ok(rightRig.poseJoints.left.wrist.y <= rightRig.poseJoints.right.wrist.y - 18,
+  "the rear glove should be visibly higher than the lead glove, at the side of the head");
 assert.ok(rightRig.poseJoints.left.wrist.x <= rightRig.poseJoints.right.wrist.x - 20,
   "the rear glove should be behind the lead glove, not planted over the shoulder");
 
