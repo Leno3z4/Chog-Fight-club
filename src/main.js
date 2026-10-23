@@ -12,7 +12,7 @@ import { getOpponentAttackPattern } from "./game/opponentAI.js";
 import { getAttackPresentation } from "./game/attackPresentation.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual as buildChogVisual, flashChog } from "./game/chogRig.js";
 import { stopMovementTowardOpponent } from "./game/fighterSpacing.js";
-import { getHudPortraitGeometry } from "./game/hudGeometry.js";
+import { getHudPortraitGeometry, getSoloFloorLineY } from "./game/hudGeometry.js";
 import { stopBattleMusic, syncBattleMusic } from "./game/battleMusic.js";
 import { createMatchState, MATCH_PHASES, startRound, updateMatch } from "./game/matchFlow.js";
 import {
@@ -38,7 +38,7 @@ if (returnButtonImage) returnButtonImage.src = returnButtonUrl;
 const GAME_WIDTH = 1280;
 const GAME_HEIGHT = 720;
 const WORLD_WIDTH = 1600;
-const FLOOR_Y = 610;
+const FLOOR_Y = getSoloFloorLineY(GAME_HEIGHT);
 
 const DEFAULT_PLAYER_METADATA = {
   tokenId: 561, name: "Blaze", Tier: "Legendary", Base: "1:1", Form: "Chog", Skin: "Red",

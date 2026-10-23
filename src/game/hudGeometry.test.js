@@ -20,7 +20,7 @@ test("portrait image overscans a wide rounded-rectangle viewport", () => {
 
 test("solo rig ground anchor never places the grounded visual root below its floor-safe position", () => {
   const floorY = getSoloFloorLineY(720);
-  assert.equal(floorY, 590);
+  assert.equal(floorY, 547);
   assert.equal(getSoloVisualRootY(floorY - 60, floorY), floorY - 170);
   assert.equal(getSoloVisualRootY(floorY + 10, floorY), floorY - 170);
   assert.ok(getSoloVisualRootY(floorY - 180, floorY) < floorY);
