@@ -1,0 +1,53 @@
+name: Pact two-wallet end-to-end test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pact-two-wallet-e2e
+  cancel-in-progress: false
+
+jobs:
+  pact-two-wallet-e2e:
+    name: Test two-wallet Pact lifecycle (local chain only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PRIVATE_KEY1: ${{ secrets.PRIVATE_KEY1 }}
+      PRIVATE_KEY2: ${{ secrets.PRIVATE_KEY2 }}
+      MONAD_RPC_URL: https://rpc.monad.xyz
+      PACT_FACTORY_ADDRESS: 0x3a5485d41cAcE651dBAba9f292C12b1Df425f950
+      PACT_RESOLVER_ADDRESS: 0x77DF3ae15b994131797905e59675da3544C90DFF
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify secrets are present without printing them
+        shell: bash
+        run: |
+          test -n "$PRIVATE_KEY1" || { echo "::error::Missing repository secret PRIVATE_KEY1"; exit 1; }
+          test -n "$PRIVATE_KEY2" || { echo "::error::Missing repository secret PRIVATE_KEY2"; exit 1; }
+          test "$PRIVATE_KEY1" != "$PRIVATE_KEY2" || { echo "::error::The two test keys must be different"; exit 1; }
+
+      - name: Set up Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: Verify deployed Monad factory (read-only)
+        shell: bash
+        run: |
+          set -euo pipefail
+          CHAIN_ID="$(cast chain-id --rpc-url "$MONAD_RPC_URL")"
+          test "$CHAIN_ID" = "143" || { echo "::error::Unexpected Monad chain ID: $CHAIN_ID"; exit 1; }
+          CODE="$(cast code "$PACT_FACTORY_ADDRESS" --rpc-url "$MONAD_RPC_URL")"
+          test "$CODE" != "0x" || { echo "::error::No bytecode at configured Pact factory"; exit 1; }
+          ONCHAIN_RESOLVER="$(cast call "$PACT_FACTORY_ADDRESS" 'matchResolver()(address)' --rpc-url "$MONAD_RPC_URL")"
+          test "${ONCHAIN_RESOLVER,,}" = "${PACT_RESOLVER_ADDRESS,,}" || { echo "::error::Factory resolver does not match configured address"; exit 1; }
+          echo "Monad chain, factory bytecode, and immutable resolver verified (read-only)."
+
+      - name: Run two-secret Pact lifecycle test on an isolated local EVM
+        run: forge test --match-contract ChogBattlePactSecretsE2ETest -vv
+        # This deploys a temporary factory and mock Chog collection locally.
+        # It does not submit transactions to Monad or spend either wallet's funds.
