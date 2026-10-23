@@ -6,7 +6,7 @@ import {
   projectileIsDodgedByJump,
 } from "./combatRules.js";
 import { updateHeldDefense, getGuardBlockPercent } from "./defenseRules.js";
-import { LIVE_ARENA_GROUND_Y } from "./arenaGeometry.js";
+const LIVE_ARENA_GROUND_Y = 324;
 
 function base64UrlToBytes(value) {
   const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
