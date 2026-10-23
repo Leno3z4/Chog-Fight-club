@@ -1007,7 +1007,7 @@ class ArenaScene extends Phaser.Scene {
     this.playerVisual.x = this.player.x;
     this.playerVisual.y = this.player.y - 55;
     this.opponentVisual.x = this.opponent.x;
-    this.opponentVisual.y = this.floorY - 170;
+    this.opponentVisual.y = this.floorY - 120;
     const state = this.playerCharacter.stateMachine.currentName;
     const moving = grounded && state === CHARACTER_STATES.WALK && (this.playerCharacter.input.left || this.playerCharacter.input.right);
     if (moving) {
