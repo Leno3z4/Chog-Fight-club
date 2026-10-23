@@ -79,10 +79,34 @@ function accountFromSecret(name) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(key)) throw new Error(`${name} must contain a valid 32-byte EVM private key. No mint transaction has been sent.`);
   return privateKeyToAccount(key);
 }
-function tokenIdInput(name) {
-  const raw = requiredEnv(name);
-  if (!/^\d+$/.test(raw) || BigInt(raw) <= 0n) throw new Error(`${name} must be a positive numeric Chog token ID. No mint transaction has been sent.`);
-  return BigInt(raw);
+async function tokenIdInput(name, owner, label) {
+  const raw = String(process.env[name] || "").trim();
+  if (raw) {
+    if (!/^\d+$/.test(raw) || BigInt(raw) <= 0n) throw new Error(`${name} must be a positive numeric Chog token ID. No mint transaction has been sent.`);
+    return BigInt(raw);
+  }
+
+  const apiKey = String(process.env.OPENSEA_API_KEY || "").trim();
+  if (!apiKey) throw new Error(`No ${label} Chog ID was supplied and OPENSEA_API_KEY is not configured in GitHub Actions. Enter both token IDs in the workflow, or add that secret to let the workflow discover them. No mint transaction has been sent.`);
+  const url = new URL(`https://api.opensea.io/api/v2/chain/monad/account/${owner}/nfts`);
+  url.searchParams.set("collection", "chog-genesis");
+  url.searchParams.set("limit", "50");
+  const response = await fetch(url, { headers: { accept: "application/json", "X-API-KEY": apiKey } });
+  if (!response.ok) throw new Error(`OpenSea lookup failed for the ${label} wallet (HTTP ${response.status}). Supply the token IDs manually and retry. No mint transaction has been sent.`);
+  const payload = await response.json();
+  const candidates = [...new Set((Array.isArray(payload?.nfts) ? payload.nfts : [])
+    .filter((nft) => String(nft?.contract || "").toLowerCase() === CHOG_COLLECTION.toLowerCase() && /^\d+$/.test(String(nft?.identifier ?? "")))
+    .map((nft) => String(nft.identifier)))];
+  for (const candidate of candidates) {
+    try {
+      const actualOwner = await publicClient.readContract({ address: CHOG_COLLECTION, abi: chogAbi, functionName: "ownerOf", args: [BigInt(candidate)] });
+      if (actualOwner.toLowerCase() === owner.toLowerCase()) {
+        console.log(`Found ${label} Chog #${candidate} via OpenSea and verified it on-chain.`);
+        return BigInt(candidate);
+      }
+    } catch { /* Ignore stale/indexer candidates; ownerOf is the authority. */ }
+  }
+  throw new Error(`No Chog Genesis NFT could be verified for the ${label} wallet. That wallet must own a real Chog to use this factory. No mint transaction has been sent.`);
 }
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -108,8 +132,12 @@ async function main() {
   const key1 = accountFromSecret("PRIVATE_KEY1");
   const key2 = accountFromSecret("PRIVATE_KEY2");
   assert(key1.address.toLowerCase() !== key2.address.toLowerCase(), "PRIVATE_KEY1 and PRIVATE_KEY2 resolve to the same wallet.");
-  const challengerChogId = tokenIdInput("CHALLENGER_CHOG_ID");
-  const opponentChogId = tokenIdInput("OPPONENT_CHOG_ID");
+  const suppliedChallengerId = String(process.env.CHALLENGER_CHOG_ID || "").trim();
+  const suppliedOpponentId = String(process.env.OPPONENT_CHOG_ID || "").trim();
+  assert(Boolean(suppliedChallengerId) === Boolean(suppliedOpponentId),
+    "Provide both Chog token IDs or leave both blank for OpenSea auto-discovery. No mint transaction has been sent.");
+  const challengerChogId = await tokenIdInput("CHALLENGER_CHOG_ID", key1.address, "challenger");
+  const opponentChogId = await tokenIdInput("OPPONENT_CHOG_ID", key2.address, "opponent");
   assert(challengerChogId !== opponentChogId, "The two Chog token IDs must be different.");
 
   // The already-deployed factory's resolver is immutable. Resolve its key before minting,
