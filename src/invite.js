@@ -434,13 +434,11 @@ function paintInputFrame() {
     return;
   }
   flushBasicTap();
-  let x = 0; let y = 0;
+  let x = 0;
   if (state.keys.has("a") || state.keys.has("arrowleft") || state.keys.has("left")) x -= 1;
   if (state.keys.has("d") || state.keys.has("arrowright") || state.keys.has("right")) x += 1;
-  if (state.keys.has("w") || state.keys.has("arrowup") || state.keys.has("up")) y -= 1;
-  if (state.keys.has("s") || state.keys.has("arrowdown") || state.keys.has("down")) y += 1;
   socket.send(JSON.stringify({
-    type: "input", x, y,
+    type: "input", x, y: 0,
     defending: state.keys.has("3"),
     action: state.pendingAction || undefined,
   }));
@@ -1150,7 +1148,7 @@ document.addEventListener("keydown", (event) => {
   if (key === " ") registerBasicTap();
   if (key === "q") state.pendingAction = "base";
   if (key === "e") state.pendingAction = "special";
-  if (key === "j") state.pendingAction = "jump";
+  if (key === "j" || key === "w" || key === "arrowup") state.pendingAction = "jump";
   if (key === "shift") state.pendingAction = "dash";
 });
 document.addEventListener("keyup", (event) => state.keys.delete(event.key.toLowerCase()));
