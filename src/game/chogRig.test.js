@@ -51,10 +51,10 @@ const layerNames = visual.list.slice(1).map((layer) => layer.texture.replace("ch
 const bodyLayer = layerNames.indexOf("body");
 assert.ok(layerNames.indexOf("left-upper-arm") < bodyLayer, "the rear upper arm should stay behind the torso to hide shoulder seams");
 assert.ok(layerNames.indexOf("left-lower-arm") < bodyLayer, "the rear forearm should stay behind the torso in neutral guard");
-assert.ok(layerNames.indexOf("left-hand") < bodyLayer, "the rear glove should be tucked behind the torso at rest");
 assert.ok(layerNames.indexOf("right-upper-arm") > bodyLayer, "the screen-near lead upper arm should render in front of the torso");
 assert.ok(layerNames.indexOf("right-lower-arm") > layerNames.indexOf("right-upper-arm"), "the lead forearm should follow its upper arm");
 assert.ok(layerNames.indexOf("right-lower-arm") < layerNames.indexOf("head"), "the lead forearm should not draw over the face");
+assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("mouth"), "the rear glove should remain visible just outside the face silhouette");
 assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("mouth"), "the lead glove can sit in front of the face silhouette");
 assert.ok(layerNames.indexOf("left-hand") < layerNames.indexOf("right-hand"), "the rear glove should render behind the lead glove");
 assert.equal(rig.parts["left-upper-arm"].image.mask, undefined, "the rear upper arm should not use the misaligned torso bitmap mask");
