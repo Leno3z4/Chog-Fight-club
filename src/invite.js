@@ -439,7 +439,11 @@ function paintInputFrame() {
   if (state.keys.has("d") || state.keys.has("arrowright") || state.keys.has("right")) x += 1;
   if (state.keys.has("w") || state.keys.has("arrowup") || state.keys.has("up")) y -= 1;
   if (state.keys.has("s") || state.keys.has("arrowdown") || state.keys.has("down")) y += 1;
-  socket.send(JSON.stringify({ type: "input", x, y, action: state.pendingAction || undefined }));
+  socket.send(JSON.stringify({
+    type: "input", x, y,
+    defending: state.keys.has("3"),
+    action: state.pendingAction || undefined,
+  }));
   state.pendingAction = null;
 }
 async function connectRealtime() {
@@ -1137,7 +1141,7 @@ function isTextEntryTarget(target) {
 document.addEventListener("keydown", (event) => {
   if (isTextEntryTarget(event.target)) return;
   const key = event.key.toLowerCase();
-  const controlKeys = ["w", "a", "s", "d", "q", "j", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "shift", "e"];
+  const controlKeys = ["w", "a", "s", "d", "q", "j", "arrowup", "arrowdown", "arrowleft", "arrowright", " ", "shift", "e", "3"];
   if (!controlKeys.includes(key)) return;
   event.preventDefault();
   const wasDown = state.keys.has(key);
@@ -1163,10 +1167,28 @@ document.querySelectorAll("[data-arena-key]").forEach((button) => {
   button.addEventListener("pointerleave", release);
 });
 document.querySelectorAll("[data-arena-action]").forEach((button) => {
+  const action = button.dataset.arenaAction;
+  if (action === "defense") {
+    const press = (event) => {
+      event.preventDefault();
+      if (state.realtimeState?.phase !== "IN_BATTLE" || state.realtimeState?.status !== "IN_BATTLE") return;
+      button.setPointerCapture?.(event.pointerId);
+      state.keys.add("3");
+    };
+    const release = (event) => {
+      event.preventDefault();
+      state.keys.delete("3");
+    };
+    button.addEventListener("pointerdown", press);
+    for (const eventName of ["pointerup", "pointercancel", "lostpointercapture", "pointerleave"]) {
+      button.addEventListener(eventName, release);
+    }
+    return;
+  }
   button.addEventListener("click", () => {
     if (state.realtimeState?.phase !== "IN_BATTLE" || state.realtimeState?.status !== "IN_BATTLE") return;
-    if (button.dataset.arenaAction === "attack") registerBasicTap();
-    else state.pendingAction = button.dataset.arenaAction;
+    if (action === "attack") registerBasicTap();
+    else state.pendingAction = action;
   });
 });
 async function init() {
