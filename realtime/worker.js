@@ -243,9 +243,10 @@ export class ArenaRoom {
         y: Number.isFinite(inputY) ? clamp(Math.sign(inputY), -1, 1) : 0,
       };
       if (typeof message.defending === "boolean") player.defendRequested = message.defending;
+      updateHeldDefense(player, Boolean(player.defendRequested), now);
       // Facing follows the rival's position in _step, not the movement key.
       // That lets opposite input act as a backstep instead of turning around.
-      if (state.phase === "IN_BATTLE") {
+      if (state.phase === "IN_BATTLE" && !player.guarding) {
         if (message.action === "attack" || message.action === "doubleAttack") {
           this._attack(state, attachment.role, message.action);
         } else if (message.action === "base" || message.action === "special") {
