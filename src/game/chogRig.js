@@ -46,13 +46,15 @@ export const CHOG_POSE_LIMITS = Object.freeze({
 export const CHOG_ARM_TARGETS = Object.freeze({
   // Targets are wrist pivots in rig-local space. Both guard fists live at cheek
   // height; the rear glove sits slightly back and high while the lead stays forward.
-  guard: Object.freeze({ lead: Object.freeze([42, -34]), rear: Object.freeze([8, -42]) }),
-  // Straight jabs travel forward without dropping toward the chest.
-  jab: Object.freeze({ lead: Object.freeze([58, -34]), rear: Object.freeze([8, -42]) }),
-  // The rear cross advances the left fist while the right fist protects the face.
-  cross: Object.freeze({ lead: Object.freeze([8, -34]), rear: Object.freeze([20, -42]) }),
-  hit: Object.freeze({ lead: Object.freeze([26, -27]), rear: Object.freeze([8, -42]) }),
-  block: Object.freeze({ lead: Object.freeze([38, -42]), rear: Object.freeze([8, -48]) }),
+  // Open, readable guard: gloves sit around jaw/chest height, with space from the eyes.
+  guard: Object.freeze({ lead: Object.freeze([42, -17]), rear: Object.freeze([7, -27]) }),
+  // A single jab is driven by the visible foreground/lead glove and extends clearly forward.
+  jab: Object.freeze({ lead: Object.freeze([64, -12]), rear: Object.freeze([7, -27]) }),
+  // The lead glove draws back while the rear glove crosses the centre line.
+  cross: Object.freeze({ lead: Object.freeze([14, -21]), rear: Object.freeze([32, -16]) }),
+  hit: Object.freeze({ lead: Object.freeze([30, -18]), rear: Object.freeze([7, -27]) }),
+  // Defense protects the jaw without burying either glove against the temples.
+  block: Object.freeze({ lead: Object.freeze([37, -22]), rear: Object.freeze([7, -32]) }),
 });
 
 export function chogArmTargetPose(name) {
@@ -124,17 +126,22 @@ const LEG_LAYER_ORDER = [
 const FACE_LAYER_ORDER = ["head", "eyes", "mouth"];
 
 /**
- * All arm pieces share the character canvas and its pivots. Both upper arms
- * begin behind the torso, the forearms remain visible over the chest, and the
- * gloves render last so neither fist is hidden by the head/face layers.
+ * Near/far depth order is intentional: the rear forearm disappears under the
+ * torso and the rear glove stays behind the face, while the near/lead glove
+ * renders in front so its punch is readable from the viewer's perspective.
  */
 export function getLayerOrder() {
   const armOrder = [
-    "left-upper-arm", "right-upper-arm",
+    // The rear-side arm is occluded by the torso; its glove sits behind the face.
+    "left-upper-arm", "left-lower-arm",
+    // Keep the near-side shoulder tucked behind the torso, then layer its
+    // forearm over the chest and its glove in front of the face.
+    "right-upper-arm",
     "body",
-    "left-lower-arm", "right-lower-arm",
+    "left-hand",
+    "right-lower-arm",
     ...FACE_LAYER_ORDER,
-    "left-hand", "right-hand",
+    "right-hand",
   ];
   return [...LEG_LAYER_ORDER, ...armOrder];
 }

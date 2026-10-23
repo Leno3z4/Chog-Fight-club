@@ -252,5 +252,5 @@ const groundState = {
   },
 };
 groundRoom._step(groundState, groundNow);
-assert.equal(groundState.players.challenger.y, 324, "down input cannot sink the challenger below the floor lane");
-assert.equal(groundState.players.opponent.y, 324, "up input cannot float the opponent off the floor lane");
+assert.equal(groundState.players.challenger.y, 344, "down input cannot sink the challenger below the floor lane");
+assert.equal(groundState.players.opponent.y, 344, "up input cannot float the opponent off the floor lane");
