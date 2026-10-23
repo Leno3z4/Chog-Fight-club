@@ -1,3 +1,5 @@
+export const CHOG_VISUAL_GROUND_OFFSET = 16;
+
 const SOURCE_SIZE = 1024;
 const RENDER_SIZE = 250;
 const SCALE = RENDER_SIZE / SOURCE_SIZE;
@@ -44,15 +46,17 @@ export const CHOG_POSE_LIMITS = Object.freeze({
 // Wrist-pivot targets in the shared 250-unit Chog canvas. Root mirroring turns
 // the same boxer guard and punches into the opposite-facing version.
 export const CHOG_ARM_TARGETS = Object.freeze({
-  // Targets are wrist pivots in rig-local space. Both guard fists live at cheek
-  // height; the rear glove sits slightly back and high while the lead stays forward.
-  guard: Object.freeze({ lead: Object.freeze([42, -34]), rear: Object.freeze([8, -42]) }),
-  // Straight jabs travel forward without dropping toward the chest.
-  jab: Object.freeze({ lead: Object.freeze([58, -34]), rear: Object.freeze([8, -42]) }),
-  // The rear cross advances the left fist while the right fist protects the face.
-  cross: Object.freeze({ lead: Object.freeze([8, -34]), rear: Object.freeze([20, -42]) }),
-  hit: Object.freeze({ lead: Object.freeze([26, -27]), rear: Object.freeze([8, -42]) }),
-  block: Object.freeze({ lead: Object.freeze([38, -42]), rear: Object.freeze([8, -48]) }),
+  // Open stationary guard: the lead glove sits forward below the eyes, while
+  // the rear glove stays outside the face silhouette instead of hiding an eye.
+  guard: Object.freeze({ lead: Object.freeze([42, -20]), rear: Object.freeze([-32, -28]) }),
+  // Preserve the original wrist targets for the already-good walk and jump.
+  walkGuard: Object.freeze({ lead: Object.freeze([42, -34]), rear: Object.freeze([8, -42]) }),
+  // The near-side lead glove extends forward in a straighter, lower jab.
+  jab: Object.freeze({ lead: Object.freeze([64, -13]), rear: Object.freeze([-32, -28]) }),
+  // The lead glove returns home as the rear glove drives across the center line.
+  cross: Object.freeze({ lead: Object.freeze([6, -24]), rear: Object.freeze([30, -16]) }),
+  hit: Object.freeze({ lead: Object.freeze([30, -20]), rear: Object.freeze([-24, -26]) }),
+  block: Object.freeze({ lead: Object.freeze([38, -28]), rear: Object.freeze([-22, -34]) }),
 });
 
 export function chogArmTargetPose(name) {
@@ -128,14 +132,26 @@ const FACE_LAYER_ORDER = ["head", "eyes", "mouth"];
  * begin behind the torso, the forearms remain visible over the chest, and the
  * gloves render last so neither fist is hidden by the head/face layers.
  */
-export function getLayerOrder() {
-  const armOrder = [
-    "left-upper-arm", "right-upper-arm",
-    "body",
-    "left-lower-arm", "right-lower-arm",
-    ...FACE_LAYER_ORDER,
-    "left-hand", "right-hand",
-  ];
+export function getLayerOrder(foregroundHand = null) {
+  // In guard, the rear arm and glove stay behind the torso. The lead forearm
+  // sits in front of the body but below the face; the striking glove can move
+  // to the foreground for just the frames where it is actually punching.
+  const armOrder = foregroundHand === "left"
+    ? [
+      "left-upper-arm",
+      "body",
+      "right-upper-arm", "right-lower-arm",
+      "left-lower-arm",
+      ...FACE_LAYER_ORDER,
+      "right-hand", "left-hand",
+    ]
+    : [
+      "left-upper-arm", "left-lower-arm", "left-hand",
+      "body",
+      "right-upper-arm", "right-lower-arm",
+      ...FACE_LAYER_ORDER,
+      "right-hand",
+    ];
   return [...LEG_LAYER_ORDER, ...armOrder];
 }
 
@@ -397,6 +413,7 @@ export function createChogVisual(scene, x, y, mirrored = false) {
     tintLayers: Object.values(parts).map((part) => part.image),
     rest,
     poseJoints: { left: {}, right: {} },
+    foregroundHand: null,
     joints: {
       // A child pivot is the parent's next joint. Matching these coordinates
       // preserves the artist's original overlap with every pose at rest.
@@ -424,8 +441,17 @@ export function createChogVisual(scene, x, y, mirrored = false) {
   return root;
 }
 
-export function applyChogPose(rig, pose) {
+export function applyChogPose(rig, pose, foregroundHand = null) {
   if (!rig) return;
+
+  const activeForegroundHand = foregroundHand === "left" || foregroundHand === "right"
+    ? foregroundHand
+    : null;
+  if (rig.foregroundHand !== activeForegroundHand) {
+    const order = getLayerOrder(activeForegroundHand);
+    for (const name of order) rig.root.moveTo(rig.parts[name].image, rig.root.list.length - 1);
+    rig.foregroundHand = activeForegroundHand;
+  }
 
   const safePose = clampChogPose(pose);
   const torsoAngle = safePose.torsoRotation ?? 0;
