@@ -50,14 +50,13 @@ assert.equal(Object.keys(rig.parts).length, 16, "all separated Chog layers shoul
 const layerNames = visual.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
 const bodyLayer = layerNames.indexOf("body");
 assert.ok(layerNames.indexOf("left-upper-arm") < bodyLayer, "the rear upper arm should stay behind the torso to hide shoulder seams");
-assert.ok(layerNames.indexOf("left-lower-arm") > bodyLayer, "the rear forearm should remain visible in front of the torso as it rises to the cheek");
-assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("left-lower-arm"), "the rear glove should follow its forearm");
+assert.ok(layerNames.indexOf("left-lower-arm") < bodyLayer, "the rear forearm should stay behind the torso in neutral guard");
+assert.ok(layerNames.indexOf("right-upper-arm") > bodyLayer, "the screen-near lead upper arm should render in front of the torso");
+assert.ok(layerNames.indexOf("right-lower-arm") > layerNames.indexOf("right-upper-arm"), "the lead forearm should follow its upper arm");
+assert.ok(layerNames.indexOf("right-lower-arm") < layerNames.indexOf("head"), "the lead forearm should not draw over the face");
+assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("mouth"), "the rear glove should remain visible just outside the face silhouette");
+assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("mouth"), "the lead glove can sit in front of the face silhouette");
 assert.ok(layerNames.indexOf("left-hand") < layerNames.indexOf("right-hand"), "the rear glove should render behind the lead glove");
-assert.ok(layerNames.indexOf("right-upper-arm") < bodyLayer, "the lead upper arm should start behind the torso instead of exposing a detached shoulder cap");
-assert.ok(layerNames.indexOf("right-lower-arm") > layerNames.indexOf("right-upper-arm"), "the lead forearm should follow its upper arm in front of the torso");
-assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("right-lower-arm"), "the lead glove should render above its forearm");
-assert.ok(layerNames.indexOf("left-hand") > layerNames.indexOf("mouth"), "the rear glove should render in front of the face layers");
-assert.ok(layerNames.indexOf("right-hand") > layerNames.indexOf("head"), "the lead glove should render in front of the head");
 assert.equal(rig.parts["left-upper-arm"].image.mask, undefined, "the rear upper arm should not use the misaligned torso bitmap mask");
 assert.equal(rig.parts["left-lower-arm"].image.mask, undefined, "the rear forearm should not use an alpha mask");
 assert.equal(rig.parts["right-upper-arm"].image.mask, undefined, "the lead arm should not use an alpha mask");
@@ -394,7 +393,7 @@ for (const pose of articulationPoses) {
 
 // Combat-arm regression: all glove profiles use target positions, remain
 // within each sprite's two-bone reach, and mirror exactly with root.scaleX.
-const targetProfiles = ["guard", "jab", "cross", "hit", "block"];
+const targetProfiles = ["guard", "walkGuard", "jab", "cross", "hit", "block"];
 const rightRoot = createChogVisual(scene, 0, 0, false);
 const leftRoot = createChogVisual(scene, 0, 0, true);
 const rightRig = rightRoot.rig;
@@ -431,6 +430,30 @@ const armLengths = (testRig, side) => {
     lower: Math.hypot(wrist.x - elbow.x, wrist.y - elbow.y),
   };
 };
+
+assert.deepEqual(chogArmTargetPose("walkGuard"), {
+  leadHandTargetX: 42,
+  leadHandTargetY: -34,
+  rearHandTargetX: 8,
+  rearHandTargetY: -42,
+}, "walk/jump wrist targets should remain exactly as they were");
+
+applyChogPose(rightRig, chogArmTargetPose("jab"), "right");
+let liveOrder = rightRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
+assert.ok(liveOrder.indexOf("right-hand") > liveOrder.indexOf("mouth"),
+  "the near-side right glove should sit in the foreground during a jab");
+assert.ok(liveOrder.indexOf("right-lower-arm") > liveOrder.indexOf("body"),
+  "the lead forearm should clear the torso during its punch");
+applyChogPose(rightRig, chogArmTargetPose("cross"), "left");
+liveOrder = rightRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
+assert.ok(liveOrder.indexOf("left-hand") > liveOrder.indexOf("right-hand"),
+  "the rear glove should become the topmost glove during a cross");
+assert.ok(liveOrder.indexOf("left-lower-arm") > liveOrder.indexOf("body"),
+  "the rear forearm should cross in front of the torso only for its strike");
+applyChogPose(rightRig, chogArmTargetPose("guard"));
+liveOrder = rightRoot.list.slice(1).map((layer) => layer.texture.replace("chog-", ""));
+assert.ok(liveOrder.indexOf("left-lower-arm") < liveOrder.indexOf("body"),
+  "the rear forearm should return behind the torso after the cross");
 
 for (const profile of targetProfiles) {
   const targets = chogArmTargetPose(profile);

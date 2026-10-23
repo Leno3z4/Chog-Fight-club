@@ -1,6 +1,6 @@
 import Phaser from "phaser";
 import { BootScene } from "./bootScene.js";
-import { applyChogPose, chogArmTargetPose, createChogVisual } from "./game/chogRig.js";
+import { applyChogPose, chogArmTargetPose, CHOG_VISUAL_GROUND_OFFSET, createChogVisual } from "./game/chogRig.js";
 
 const WIDTH = 1600;
 const HEIGHT = 960;
@@ -12,6 +12,8 @@ const FACINGS = FACING_FILTER === "left" || FACING_FILTER === "right"
   : ["right", "left"];
 
 function getPose(name) {
+  const preserveMovementGuard = name === "walk" || name === "jump";
+  const guardTargets = chogArmTargetPose(preserveMovementGuard ? "walkGuard" : "guard");
   const oldGuard = {
     leadArmRotation: -0.04,
     leadArmLowerRotation: -1.14,
@@ -21,7 +23,7 @@ function getPose(name) {
     leadArmY: 0,
     rearArmX: 0,
     rearArmY: 0,
-    ...chogArmTargetPose("guard"),
+    ...guardTargets,
     leadLegRotation: -0.14,
     leadLegLowerRotation: 0,
     rearLegRotation: -0.5,
@@ -141,9 +143,10 @@ class RigPreviewScene extends Phaser.Scene {
           color: "#e5eaf3",
         }).setOrigin(0.5, 0.5);
         this.add.rectangle(x, rowTop + 348, 215, 2, 0x2b3a37, 1);
-        const root = createChogVisual(this, x, rowTop + 227, facing === "left");
+        const root = createChogVisual(this, x, rowTop + 227 + CHOG_VISUAL_GROUND_OFFSET, facing === "left");
         root.setDepth(1);
-        applyChogPose(root.rig, getPose(name));
+        const foregroundHand = name === "jab" ? "right" : name === "cross" ? "left" : null;
+        applyChogPose(root.rig, getPose(name), foregroundHand);
       });
     });
   }

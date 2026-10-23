@@ -1,7 +1,7 @@
 import Phaser from "phaser";
 import "./game/fonts.css";
 import { BootScene } from "./bootScene.js";
-import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
+import { applyChogPose, chogArmTargetPose, CHOG_VISUAL_GROUND_OFFSET, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 import { punchPulse, punchWindowPulse } from "./game/punchEasing.js";
 import { getHudPortraitGeometry } from "./game/hudGeometry.js";
 const LIVE_ARENA_GROUND_Y = 324;
@@ -302,7 +302,7 @@ class LiveArenaScene extends Phaser.Scene {
 
   createFighter(role) {
     const x = role === "challenger" ? 250 : 710;
-    const y = LIVE_ARENA_GROUND_Y;
+    const y = LIVE_ARENA_GROUND_Y + CHOG_VISUAL_GROUND_OFFSET;
     const root = createChogVisual(this, x, y, role === "opponent");
     root.setScale((role === "opponent" ? -1 : 1) * SCALE, SCALE);
     root.setDepth(100 + y);
@@ -457,7 +457,7 @@ class LiveArenaScene extends Phaser.Scene {
       const fromX = root.x;
       const fromY = root.y;
       root.x = Phaser.Math.Linear(root.x, fighter.targetX, blend);
-      root.y = Phaser.Math.Linear(root.y, LIVE_ARENA_GROUND_Y - fighter.jumpHeight, blend);
+      root.y = Phaser.Math.Linear(root.y, LIVE_ARENA_GROUND_Y - fighter.jumpHeight + CHOG_VISUAL_GROUND_OFFSET, blend);
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
       root.setDepth(100 + root.y);
       const horizontalDelta = root.x - fromX;
@@ -484,7 +484,7 @@ class LiveArenaScene extends Phaser.Scene {
       const idleWave = Math.sin(idlePhase) * (1 - gait);
       const guard = {
         ...GUARD,
-        ...chogArmTargetPose("guard"),
+        ...chogArmTargetPose("walkGuard"),
         leadArmRotation: GUARD.leadArmRotation + stride * 0.025 * gait + idleWave * 0.006,
         rearArmRotation: GUARD.rearArmRotation - stride * 0.025 * gait - idleWave * 0.006,
         leadArmLowerRotation: GUARD.leadArmLowerRotation + stride * 0.012 * gait,
@@ -630,7 +630,19 @@ class LiveArenaScene extends Phaser.Scene {
           torsoY: (pose.torsoY || 0) + 1.2 * react,
         };
       }
-      applyChogPose(root.rig, pose);
+      let foregroundHand = null;
+      if (activeAction && ["attack", "base", "special"].includes(fighter.action)) {
+        const phase = clamp(actionAge / duration, 0, 1);
+        const startupRatio = fighter.action === "special" ? 0.60 : 0.50;
+        if (phase >= startupRatio && phase < 0.80) foregroundHand = "right";
+      } else if (fighter.action === "doubleAttack" && activeAction) {
+        const t = clamp(actionAge / duration, 0, 1);
+        const jabPulse = punchWindowPulse(t, 0, 0.25);
+        const crossPulse = punchWindowPulse(t, 0.44, 0.80);
+        if (crossPulse > 0.05) foregroundHand = "left";
+        else if (jabPulse > 0.05) foregroundHand = "right";
+      }
+      applyChogPose(root.rig, pose, foregroundHand);
       const knockedOut = fighter.hp <= 0;
       root.setVisible(!knockedOut);
       if (knockedOut) {
@@ -645,9 +657,9 @@ class LiveArenaScene extends Phaser.Scene {
       } else if (fighter.deadVisual) {
         fighter.deadVisual.setVisible(false);
       }
-      fighter.name.setPosition(root.x, root.y - 105);
-      fighter.dna.setPosition(root.x, root.y - 85);
-      fighter.marker.setPosition(root.x, root.y - 66);
+      fighter.name.setPosition(root.x, root.y - CHOG_VISUAL_GROUND_OFFSET - 105);
+      fighter.dna.setPosition(root.x, root.y - CHOG_VISUAL_GROUND_OFFSET - 85);
+      fighter.marker.setPosition(root.x, root.y - CHOG_VISUAL_GROUND_OFFSET - 66);
     }
 
     const activeIds = new Set();
