@@ -4,6 +4,7 @@ import { BootScene } from "./bootScene.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 import { punchPulse, punchWindowPulse } from "./game/punchEasing.js";
 import { getHudPortraitGeometry } from "./game/hudGeometry.js";
+const LIVE_ARENA_GROUND_Y = 324;
 import { stopBattleMusic, syncBattleMusic } from "./game/battleMusic.js";
 
 const WIDTH = 960;
@@ -301,7 +302,7 @@ class LiveArenaScene extends Phaser.Scene {
 
   createFighter(role) {
     const x = role === "challenger" ? 250 : 710;
-    const y = 265;
+    const y = LIVE_ARENA_GROUND_Y;
     const root = createChogVisual(this, x, y, role === "opponent");
     root.setScale((role === "opponent" ? -1 : 1) * SCALE, SCALE);
     root.setDepth(100 + y);
@@ -321,7 +322,9 @@ class LiveArenaScene extends Phaser.Scene {
       dna,
       marker,
       targetX: x,
-      targetY: y,
+      targetY: LIVE_ARENA_GROUND_Y,
+      guarding: false,
+      guardCooldownRemainingMs: 0,
       facing: role === "challenger" ? 1 : -1,
       action: "idle",
       actionStartedAt: 0,
@@ -366,7 +369,9 @@ class LiveArenaScene extends Phaser.Scene {
       const fighter = this.fighters[role];
       if (!source || !fighter) continue;
       fighter.targetX = clamp(Number(source.x ?? fighter.targetX), 50, WIDTH - 50);
-      fighter.targetY = clamp(Number(source.y ?? fighter.targetY), 150, HEIGHT - 92);
+      // The arena is side-view: grounded players stay on one fixed floor line.
+      // Only the authoritative jumpHeight moves their render root upward.
+      fighter.targetY = LIVE_ARENA_GROUND_Y;
       fighter.facing = Number(source.facing) < 0 ? -1 : 1;
       fighter.action = source.action || "idle";
       fighter.actionStartedAt = Number(source.actionStartedAt || 0);
@@ -395,6 +400,8 @@ class LiveArenaScene extends Phaser.Scene {
       fighter.energy = Number(source.energy ?? 100);
       fighter.maxEnergy = Number(source.maxEnergy ?? 100);
       fighter.jumpHeight = Math.max(0, Number(source.jumpHeight || 0));
+      fighter.guarding = Boolean(source.guarding);
+      fighter.guardCooldownRemainingMs = Math.max(0, Number(source.guardCooldownRemainingMs || 0));
 
       if (fighter.flashUntil > fighter.previousFlashUntil) {
         flashChog(this, fighter.root.rig, 0xffffff, 90);
@@ -450,7 +457,7 @@ class LiveArenaScene extends Phaser.Scene {
       const fromX = root.x;
       const fromY = root.y;
       root.x = Phaser.Math.Linear(root.x, fighter.targetX, blend);
-      root.y = Phaser.Math.Linear(root.y, fighter.targetY - fighter.jumpHeight, blend);
+      root.y = Phaser.Math.Linear(root.y, LIVE_ARENA_GROUND_Y - fighter.jumpHeight, blend);
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
       root.setDepth(100 + root.y);
       const horizontalDelta = root.x - fromX;
@@ -505,6 +512,8 @@ class LiveArenaScene extends Phaser.Scene {
         const koAge = Math.max(0, now - (fighter.koStartedAt || now));
         // Match the solo fall arc; knockout state itself is still server-owned.
         pose = createChogKnockoutPose(boxerGuard, koAge);
+      } else if (fighter.guarding) {
+        pose = { ...boxerGuard, ...chogArmTargetPose("block") };
       } else if (fighter.action === "jump" && activeAction) {
         const p = clamp(actionAge / duration, 0, 1);
         const launch = {
@@ -631,7 +640,7 @@ class LiveArenaScene extends Phaser.Scene {
             .setDisplaySize(deadSize, deadSize).setVisible(false);
         }
         fighter.deadVisual.setVisible(true).setDisplaySize(deadSize, deadSize)
-          .setPosition(root.x - deadSize * 0.08, HEIGHT * 0.76 - deadSize * 0.36)
+          .setPosition(root.x - deadSize * 0.08, LIVE_ARENA_GROUND_Y + SCALE * 127 - deadSize * 0.5)
           .setDepth(100 + root.y + 1);
       } else if (fighter.deadVisual) {
         fighter.deadVisual.setVisible(false);

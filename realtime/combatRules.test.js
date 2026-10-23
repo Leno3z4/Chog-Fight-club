@@ -230,3 +230,27 @@ assert.ok(Math.hypot(
 ) >= 150 - 1e-6, "fighters should keep the updated minimum separation");
 
 console.log("Multiplayer hitbox, wind-up interruption, air knockdown, combo cooldown and three-round checks passed.");
+
+
+// Regression test: down/up input cannot drag the side-view fighters below the platform.
+const groundRoom = new ArenaRoom({}, {});
+const groundNow = Date.now();
+const groundPlayer = (role, x, facing, inputY) => ({
+  username: role, role, x, y: 270, facing, vx: 0, vy: 0,
+  hp: 100, maxHp: 100, energy: 100, maxEnergy: 100, attack: 20, defense: 10, speed: 14,
+  input: { x: 0, y: inputY }, nextAttackAt: 0, nextBaseAt: 0, nextSpecialAt: 0, nextDashAt: 0, nextJumpAt: 0,
+  jumpStartedAt: 0, jumpUntil: 0, jumpHeight: 0, landedPunchWindows: [],
+  action: "idle", actionStartedAt: 0, actionUntil: 0, pendingAttack: null,
+  guarding: false, defendRequested: false, guardStartedAt: 0, guardCooldownUntil: 0, defenseRequiresRelease: false,
+});
+const groundState = {
+  status: "IN_BATTLE", phase: "IN_BATTLE", lastTick: groundNow - 50,
+  projectiles: [], log: [], roundStartedAt: groundNow - 1000, timeRemainingMs: 59000,
+  players: {
+    challenger: groundPlayer("challenger", 280, 1, 1),
+    opponent: groundPlayer("opponent", 680, -1, -1),
+  },
+};
+groundRoom._step(groundState, groundNow);
+assert.equal(groundState.players.challenger.y, 324, "down input cannot sink the challenger below the floor lane");
+assert.equal(groundState.players.opponent.y, 324, "up input cannot float the opponent off the floor lane");
