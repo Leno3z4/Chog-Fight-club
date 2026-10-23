@@ -1,0 +1,69 @@
+name: Mint and finalize test Pact on Monad mainnet
+
+on:
+  workflow_dispatch:
+    inputs:
+      mainnet_confirmation:
+        description: "Creates two permanent soulbound NFTs and spends real MON gas. Choose YES only if you accept that."
+        type: choice
+        required: true
+        default: "NO"
+        options:
+          - "NO"
+          - "YES_MINT_AND_FINALIZE_REAL_MAINNET_NFTS"
+      challenger_chog_id:
+        description: "Real Chog Genesis token ID owned by PRIVATE_KEY1 (verified on-chain before mint)."
+        type: string
+        required: true
+      opponent_chog_id:
+        description: "Different real Chog Genesis token ID owned by PRIVATE_KEY2 (verified on-chain before mint)."
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mainnet-test-pact-mint
+  cancel-in-progress: false
+
+jobs:
+  mint-and-finalize:
+    name: Mint and finalize a real Pact on Monad mainnet
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PRIVATE_KEY1: ${{ secrets.PRIVATE_KEY1 }}
+      PRIVATE_KEY2: ${{ secrets.PRIVATE_KEY2 }}
+      PACT_RESOLVER_PRIVATE_KEY: ${{ secrets.PACT_RESOLVER_PRIVATE_KEY }}
+      MONAD_RPC_URL: https://rpc.monad.xyz
+      PACT_FACTORY_ADDRESS: "0x3a5485d41cAcE651dBAba9f292C12b1Df425f950"
+      PACT_RESOLVER_ADDRESS: "0x77DF3ae15b994131797905e59675da3544C90DFF"
+      CHOG_COLLECTION_ADDRESS: "0xc96d31f8626c6d03fae5dcd3d61e3fb9f4a73763"
+      MAINNET_CONFIRMATION: ${{ inputs.mainnet_confirmation }}
+      CHALLENGER_CHOG_ID: ${{ inputs.challenger_chog_id }}
+      OPPONENT_CHOG_ID: ${{ inputs.opponent_chog_id }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Verify secrets without printing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$MAINNET_CONFIRMATION" = "YES_MINT_AND_FINALIZE_REAL_MAINNET_NFTS" || { echo "::error::Confirmation not provided; no transactions sent."; exit 1; }
+          test -n "$PRIVATE_KEY1" || { echo "::error::Missing PRIVATE_KEY1; no transactions sent."; exit 1; }
+          test -n "$PRIVATE_KEY2" || { echo "::error::Missing PRIVATE_KEY2; no transactions sent."; exit 1; }
+          test -n "$CHALLENGER_CHOG_ID" || { echo "::error::Missing challenger Chog token ID; no transactions sent."; exit 1; }
+          test -n "$OPPONENT_CHOG_ID" || { echo "::error::Missing opponent Chog token ID; no transactions sent."; exit 1; }
+
+      - name: Mint two Pact NFTs and finalize their on-chain metadata
+        run: node scripts/mint-test-pact-mainnet.mjs
