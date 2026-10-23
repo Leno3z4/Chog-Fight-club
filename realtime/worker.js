@@ -5,6 +5,8 @@ import {
   projectileOverlapsFighter,
   projectileIsDodgedByJump,
 } from "./combatRules.js";
+import { updateHeldDefense, getGuardBlockPercent } from "./defenseRules.js";
+import { LIVE_ARENA_GROUND_Y } from "./arenaGeometry.js";
 
 function base64UrlToBytes(value) {
   const normalized = String(value || "").replace(/-/g, "+").replace(/_/g, "/");
@@ -83,7 +85,7 @@ const JUMP_COOLDOWN_MS = 850;
 const ARENA_LEFT = 100;
 const ARENA_RIGHT = MAP_W - 100;
 const ARENA_TOP = 192;
-const ARENA_BOTTOM = 388;
+const ARENA_BOTTOM = LIVE_ARENA_GROUND_Y;
 
 function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
 function parseJSON(value, fallback) {
@@ -106,7 +108,7 @@ function fighterFromDna({ id, username, role, dna, hp, connected, x, y, tokenId 
     role,
     connected: Boolean(connected),
     x: x ?? (role === "challenger" ? 280 : 680),
-    y: y ?? 270,
+    y: LIVE_ARENA_GROUND_Y,
     vx: 0,
     vy: 0,
     hp: clamp(Number(hp ?? maxHp), 0, maxHp),
@@ -123,6 +125,11 @@ function fighterFromDna({ id, username, role, dna, hp, connected, x, y, tokenId 
     actionUntil: 0,
     pendingAttack: null,
     input: { x: 0, y: 0 },
+    guarding: false,
+    defendRequested: false,
+    guardStartedAt: 0,
+    guardCooldownUntil: 0,
+    defenseRequiresRelease: false,
     facing: role === "challenger" ? 1 : -1,
     nextAttackAt: 0,
     nextBaseAt: 0,
@@ -235,6 +242,7 @@ export class ArenaRoom {
         x: Number.isFinite(inputX) ? clamp(Math.sign(inputX), -1, 1) : 0,
         y: Number.isFinite(inputY) ? clamp(Math.sign(inputY), -1, 1) : 0,
       };
+      if (typeof message.defending === "boolean") player.defendRequested = message.defending;
       // Facing follows the rival's position in _step, not the movement key.
       // That lets opposite input act as a backstep instead of turning around.
       if (state.phase === "IN_BATTLE") {
@@ -269,6 +277,7 @@ export class ArenaRoom {
     state.players[attachment.role].connected = false;
     state.players[attachment.role].disconnectedAt = Date.now();
     state.players[attachment.role].input = { x: 0, y: 0 };
+    updateHeldDefense(state.players[attachment.role], false, Date.now());
     state.log.push({ text: state.status === "IN_BATTLE" ? `@${state.players[attachment.role].username} disconnected. They have 30 seconds to reconnect during the match.` : `@${state.players[attachment.role].username} disconnected.`, at: Date.now() });
     this._trimLog(state);
     await this._persist(state, true);
@@ -405,6 +414,14 @@ export class ArenaRoom {
       if (!Number.isFinite(player.actionUntil)) player.actionUntil = 0;
       if (!("pendingAttack" in player)) player.pendingAttack = null;
       if (!Number.isFinite(player.facing)) player.facing = role === "challenger" ? 1 : -1;
+      if (typeof player.guarding !== "boolean") player.guarding = false;
+      if (typeof player.defendRequested !== "boolean") player.defendRequested = false;
+      if (!Number.isFinite(player.guardStartedAt)) player.guardStartedAt = 0;
+      if (!Number.isFinite(player.guardCooldownUntil)) player.guardCooldownUntil = 0;
+      if (typeof player.defenseRequiresRelease !== "boolean") player.defenseRequiresRelease = false;
+      // Server and client share a fixed platform lane; jumping is rendered only
+      // as jumpHeight above this ground position.
+      player.y = LIVE_ARENA_GROUND_Y;
       if (!Number.isFinite(player.energy)) player.energy = 100;
       if (!Number.isFinite(player.maxEnergy)) player.maxEnergy = 100;
       if (!Number.isFinite(player.jumpHeight)) player.jumpHeight = 0;
@@ -524,6 +541,8 @@ export class ArenaRoom {
         energy: p.energy,
         maxEnergy: p.maxEnergy,
         jumpHeight: p.jumpHeight || 0,
+        guarding: Boolean(p.guarding),
+        guardCooldownRemainingMs: Math.max(0, Number(p.guardCooldownUntil || 0) - Date.now()),
         attack: p.attack,
         defense: p.defense,
         speed: p.speed,
@@ -549,6 +568,10 @@ export class ArenaRoom {
       const p = state.players[role];
       if (!p) continue;
 
+      // Defense is authoritative, held for at most 10 seconds, then locked
+      // until release; releasing early starts the same two-second cooldown.
+      updateHeldDefense(p, Boolean(p.defendRequested), now);
+
       // MP regenerates on the server and is replicated to both players.
       p.energy = clamp(Number(p.energy ?? 100) + dt, 0, Number(p.maxEnergy || 100));
 
@@ -562,11 +585,11 @@ export class ArenaRoom {
       }
 
       const ix = Number(p.input?.x || 0);
-      const iy = Number(p.input?.y || 0);
-      const length = Math.hypot(ix, iy) || 1;
       const speed = 160 + p.speed * 2.2;
-      p.x = clamp(p.x + (ix / length) * speed * dt, ARENA_LEFT, ARENA_RIGHT);
-      p.y = clamp(p.y + (iy / length) * speed * dt, ARENA_TOP, ARENA_BOTTOM);
+      p.x = clamp(p.x + Math.sign(ix) * speed * dt, ARENA_LEFT, ARENA_RIGHT);
+      // This is a side-view fighter. W/S and the up/down pad must not push
+      // the rig through the platform; jumps use the separate jumpHeight arc.
+      p.y = LIVE_ARENA_GROUND_Y;
     }
 
     const a = state.players.challenger;
@@ -698,7 +721,9 @@ export class ArenaRoom {
     const raw = slot === "special" ? attacker.attack * 1.05
       : slot === "base" ? attacker.attack * 0.86
         : attacker.attack * 0.62;
-    const damage = Math.max(4, Math.round(raw - target.defense * 0.16 + randomInt(-2, 3)));
+    const unblockedDamage = Math.max(4, Math.round(raw - target.defense * 0.16 + randomInt(-2, 3)));
+    const blockPercent = target.guarding ? getGuardBlockPercent(target.tier) : 0;
+    const damage = Math.max(0, Math.round(unblockedDamage * (1 - blockPercent / 100)));
     target.hp = Math.max(0, target.hp - damage);
     target.flashUntil = now + 230;
 
