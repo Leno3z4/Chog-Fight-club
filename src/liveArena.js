@@ -4,7 +4,7 @@ import { BootScene } from "./bootScene.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 import { punchPulse, punchWindowPulse } from "./game/punchEasing.js";
 import { getHudPortraitGeometry } from "./game/hudGeometry.js";
-const LIVE_ARENA_GROUND_Y = 324;
+const LIVE_ARENA_GROUND_Y = 344;
 import { stopBattleMusic, syncBattleMusic } from "./game/battleMusic.js";
 
 const WIDTH = 960;
