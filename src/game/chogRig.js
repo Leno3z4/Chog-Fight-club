@@ -126,9 +126,9 @@ const LEG_LAYER_ORDER = [
 const FACE_LAYER_ORDER = ["head", "eyes", "mouth"];
 
 /**
- * All arm pieces share the character canvas and its pivots. Both upper arms
- * begin behind the torso, the forearms remain visible over the chest, and the
- * gloves render last so neither fist is hidden by the head/face layers.
+ * Near/far depth order is intentional: the rear forearm disappears under the
+ * torso and the rear glove stays behind the face, while the near/lead glove
+ * renders in front so its punch is readable from the viewer's perspective.
  */
 export function getLayerOrder() {
   const armOrder = [
