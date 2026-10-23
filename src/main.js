@@ -58,7 +58,7 @@ function getPracticeMetadata() {
   };
 }
 
-const practiceTouchInput = { left: false, right: false, crouch: false };
+const practiceTouchInput = { left: false, right: false, crouch: false, defense: false };
 const practiceTouchActions = new Set();
 
 const OPPONENT_METADATA = {
@@ -168,6 +168,10 @@ class ArenaScene extends Phaser.Scene {
     this.roundIntermissionMs = 0;
     this.basicTapPendingAt = null;
     this.basicDoubleTapWindowMs = 260;
+    this.defenseActive = false;
+    this.defenseStartedAt = 0;
+    this.defenseCooldownUntil = 0;
+    this.defenseRequiresRelease = false;
     this.projectiles = [];
     this.playerHurtbox = null;
     this.opponentHurtbox = null;
@@ -277,6 +281,7 @@ class ArenaScene extends Phaser.Scene {
       totalRounds: this.match.totalRounds,
       gameOver: this.match.phase === MATCH_PHASES.MATCH_OVER,
     });
+    this.updateDefenseHold(time);
 
     if (this.match.phase === MATCH_PHASES.FIGHTING) {
       const previousPhase = this.match.phase;
@@ -308,6 +313,7 @@ class ArenaScene extends Phaser.Scene {
     const dt = delta / 1000;
     updateCombatant(this.playerCombatant, delta);
     updateCombatant(this.opponentCombatant, delta);
+    this.refreshHeldDefense(time);
     updateMovement(this.playerCombatant, dt);
     this.captureInput();
     this.applyMovement();
@@ -437,7 +443,6 @@ class ArenaScene extends Phaser.Scene {
     this.flushPendingBasicTap();
     if (Phaser.Input.Keyboard.JustDown(this.keys.base) || practiceTouchActions.delete("base")) this.inputBuffer.push("base");
     if (Phaser.Input.Keyboard.JustDown(this.keys.special) || practiceTouchActions.delete("special")) this.inputBuffer.push("special");
-    if (Phaser.Input.Keyboard.JustDown(this.keys.defense) || practiceTouchActions.delete("defense")) this.inputBuffer.push("defense");
     if (Phaser.Input.Keyboard.JustDown(this.cursors.up) || Phaser.Input.Keyboard.JustDown(this.keys.jump) || Phaser.Input.Keyboard.JustDown(this.keys.jumpW) || practiceTouchActions.delete("jump")) {
       this.inputBuffer.push("jump");
     }
@@ -486,12 +491,6 @@ class ArenaScene extends Phaser.Scene {
     if (bufferedAttack) {
       if (bufferedAttack.action === "doubleBasic") this.startAttack("basic", { combo: true });
       else this.startAttack(bufferedAttack.action);
-      return;
-    }
-
-    const defense = this.inputBuffer.consume("defense");
-    if (defense) {
-      this.useDefense();
       return;
     }
 
@@ -586,7 +585,8 @@ class ArenaScene extends Phaser.Scene {
   }
 
   useDefense() {
-    if (this.playerCharacter.stateMachine.currentName !== CHARACTER_STATES.IDLE && this.playerCharacter.stateMachine.currentName !== CHARACTER_STATES.WALK) return;
+    if (this.playerCharacter.stateMachine.currentName !== CHARACTER_STATES.IDLE
+      && this.playerCharacter.stateMachine.currentName !== CHARACTER_STATES.WALK) return false;
     try {
       const result = resolveDefenseAbility(this.playerCombatant);
       if (this.incomingAttack && this.incomingAttack.timeLeft <= combatData.timing.perfectDefenseWindowMs) {
@@ -594,9 +594,69 @@ class ArenaScene extends Phaser.Scene {
       }
       this.showStatus(`DEFENSE: ${result.blockPercent}% BLOCK`);
       this.flashDefense(this.playerVisual);
+      return true;
     } catch (error) {
       this.showStatus(error.message);
+      return false;
     }
+  }
+
+  updateDefenseHold(now) {
+    const held = Boolean(this.keys?.defense?.isDown || practiceTouchInput.defense);
+    const canDefend = this.match?.phase === MATCH_PHASES.FIGHTING;
+    if (!canDefend) {
+      if (this.defenseActive) {
+        this.playerCombatant.guarding = false;
+        this.playerCombatant.guardTimeRemaining = 0;
+        this.defenseActive = false;
+        this.defenseStartedAt = 0;
+        this.defenseCooldownUntil = now + 2_000;
+      }
+      if (!held) this.defenseRequiresRelease = false;
+      else this.defenseRequiresRelease = true;
+      return;
+    }
+
+    if (this.defenseActive) {
+      const elapsed = now - this.defenseStartedAt;
+      if (!held || elapsed >= 10_000) {
+        this.playerCombatant.guarding = false;
+        this.playerCombatant.guardTimeRemaining = 0;
+        this.defenseActive = false;
+        this.defenseStartedAt = 0;
+        this.defenseCooldownUntil = now + 2_000;
+        this.defenseRequiresRelease = held; // Auto-stop requires release before another hold.
+        this.showStatus(elapsed >= 10_000 ? "DEFENSE ENDED · 2s COOLDOWN" : "DEFENSE RELEASED · 2s COOLDOWN", 950, 250);
+        return;
+      }
+      this.playerCombatant.guarding = true;
+      this.playerCombatant.guardTimeRemaining = Math.max(1, 10_000 - elapsed);
+      return;
+    }
+
+    if (!held) {
+      this.defenseRequiresRelease = false;
+      return;
+    }
+    if (this.defenseRequiresRelease) return;
+    if (now < this.defenseCooldownUntil) {
+      this.defenseRequiresRelease = true;
+      this.showStatus(`DEFENSE COOLDOWN: ${((this.defenseCooldownUntil - now) / 1000).toFixed(1)}s`, 500, 200);
+      return;
+    }
+    if (this.useDefense()) {
+      this.defenseActive = true;
+      this.defenseStartedAt = now;
+      this.playerCombatant.guarding = true;
+      this.playerCombatant.guardTimeRemaining = 10_000;
+    }
+  }
+
+  refreshHeldDefense(now) {
+    if (!this.defenseActive || !this.playerCombatant) return;
+    const remaining = Math.max(1, 10_000 - (now - this.defenseStartedAt));
+    this.playerCombatant.guarding = true;
+    this.playerCombatant.guardTimeRemaining = remaining;
   }
 
   markPerfectJump() {
@@ -1856,6 +1916,7 @@ document.querySelectorAll("[data-practice-action]").forEach((button) => {
 window.addEventListener("blur", () => {
   practiceTouchInput.left = false;
   practiceTouchInput.right = false;
+  practiceTouchInput.defense = false;
   practiceTouchActions.clear();
 });
 
