@@ -32,7 +32,10 @@ export function clampLiveRootY(rootY, jumpHeight = 0, height = 540) {
 // grounded. The rig's feet extend about 165px below the visual root; leave a
 // small safety margin so no pose clips through the arena's visible floor.
 export function getSoloFloorLineY(gameHeight = 720) {
-  return Math.round(gameHeight * 0.82);
+  // The bright platform top in the arena background sits at ~76% of canvas height.
+  // Align the invisible physics floor to that line instead of letting characters
+  // stand 60+ pixels down inside the foreground stone blocks.
+  return Math.round(gameHeight * 0.76);
 }
 
 export function getSoloVisualRootY(playerBodyY, floorY) {
