@@ -19,8 +19,8 @@ jobs:
       PRIVATE_KEY1: ${{ secrets.PRIVATE_KEY1 }}
       PRIVATE_KEY2: ${{ secrets.PRIVATE_KEY2 }}
       MONAD_RPC_URL: https://rpc.monad.xyz
-      PACT_FACTORY_ADDRESS: 0x3a5485d41cAcE651dBAba9f292C12b1Df425f950
-      PACT_RESOLVER_ADDRESS: 0x77DF3ae15b994131797905e59675da3544C90DFF
+      PACT_FACTORY_ADDRESS: "0x3a5485d41cAcE651dBAba9f292C12b1Df425f950"
+      PACT_RESOLVER_ADDRESS: "0x77DF3ae15b994131797905e59675da3544C90DFF"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
