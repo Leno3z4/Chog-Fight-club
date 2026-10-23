@@ -1332,8 +1332,10 @@ class ArenaScene extends Phaser.Scene {
     }
     if (state === CHARACTER_STATES.ATTACK_ACTIVE) {
       if (attack.slot === "basic") {
-        const strikeProgress = clamp01(attack.elapsed / Math.max(1, Math.min(timings.active ?? 100, 70)));
-        const strikeBlend = 1 - ((1 - strikeProgress) ** 3);
+        // Ease the foreground glove outward over the active window and hold it
+        // through contact; a one-frame snap made the jab look stiff.
+        const strikeProgress = clamp01(attack.elapsed / Math.max(1, timings.active ?? 100));
+        const strikeBlend = easeInOutCubic(clamp01(strikeProgress / 0.42));
         return blendRigPose(windUp, action, strikeBlend);
       }
       const activeWindow = Math.min(timings.active ?? 100, 95);
