@@ -224,9 +224,13 @@ class ArenaScene extends Phaser.Scene {
     this.playerVisual = this.createChogVisual(this.player.x, this.floorY - 120 + CHOG_VISUAL_GROUND_OFFSET, false);
     this.opponentVisual = this.createChogVisual(this.opponent.x, this.floorY - 120 + CHOG_VISUAL_GROUND_OFFSET, true);
     const koArtworkSize = Math.min(380, this.arenaWidth * 0.30);
-    this.playerDeadVisual = this.add.image(this.player.x, this.floorY - koArtworkSize * 0.5, "dead-chog")
+    // The live Chog artwork is lowered by CHOG_VISUAL_GROUND_OFFSET. Keep the
+    // replacement KO PNG's bottom edge on that same feet line instead of the
+    // old physics floor coordinate, which leaves the dead art visibly floating.
+    const koFeetY = this.floorY + CHOG_VISUAL_GROUND_OFFSET;
+    this.playerDeadVisual = this.add.image(this.player.x, koFeetY - koArtworkSize * 0.5, "dead-chog")
       .setDisplaySize(koArtworkSize, koArtworkSize).setDepth(700).setVisible(false);
-    this.opponentDeadVisual = this.add.image(this.opponent.x, this.floorY - koArtworkSize * 0.5, "dead-chog")
+    this.opponentDeadVisual = this.add.image(this.opponent.x, koFeetY - koArtworkSize * 0.5, "dead-chog")
       .setDisplaySize(koArtworkSize, koArtworkSize).setDepth(700).setVisible(false);
     this.playerHurtbox = this.createHurtbox(this.player);
     this.opponentHurtbox = this.createHurtbox(this.opponent);
@@ -1134,10 +1138,11 @@ class ArenaScene extends Phaser.Scene {
     const opponentKO = this.opponentCombatant.hp <= 0;
     this.playerVisual.setVisible(!playerKO);
     this.opponentVisual.setVisible(!opponentKO);
+    const koFeetY = this.floorY + CHOG_VISUAL_GROUND_OFFSET;
     this.playerDeadVisual.setVisible(playerKO).setDisplaySize(deadSize, deadSize)
-      .setPosition(this.player.x - deadSize * 0.08, this.floorY - deadSize * 0.5).setDepth(700);
+      .setPosition(this.player.x - deadSize * 0.08, koFeetY - deadSize * 0.5).setDepth(700);
     this.opponentDeadVisual.setVisible(opponentKO).setDisplaySize(deadSize, deadSize)
-      .setPosition(this.opponent.x - deadSize * 0.08, this.floorY - deadSize * 0.5).setDepth(700);
+      .setPosition(this.opponent.x - deadSize * 0.08, koFeetY - deadSize * 0.5).setDepth(700);
   }
 
   getReadyPose(time, phase, moving = false, walkDir = 1) {

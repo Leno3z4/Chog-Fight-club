@@ -652,7 +652,9 @@ class LiveArenaScene extends Phaser.Scene {
             .setDisplaySize(deadSize, deadSize).setVisible(false);
         }
         fighter.deadVisual.setVisible(true).setDisplaySize(deadSize, deadSize)
-          .setPosition(root.x - deadSize * 0.08, LIVE_ARENA_GROUND_Y + SCALE * 127 - deadSize * 0.5)
+          // The living rig's world Y includes the visual ground offset; add it
+          // here too so the KO PNG rests at the exact same feet baseline.
+          .setPosition(root.x - deadSize * 0.08, LIVE_ARENA_GROUND_Y + CHOG_VISUAL_GROUND_OFFSET + SCALE * 127 - deadSize * 0.5)
           .setDepth(100 + root.y + 1);
       } else if (fighter.deadVisual) {
         fighter.deadVisual.setVisible(false);
