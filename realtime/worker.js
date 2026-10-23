@@ -860,6 +860,7 @@ export class ArenaRoom {
         state.winnerDiscordId = winningRole ? state.players[winningRole].discordId : null;
         state.phase = "FINISHED";
         state.status = "FINISHED";
+        for (const p of Object.values(state.players)) updateHeldDefense(p, false, now);
         state.log.push({
           text: state.matchDraw
             ? "The three-round match ended in a draw."
@@ -889,9 +890,11 @@ export class ArenaRoom {
         p.hp = p.maxHp;
         p.energy = p.maxEnergy;
         p.x = role === "challenger" ? 280 : 680;
-        p.y = 270;
+        p.y = LIVE_ARENA_GROUND_Y;
         p.vx = 0;
         p.vy = 0;
+        updateHeldDefense(p, false, now);
+        p.defendRequested = false;
         p.input = { x: 0, y: 0 };
         p.facing = role === "challenger" ? 1 : -1;
         p.nextAttackAt = 0;
