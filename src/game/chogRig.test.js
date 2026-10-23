@@ -319,14 +319,15 @@ assert.ok(
   segmentRig.parts["left-hand"].image.y <= segmentRig.parts["right-hand"].image.y - 7,
   "the rear glove should sit slightly higher than the lead glove, not ride beside the eyes",
 );
-const guardedLeadWrist = { ...segmentRig.poseJoints.right.wrist };
-const guardedLeadY = segmentRig.parts["right-hand"].image.y;
-applyChogPose(segmentRig, chogArmTargetPose("jab"));
-assert.ok(segmentRig.poseJoints.right.wrist.x > guardedLeadWrist.x + 18,
+const jabExtensionRig = createChogVisual(scene, 0, 0, false).rig;
+applyChogPose(jabExtensionRig, guardPose);
+const guardedLeadWrist = { ...jabExtensionRig.poseJoints.right.wrist };
+const guardedLeadY = jabExtensionRig.parts["right-hand"].image.y;
+applyChogPose(jabExtensionRig, chogArmTargetPose("jab"));
+assert.ok(jabExtensionRig.poseJoints.right.wrist.x > guardedLeadWrist.x + 18,
   "the foreground/lead glove must extend clearly beyond guard position in a jab");
-assert.ok(segmentRig.parts["right-hand"].image.y > guardedLeadY,
+assert.ok(jabExtensionRig.parts["right-hand"].image.y > guardedLeadY,
   "the jab should extend forward around jaw height, not lift the glove toward the temple");
-applyChogPose(segmentRig, chogArmTargetPose("guard"));
 assert.ok(
   segmentRig.parts["left-hand"].image.x < segmentRig.parts["right-hand"].image.x - 20,
   "the rear glove should be tucked behind the lead glove",
