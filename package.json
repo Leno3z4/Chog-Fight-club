@@ -17,7 +17,7 @@
     "test:mechanics": "node --test src/game/mechanics.test.js",
     "test:matchFlow": "node --test src/game/matchFlow.test.js",
     "test:realtime-ticket": "node --test server/realtimeTicket.test.js",
-    "test:realtime-rules": "node --test realtime/combatRules.test.js",
+    "test:realtime-rules": "node --test realtime/combatRules.test.js realtime/defenseRules.test.js realtime/arenaGeometry.test.js",
     "test": "npm run test:opensea && npm run test:discord && npm run test:invites && npm run test:launch-policy && npm run test:players && npm run test:battle && npm run test:realtime-ticket && npm run test:realtime-rules && npm run test:rig && npm run test:spacing && npm run test:combat && npm run test:mechanics && npm run test:matchFlow && npm run test:hud-geometry && npm run test:music",
     "test:players": "node --test server/players.test.js",
     "test:battle": "node --test server/battle.test.js",
