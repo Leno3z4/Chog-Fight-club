@@ -3,7 +3,7 @@ import "./game/fonts.css";
 import { BootScene } from "./bootScene.js";
 import { applyChogPose, chogArmTargetPose, createChogKnockoutPose, createChogVisual, flashChog } from "./game/chogRig.js";
 import { punchPulse, punchWindowPulse } from "./game/punchEasing.js";
-import { clampLiveRootY, getHudPortraitGeometry, getLiveGroundLineY, getLiveMaximumRootY } from "./game/hudGeometry.js";
+import { getHudPortraitGeometry } from "./game/hudGeometry.js";
 import { stopBattleMusic, syncBattleMusic } from "./game/battleMusic.js";
 
 const WIDTH = 960;
@@ -366,7 +366,7 @@ class LiveArenaScene extends Phaser.Scene {
       const fighter = this.fighters[role];
       if (!source || !fighter) continue;
       fighter.targetX = clamp(Number(source.x ?? fighter.targetX), 50, WIDTH - 50);
-      fighter.targetY = clamp(Number(source.y ?? fighter.targetY), 150, getLiveMaximumRootY(HEIGHT));
+      fighter.targetY = clamp(Number(source.y ?? fighter.targetY), 150, HEIGHT - 92);
       fighter.facing = Number(source.facing) < 0 ? -1 : 1;
       fighter.action = source.action || "idle";
       fighter.actionStartedAt = Number(source.actionStartedAt || 0);
@@ -450,11 +450,7 @@ class LiveArenaScene extends Phaser.Scene {
       const fromX = root.x;
       const fromY = root.y;
       root.x = Phaser.Math.Linear(root.x, fighter.targetX, blend);
-      root.y = clampLiveRootY(
-        Phaser.Math.Linear(root.y, fighter.targetY - fighter.jumpHeight, blend),
-        fighter.jumpHeight,
-        HEIGHT,
-      );
+      root.y = Phaser.Math.Linear(root.y, fighter.targetY - fighter.jumpHeight, blend);
       root.setScale((fighter.facing < 0 ? -1 : 1) * SCALE, SCALE);
       root.setDepth(100 + root.y);
       const horizontalDelta = root.x - fromX;
@@ -635,7 +631,7 @@ class LiveArenaScene extends Phaser.Scene {
             .setDisplaySize(deadSize, deadSize).setVisible(false);
         }
         fighter.deadVisual.setVisible(true).setDisplaySize(deadSize, deadSize)
-          .setPosition(root.x - deadSize * 0.08, getLiveGroundLineY(HEIGHT) - deadSize * 0.5)
+          .setPosition(root.x - deadSize * 0.08, HEIGHT * 0.76 - deadSize * 0.36)
           .setDepth(100 + root.y + 1);
       } else if (fighter.deadVisual) {
         fighter.deadVisual.setVisible(false);
