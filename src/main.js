@@ -1404,6 +1404,9 @@ class ArenaScene extends Phaser.Scene {
       const age = duration - this.playerCharacter.hitstunRemaining;
       return this.getHitPose(time, rig.phase, impactEnvelope(age, duration), readyPose);
     }
+    if (this.defenseActive && grounded && state !== CHARACTER_STATES.JUMP) {
+      return { ...locomotionPose, ...chogArmTargetPose("block") };
+    }
     if (grounded && state !== CHARACTER_STATES.JUMP && this.playerCharacter.input.crouch) {
       return this.getCrouchPose(time, rig.phase, readyPose);
     }
