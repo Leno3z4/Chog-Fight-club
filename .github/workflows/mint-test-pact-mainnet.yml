@@ -12,13 +12,13 @@ on:
           - "NO"
           - "YES_MINT_AND_FINALIZE_REAL_MAINNET_NFTS"
       challenger_chog_id:
-        description: "Real Chog Genesis token ID owned by PRIVATE_KEY1 (verified on-chain before mint)."
+        description: "Real Chog Genesis token ID owned by PRIVATE_KEY1. Leave blank only if OPENSEA_API_KEY is configured for auto-discovery."
         type: string
-        required: true
+        required: false
       opponent_chog_id:
-        description: "Different real Chog Genesis token ID owned by PRIVATE_KEY2 (verified on-chain before mint)."
+        description: "Different real Chog Genesis token ID owned by PRIVATE_KEY2. Leave blank only if OPENSEA_API_KEY is configured for auto-discovery."
         type: string
-        required: true
+        required: false
 
 permissions:
   contents: read
@@ -36,6 +36,7 @@ jobs:
       PRIVATE_KEY1: ${{ secrets.PRIVATE_KEY1 }}
       PRIVATE_KEY2: ${{ secrets.PRIVATE_KEY2 }}
       PACT_RESOLVER_PRIVATE_KEY: ${{ secrets.PACT_RESOLVER_PRIVATE_KEY }}
+      OPENSEA_API_KEY: ${{ secrets.OPENSEA_API_KEY }}
       MONAD_RPC_URL: https://rpc.monad.xyz
       PACT_FACTORY_ADDRESS: "0x3a5485d41cAcE651dBAba9f292C12b1Df425f950"
       PACT_RESOLVER_ADDRESS: "0x77DF3ae15b994131797905e59675da3544C90DFF"
@@ -62,8 +63,13 @@ jobs:
           test "$MAINNET_CONFIRMATION" = "YES_MINT_AND_FINALIZE_REAL_MAINNET_NFTS" || { echo "::error::Confirmation not provided; no transactions sent."; exit 1; }
           test -n "$PRIVATE_KEY1" || { echo "::error::Missing PRIVATE_KEY1; no transactions sent."; exit 1; }
           test -n "$PRIVATE_KEY2" || { echo "::error::Missing PRIVATE_KEY2; no transactions sent."; exit 1; }
-          test -n "$CHALLENGER_CHOG_ID" || { echo "::error::Missing challenger Chog token ID; no transactions sent."; exit 1; }
-          test -n "$OPPONENT_CHOG_ID" || { echo "::error::Missing opponent Chog token ID; no transactions sent."; exit 1; }
+          if [[ -n "$CHALLENGER_CHOG_ID" && -z "$OPPONENT_CHOG_ID" ]] || [[ -z "$CHALLENGER_CHOG_ID" && -n "$OPPONENT_CHOG_ID" ]]; then
+            echo "::error::Enter both Chog IDs or leave both blank for OpenSea discovery; no transactions sent."
+            exit 1
+          fi
+
+      - name: Check JavaScript syntax before any transaction
+        run: node --check scripts/mint-test-pact-mainnet.mjs
 
       - name: Mint two Pact NFTs and finalize their on-chain metadata
         run: node scripts/mint-test-pact-mainnet.mjs
